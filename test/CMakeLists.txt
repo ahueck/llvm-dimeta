@@ -33,6 +33,7 @@ add_lit_testsuite(lit-dimeta-test
   ${CMAKE_CURRENT_SOURCE_DIR}
   ARGS -v -j 1
   PARAMS dimeta_site_config=${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg
+  DEPENDS dimeta::AnalysisPass
 )
 
 dimeta_target_format(

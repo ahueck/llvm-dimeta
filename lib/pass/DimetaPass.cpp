@@ -6,8 +6,17 @@
 //
 #include "DimetaPass.h"
 
+#include "Dimeta.h"
+
 #include "llvm-c/Types.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/IR/DataLayout.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/LegacyPassManager.h"
+#include "llvm/IR/Module.h"
+#include "llvm/Pass.h"
 
 using namespace llvm;
 
@@ -20,7 +29,26 @@ class DimetaPass : public ModulePass {
   }
 
   bool runOnModule(Module& module) override {
-    return true;
+    llvm::for_each(module.functions(), [&](auto& func) { return runOnFunc(func); });
+    return false;
+  }
+
+  static void runOnFunc(Function& func) {
+    if (func.isDeclaration()) {
+      return;
+    }
+    for (auto& bblock : func) {
+      for (auto& inst : bblock) {
+        if (auto* ai = dyn_cast<AllocaInst>(&inst)) {
+          dimeta::type_for(ai);
+        }
+        if (auto* call = dyn_cast<CallInst>(&inst)) {
+          if (call->getIntrinsicID() == llvm::Intrinsic::not_intrinsic) {
+            dimeta::type_for(call);
+          }
+        }
+      }
+    }
   }
 
   ~DimetaPass() override = default;
