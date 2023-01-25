@@ -10,7 +10,7 @@ function(dimeta_target_define_file_basename targetname)
     get_filename_component(basename "${sourcefile}" NAME)
 
     list(APPEND compile_defs
-      "LOG_BASENAME_FILE=\"${basename}\""
+      "DIMETA_LOG_BASENAME=\"${basename}\""
     )
 
     set_source_files_properties("${sourcefile}"

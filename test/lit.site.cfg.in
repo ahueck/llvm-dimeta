@@ -10,8 +10,10 @@ config.opt_args = "@DIMETA_OPT_ARGS@"
 config.llc = "@DIMETA_LLC_EXEC@"
 config.filecheck = "@DIMETA_FILECHECK_EXEC@"
 
+# Project related:
 config.dimeta_lib_dir = "@DIMETA_LIBRARY_DIR@"
 config.dimeta_pass_dir = "@DIMETA_PASS_DIR@"
+
 config.dimeta_script_dir = "@DIMETA_SCRIPT_DIR@"
 config.dimeta_pass = "$<TARGET_FILE_NAME:dimeta::AnalysisPass>"
 

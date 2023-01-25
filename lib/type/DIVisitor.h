@@ -30,7 +30,7 @@ class ScopeExit {
   explicit ScopeExit(Fn&& exit_fn) : exit_fn_(std::forward<Fn>(exit_fn)) {
   }
 
-  ScopeExit(const ScopeExit&) = delete;
+  ScopeExit(const ScopeExit&)            = delete;
   ScopeExit& operator=(const ScopeExit&) = delete;
 
   ~ScopeExit() {
@@ -188,7 +188,7 @@ inline std::string tag2string(unsigned tag) {
     case DW_TAG_array_type:
       return "array";
     default:
-      return TagString(tag);
+      return std::string{TagString(tag)};
   }
 }
 
@@ -217,7 +217,7 @@ class DIPrinter : public visitor::DINodeVisitor<DIPrinter> {
       return ref.str();
     }
 
-    return ref.substr(a_pos + 2);
+    return std::string{ref.substr(a_pos + 2)};
   }
 
   [[nodiscard]] unsigned width() const {

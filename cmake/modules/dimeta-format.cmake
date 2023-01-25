@@ -21,7 +21,7 @@ function(dimeta_target_format target comment)
   endforeach()
 
   find_program(FORMAT_COMMAND
-               NAMES clang-format clang-format-13 clang-format-12 clang-format-11 clang-format-10)
+               NAMES clang-format-${LLVM_VERSION_MAJOR} clang-format)
   if(FORMAT_COMMAND)
     add_custom_target(${target}
       COMMAND ${FORMAT_COMMAND} -i -style=file ${ARG_OTHER} ${ARG_UNPARSED_ARGUMENTS}
