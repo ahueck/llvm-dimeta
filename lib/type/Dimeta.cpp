@@ -19,6 +19,17 @@
 
 namespace dimeta {
 
+namespace compat {
+template <typename DbgVar>
+llvm::Value* get_alloca_for(const DbgVar* dbg_var) {
+#if LLVM_VERSION_MAJOR < 14
+  return dbg_var->getVariableLocation();
+#else
+  return dbg_var->getVariableLocationOp(0);
+#endif
+}
+}  // namespace compat
+
 void type_for_inst(llvm::Instruction* inst) {
   using namespace llvm;
 
@@ -41,14 +52,14 @@ void type_for_inst(llvm::Instruction* inst) {
     for (auto& bb : func) {
       for (auto& inst : bb) {
         if (auto* dbg = dyn_cast<DbgValueInst>(&inst)) {
-          if (dbg->getVariableLocation() == ai) {
+          if (compat::get_alloca_for(dbg) == ai) {
             di_finder.processInstruction(*ai->getModule(), inst);
             return dbg->getVariable();
           }
         }
 
         if (DbgVariableIntrinsic* dbg = dyn_cast<DbgVariableIntrinsic>(&inst)) {
-          if (dbg->getVariableLocation() == ai) {
+          if (compat::get_alloca_for(dbg) == ai) {
             di_finder.processInstruction(*ai->getModule(), inst);
             return dbg->getVariable();
           }
@@ -97,7 +108,7 @@ void type_for(llvm::AllocaInst* ai) {
     for (auto& bb : func) {
       for (auto& inst : bb) {
         if (DbgVariableIntrinsic* dbg = dyn_cast<DbgVariableIntrinsic>(&inst)) {
-          if (dbg->getVariableLocation() == ai) {
+          if (compat::get_alloca_for(dbg) == ai) {
             di_finder.processInstruction(*ai->getModule(), inst);
             return dbg->getVariable();
           }
