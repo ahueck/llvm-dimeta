@@ -125,8 +125,8 @@ void type_for(llvm::AllocaInst* ai) {
 
   auto di_var = find_di_var(ai);
   if (di_var) {
-    printer.visit(di_var.getValue()->getType());
-    printer2.visit(di_var.getValue()->getType());
+    printer.visit(di_var.getValue());
+    printer2.visit(di_var.getValue());
   }
 
   //  auto& O = llvm::errs();

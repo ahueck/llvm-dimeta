@@ -66,15 +66,17 @@ class DINodeVisitor {
     using namespace llvm;
     return invoke_if<DIBasicType>(&DINodeVisitor::visitBasicType, std::forward<T>(type)) ||
            invoke_if<DIDerivedType>(&DINodeVisitor::visitDerivedType, std::forward<T>(type)) ||
-           invoke_if<DICompositeType>(&DINodeVisitor::visitCompositeType, std::forward<T>(type));
+           invoke_if<DICompositeType>(&DINodeVisitor::visitCompositeType, std::forward<T>(type)) ||
+           invoke_if<DILocalVariable>(&DINodeVisitor::visitLocalVariable, std::forward<T>(type));
   }
 
  protected:
   unsigned depth_composite_{0};
   unsigned depth_derived_{0};
+  unsigned depth_var_{0};
 
   [[nodiscard]] inline unsigned depth() const {
-    return depth_composite_ + depth_derived_;
+    return depth_composite_ + depth_derived_ + depth_var_;
   }
 
  public:
@@ -86,6 +88,18 @@ class DINodeVisitor {
     return static_cast<const SubClass&>(*this);
   }
 
+  bool visit(const llvm::DIVariable* var) {
+    if (!var) {
+      return true;
+    }
+
+    if (!get().visitVariable(var)) {
+      return false;
+    }
+
+    return invoke_if_any(var);
+  }
+
   bool visit(const llvm::DIType* type) {
     if (!type) {
       return true;  // FIXME special case, to be observed
@@ -95,6 +109,29 @@ class DINodeVisitor {
       return false;
     }
     return invoke_if_any(type);
+  }
+
+  bool visitVariable(const llvm::DIVariable*) {
+    return true;
+  }
+
+  bool visitLocalVariable(const llvm::DIVariable* var) {
+    ++depth_var_;
+    const auto exit = detail::create_scope_exit([&]() {
+      get().leaveLocalVariable();
+      assert(depth_var_ > 0);
+      --depth_var_;
+    });
+    get().enterLocalVariable();
+
+    const bool ret = get().visitLocalVariable(var);
+    if (!ret) {
+      return false;
+    }
+
+    const auto* type = var->getType();
+    const auto ret_v = visit(type);
+    return ret_v;
   }
 
   bool visitType(const llvm::DIType*) {
@@ -152,6 +189,10 @@ class DINodeVisitor {
     return true;
   }
 
+  void enterLocalVariable() {
+  }
+  void leaveLocalVariable() {
+  }
   void enterBasicType() {
   }
   void leaveBasicType() {
@@ -206,7 +247,7 @@ class DIPrinter : public visitor::DINodeVisitor<DIPrinter> {
  private:
   llvm::raw_ostream& outp_;
 
-  static std::string no_pointer_str(const llvm::DIType& type) {
+  static std::string no_pointer_str(const llvm::Metadata& type) {
     std::string view;
     llvm::raw_string_ostream rso(view);
     type.print(rso);
@@ -226,6 +267,11 @@ class DIPrinter : public visitor::DINodeVisitor<DIPrinter> {
 
  public:
   DIPrinter(llvm::raw_ostream& outp) : outp_(outp) {
+  }
+
+  bool visitLocalVariable(llvm::DIVariable const* var) {
+    outp_ << llvm::left_justify("", width()) << no_pointer_str(*var) << "\n";
+    return true;
   }
 
   void visitBasicType(const llvm::DIBasicType* basic_type) {
@@ -271,6 +317,11 @@ class DISemPrinter : public visitor::DINodeVisitor<DISemPrinter> {
 
  public:
   DISemPrinter(llvm::raw_ostream& outp) : outp_(outp) {
+  }
+
+  bool visitLocalVariable(llvm::DIVariable const* var) {
+    outp_ << llvm::left_justify("", width()) << var->getName() << " = ";
+    return true;
   }
 
   void visitBasicType(const llvm::DIBasicType* basic_type) {
@@ -331,14 +382,13 @@ class DISemPrinter : public visitor::DINodeVisitor<DISemPrinter> {
     if (tag == DW_TAG_array_type) {
       meta_.array_size_bits = composite_type->getSizeInBits();
     } else {
-      std::string type = tag2string(tag);
+      const std::string type = tag2string(tag);
 
       if (meta_.is_const && meta_.const_obj) {
         outp_ << "const ";
       }
 
-      outp_ << llvm::left_justify("", (depth_derived_ > 1 ? 0 : (meta_.is_member ? 0 : width()))) << type << " "
-            << composite_type->getName();
+      outp_ << type << " " << composite_type->getName();
 
       for (const auto& tag : meta_.tag_collector) {
         outp_ << tag2string(tag);

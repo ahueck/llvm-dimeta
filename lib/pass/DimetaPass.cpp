@@ -37,6 +37,10 @@ class DimetaPass : public ModulePass {
     if (func.isDeclaration()) {
       return;
     }
+    
+    llvm::outs() << "Function: " << func.getName() << ":\n";
+    llvm::outs() << "-------------------------------------\n";
+
     for (auto& bblock : func) {
       for (auto& inst : bblock) {
         if (auto* ai = dyn_cast<AllocaInst>(&inst)) {
@@ -49,6 +53,7 @@ class DimetaPass : public ModulePass {
         }
       }
     }
+    llvm::outs() << "-------------------------------------\n";
   }
 
   ~DimetaPass() override = default;
