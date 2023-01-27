@@ -17,12 +17,17 @@
 #include "llvm/IR/Metadata.h"
 #include "llvm/Support/raw_ostream.h"
 
+#if LLVM_VERSION_MAJOR == 10
+// For FindDbgAddrUses:
+#include "llvm/Transforms/Utils/Local.h"
+#endif
+
 namespace dimeta {
 
 namespace compat {
 template <typename DbgVar>
 llvm::Value* get_alloca_for(const DbgVar* dbg_var) {
-#if LLVM_VERSION_MAJOR < 14
+#if LLVM_VERSION_MAJOR < 13
   return dbg_var->getVariableLocation();
 #else
   return dbg_var->getVariableLocationOp(0);
@@ -69,12 +74,18 @@ void type_for_inst(llvm::Instruction* inst) {
     return llvm::None;
   };
 
+  auto di_var = find_di_var(inst);
   p("\nValue", inst);
   p("Value Type", inst->getType());
   llvm::errs() << "Has meta: " << inst->hasMetadata() << "\n";
   // ai->getDebugLoc().dump();
+  llvm::errs() << "DI type count: " << di_finder.type_count() << "\n";
 
-  auto di_var = find_di_var(inst);
+  //  DenseMap<Value*, AllocaInst*> AllocaForValue;
+  //  auto alloca_f = findAllocaForValue(inst, AllocaForValue);
+  //  if (alloca_f) {
+  //    llvm::errs() << *alloca_f << "\n";
+  //  }
   if (di_var) {
     printer.visit(di_var.getValue()->getType());
     printer2.visit(di_var.getValue()->getType());
@@ -124,6 +135,16 @@ void type_for(llvm::AllocaInst* ai) {
   // ai->getDebugLoc().dump();
 
   auto di_var = find_di_var(ai);
+  llvm::errs() << "DI type count: " << di_finder.type_count() << "\n";
+  for (auto* types : di_finder.types()) {
+    llvm::errs() << *types << "\n";
+  }
+
+  auto dbg_addrs = FindDbgAddrUses(ai);
+  for (auto* dbg_ad : dbg_addrs) {
+    llvm::errs() << *dbg_ad << "\n";
+  }
+
   if (di_var) {
     printer.visit(di_var.getValue());
     printer2.visit(di_var.getValue());
