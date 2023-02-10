@@ -14,9 +14,10 @@ struct X {
   struct P struct_X;
 };
 
-void foo(int n) {
+unsigned* foo(int n) {
   // CHECK: unsigned int
-  unsigned* p = malloc(sizeof(unsigned) * n);
+  unsigned* p = (unsigned*)malloc(sizeof(unsigned) * n);
   struct P struct_P;
   struct X s[10];
+  return p;
 }

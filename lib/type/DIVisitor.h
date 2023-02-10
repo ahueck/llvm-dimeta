@@ -1,5 +1,5 @@
 //  Dimeta library
-//  Copyright (c) 2022-2022 Alexander Hück
+//  Copyright (c) 2022-2023 Alexander Hück
 //  Distributed under the BSD 3-Clause license.
 //  (See accompanying file LICENSE)
 //  SPDX-License-Identifier: BSD-3-Clause
@@ -64,10 +64,10 @@ class DINodeVisitor {
   template <typename T>
   bool invoke_if_any(T&& type) {
     using namespace llvm;
-    return invoke_if<DIBasicType>(&DINodeVisitor::visitBasicType, std::forward<T>(type)) ||
-           invoke_if<DIDerivedType>(&DINodeVisitor::visitDerivedType, std::forward<T>(type)) ||
-           invoke_if<DICompositeType>(&DINodeVisitor::visitCompositeType, std::forward<T>(type)) ||
-           invoke_if<DILocalVariable>(&DINodeVisitor::visitLocalVariable, std::forward<T>(type));
+    return invoke_if<DIBasicType>(&DINodeVisitor::traverseBasicType, std::forward<T>(type)) ||
+           invoke_if<DIDerivedType>(&DINodeVisitor::traverseDerivedType, std::forward<T>(type)) ||
+           invoke_if<DICompositeType>(&DINodeVisitor::traverseCompositeType, std::forward<T>(type)) ||
+           invoke_if<DILocalVariable>(&DINodeVisitor::traverseLocalVariable, std::forward<T>(type));
   }
 
  protected:
@@ -88,19 +88,30 @@ class DINodeVisitor {
     return static_cast<const SubClass&>(*this);
   }
 
-  bool visit(const llvm::DIVariable* var) {
-    if (!var) {
-      return true;
-    }
+  bool traverseLocalVariable(const llvm::DIVariable* var) {
+    ++depth_var_;
+    const auto exit = detail::create_scope_exit([&]() {
+      get().leaveLocalVariable(var);
+      assert(depth_var_ > 0);
+      --depth_var_;
+    });
+    get().enterLocalVariable(var);
 
-    if (!get().visitVariable(var)) {
+    const bool ret = get().visitLocalVariable(var);
+    if (!ret) {
       return false;
     }
-
-    return invoke_if_any(var);
+    
+    const auto* type = var->getType();
+    const auto ret_v = get().traverseType(type);
+    return ret_v;
   }
 
-  bool visit(const llvm::DIType* type) {
+  bool visitLocalVariable(const llvm::DIVariable*) {
+    return true;
+  }
+
+  bool traverseType(const llvm::DIType* type) {
     if (!type) {
       return true;  // FIXME special case, to be observed
     }
@@ -111,40 +122,26 @@ class DINodeVisitor {
     return invoke_if_any(type);
   }
 
-  bool visitVariable(const llvm::DIVariable*) {
-    return true;
-  }
-
-  bool visitLocalVariable(const llvm::DIVariable* var) {
-    ++depth_var_;
-    const auto exit = detail::create_scope_exit([&]() {
-      get().leaveLocalVariable();
-      assert(depth_var_ > 0);
-      --depth_var_;
-    });
-    get().enterLocalVariable();
-
-    const bool ret = get().visitLocalVariable(var);
-    if (!ret) {
-      return false;
-    }
-
-    const auto* type = var->getType();
-    const auto ret_v = visit(type);
-    return ret_v;
-  }
-
   bool visitType(const llvm::DIType*) {
     return true;
   }
 
-  void visitBasicType(const llvm::DIBasicType* basic_type) {
-    get().enterBasicType();
-    get().visitBasicType(basic_type);
-    get().leaveBasicType();
+  bool traverseBasicType(const llvm::DIBasicType* basic_type) {
+    ++depth_var_;
+    const auto exit = detail::create_scope_exit([&]() {
+      get().leaveBasicType(basic_type);
+      assert(depth_var_ > 0);
+      --depth_var_;
+    });
+    get().enterBasicType(basic_type);
+    return get().visitBasicType(basic_type);
   }
 
-  bool visitDerivedType(const llvm::DIDerivedType* derived_type) {
+  bool visitBasicType(const llvm::DIBasicType*) {
+    return true;
+  }
+
+  bool traverseDerivedType(const llvm::DIDerivedType* derived_type) {
     ++depth_derived_;
     const auto exit = detail::create_scope_exit([&]() {
       get().leaveDerivedType(derived_type);
@@ -158,11 +155,15 @@ class DINodeVisitor {
       return false;
     }
 
-    const bool ret_v = visit(derived_type->getBaseType());
+    const bool ret_v = get().traverseType(derived_type->getBaseType());
     return ret_v;
   }
 
-  bool visitCompositeType(const llvm::DICompositeType* composite_type) {
+  bool visitDerivedType(const llvm::DIDerivedType*) {
+    return true;
+  }
+
+  bool traverseCompositeType(const llvm::DICompositeType* composite_type) {
     ++depth_composite_;
     const auto exit = detail::create_scope_exit([&]() {
       get().leaveCompositeType(composite_type);
@@ -176,26 +177,29 @@ class DINodeVisitor {
       return false;
     }
 
-    const bool ret_b = visit(composite_type->getBaseType());
+    const bool ret_b = get().traverseType(composite_type->getBaseType());
     if (!ret_b) {
       return false;
     }
 
     for (auto* eleme : composite_type->getElements()) {
-      //       llvm::errs() << "Debug: " << *eleme << "\n";
       invoke_if_any(eleme);
     }
 
     return true;
   }
 
-  void enterLocalVariable() {
+  bool visitCompositeType(const llvm::DICompositeType*) {
+    return true;
   }
-  void leaveLocalVariable() {
+
+  void enterLocalVariable(const llvm::DIVariable*) {
   }
-  void enterBasicType() {
+  void leaveLocalVariable(const llvm::DIVariable*) {
   }
-  void leaveBasicType() {
+  void enterBasicType(const llvm::DIBasicType*) {
+  }
+  void leaveBasicType(const llvm::DIBasicType*) {
   }
   void enterDerivedType(const llvm::DIDerivedType*) {
   }
@@ -252,7 +256,7 @@ class DIPrinter : public visitor::DINodeVisitor<DIPrinter> {
     llvm::raw_string_ostream rso(view);
     type.print(rso);
 
-    llvm::StringRef ref(rso.str());
+    const llvm::StringRef ref(rso.str());
     const auto a_pos = ref.find("=");
     if (a_pos == llvm::StringRef::npos || (a_pos + 2) > ref.size()) {
       return ref.str();
@@ -274,8 +278,9 @@ class DIPrinter : public visitor::DINodeVisitor<DIPrinter> {
     return true;
   }
 
-  void visitBasicType(const llvm::DIBasicType* basic_type) {
+  bool visitBasicType(const llvm::DIBasicType* basic_type) {
     outp_ << llvm::left_justify("", width() + 3) << no_pointer_str(*basic_type) << "\n";
+    return true;
   }
 
   bool visitDerivedType(const llvm::DIDerivedType* derived_type) {
@@ -324,7 +329,7 @@ class DISemPrinter : public visitor::DINodeVisitor<DISemPrinter> {
     return true;
   }
 
-  void visitBasicType(const llvm::DIBasicType* basic_type) {
+  bool visitBasicType(const llvm::DIBasicType* basic_type) {
     if (meta_.is_const && meta_.const_obj) {
       outp_ << "const ";
     }
@@ -342,6 +347,8 @@ class DISemPrinter : public visitor::DINodeVisitor<DISemPrinter> {
 
     outp_ << ":" << basic_type->getSizeInBits() / 8;
     outp_ << ":" << meta_.member_offset / 8 << "\n";
+
+    return true;
   }
 
   bool visitDerivedType(const llvm::DIDerivedType* derived_type) {
@@ -414,7 +421,7 @@ class DISemPrinter : public visitor::DINodeVisitor<DISemPrinter> {
     }
   }
 
-  void leaveBasicType() {
+  void leaveBasicType(const llvm::DIBasicType*) {
     meta_.clear();
   }
 };

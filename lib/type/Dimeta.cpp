@@ -1,5 +1,5 @@
 //  Dimeta library
-//  Copyright (c) 2022-2022 Alexander Hück
+//  Copyright (c) 2022-2023 Alexander Hück
 //  Distributed under the BSD 3-Clause license.
 //  (See accompanying file LICENSE)
 //  SPDX-License-Identifier: BSD-3-Clause
@@ -12,6 +12,7 @@
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DebugLoc.h"
+#include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Metadata.h"
@@ -54,20 +55,18 @@ void type_for_inst(llvm::Instruction* inst) {
 
   const auto find_di_var = [&](auto* ai) -> llvm::Optional<DILocalVariable*> {
     auto& func = *ai->getFunction();
-    for (auto& bb : func) {
-      for (auto& inst : bb) {
-        if (auto* dbg = dyn_cast<DbgValueInst>(&inst)) {
-          if (compat::get_alloca_for(dbg) == ai) {
-            di_finder.processInstruction(*ai->getModule(), inst);
-            return dbg->getVariable();
-          }
+    for (auto& inst : llvm::instructions(func)) {
+      if (auto* dbg = dyn_cast<DbgValueInst>(&inst)) {
+        if (compat::get_alloca_for(dbg) == ai) {
+          di_finder.processInstruction(*ai->getModule(), inst);
+          return dbg->getVariable();
         }
+      }
 
-        if (DbgVariableIntrinsic* dbg = dyn_cast<DbgVariableIntrinsic>(&inst)) {
-          if (compat::get_alloca_for(dbg) == ai) {
-            di_finder.processInstruction(*ai->getModule(), inst);
-            return dbg->getVariable();
-          }
+      if (DbgVariableIntrinsic* dbg = dyn_cast<DbgVariableIntrinsic>(&inst)) {
+        if (compat::get_alloca_for(dbg) == ai) {
+          di_finder.processInstruction(*ai->getModule(), inst);
+          return dbg->getVariable();
         }
       }
     }
@@ -81,14 +80,20 @@ void type_for_inst(llvm::Instruction* inst) {
   // ai->getDebugLoc().dump();
   llvm::errs() << "DI type count: " << di_finder.type_count() << "\n";
 
+  auto dbg_addrs = FindDbgAddrUses(inst);
+  llvm::errs() << "Dbg addrs #" << dbg_addrs.size() << "\n";
+  for (auto* dbg_ad : dbg_addrs) {
+    llvm::errs() << *dbg_ad << "\n";
+  }
+
   //  DenseMap<Value*, AllocaInst*> AllocaForValue;
   //  auto alloca_f = findAllocaForValue(inst, AllocaForValue);
   //  if (alloca_f) {
   //    llvm::errs() << *alloca_f << "\n";
   //  }
   if (di_var) {
-    printer.visit(di_var.getValue()->getType());
-    printer2.visit(di_var.getValue()->getType());
+    printer.traverseType(di_var.getValue()->getType());
+    printer2.traverseType(di_var.getValue()->getType());
   }
 }
 
@@ -141,13 +146,14 @@ void type_for(llvm::AllocaInst* ai) {
   }
 
   auto dbg_addrs = FindDbgAddrUses(ai);
+  llvm::errs() << "Dbg addrs #" << dbg_addrs.size() << "\n";
   for (auto* dbg_ad : dbg_addrs) {
     llvm::errs() << *dbg_ad << "\n";
   }
 
   if (di_var) {
-    printer.visit(di_var.getValue());
-    printer2.visit(di_var.getValue());
+    //    printer.traverseLocalVariable(di_var.getValue());
+    printer2.traverseLocalVariable(di_var.getValue());
   }
 
   //  auto& O = llvm::errs();

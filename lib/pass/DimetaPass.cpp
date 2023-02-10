@@ -1,5 +1,5 @@
 //  Dimeta library
-//  Copyright (c) 2022-2022 Alexander Hück
+//  Copyright (c) 2022-2023 Alexander Hück
 //  Distributed under the BSD 3-Clause license.
 //  (See accompanying file LICENSE)
 //  SPDX-License-Identifier: BSD-3-Clause
@@ -12,6 +12,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/LegacyPassManager.h"
@@ -42,15 +43,13 @@ class DimetaPass : public ModulePass {
     llvm::outs() << "Function: " << func.getName() << ":\n";
     llvm::outs() << "-------------------------------------\n";
 
-    for (auto& bblock : func) {
-      for (auto& inst : bblock) {
-        if (auto* ai = dyn_cast<AllocaInst>(&inst)) {
-          dimeta::type_for(ai);
-        }
-        if (auto* call = dyn_cast<CallInst>(&inst)) {
-          if (call->getIntrinsicID() == llvm::Intrinsic::not_intrinsic) {
-            dimeta::type_for(call);
-          }
+    for (auto& inst : llvm::instructions(func)) {
+      if (auto* ai = dyn_cast<AllocaInst>(&inst)) {
+        dimeta::type_for(ai);
+      }
+      if (auto* call = dyn_cast<CallInst>(&inst)) {
+        if (call->getIntrinsicID() == llvm::Intrinsic::not_intrinsic) {
+          dimeta::type_for(call);
         }
       }
     }
