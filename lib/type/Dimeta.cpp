@@ -134,27 +134,27 @@ void type_for(llvm::AllocaInst* ai) {
     return llvm::None;
   };
 
-  p("\nValue", ai);
-  p("Value Type", ai->getType());
-  llvm::errs() << "Has meta: " << ai->hasMetadata() << "\n";
-  // ai->getDebugLoc().dump();
-
+  //  p("\nValue", ai);
+  //  p("Value Type", ai->getType());
+  //  llvm::errs() << "Has meta: " << ai->hasMetadata() << "\n";
+  //  // ai->getDebugLoc().dump();
+  //
   auto di_var = find_di_var(ai);
-  llvm::errs() << "DI type count: " << di_finder.type_count() << "\n";
-  for (auto* types : di_finder.types()) {
-    llvm::errs() << *types << "\n";
-  }
+  //  llvm::errs() << "DI type count: " << di_finder.type_count() << "\n";
+  //  for (auto* types : di_finder.types()) {
+  //    llvm::errs() << *types << "\n";
+  //  }
+  //
+  //  auto dbg_addrs = FindDbgAddrUses(ai);
+  //  llvm::errs() << "Dbg addrs #" << dbg_addrs.size() << "\n";
+  //  for (auto* dbg_ad : dbg_addrs) {
+  //    llvm::errs() << *dbg_ad << "\n";
+  //  }
 
-  auto dbg_addrs = FindDbgAddrUses(ai);
-  llvm::errs() << "Dbg addrs #" << dbg_addrs.size() << "\n";
-  for (auto* dbg_ad : dbg_addrs) {
-    llvm::errs() << *dbg_ad << "\n";
-  }
-
-  if (di_var) {
-    //    printer.traverseLocalVariable(di_var.getValue());
-    printer2.traverseLocalVariable(di_var.getValue());
-  }
+  //  if (di_var) {
+  printer.traverseLocalVariable(di_var.getValue());
+  printer2.traverseLocalVariable(di_var.getValue());
+  //  }
 
   //  auto& O = llvm::errs();
   //  O << "\n------------------\n";

@@ -101,7 +101,7 @@ class DINodeVisitor {
     if (!ret) {
       return false;
     }
-    
+
     const auto* type = var->getType();
     const auto ret_v = get().traverseType(type);
     return ret_v;
@@ -232,6 +232,8 @@ inline std::string tag2string(unsigned tag) {
       return "union";
     case DW_TAG_array_type:
       return "array";
+    case DW_TAG_enumeration_type:
+      return "enum";
     default:
       return std::string{TagString(tag)};
   }
@@ -266,7 +268,7 @@ class DIPrinter : public visitor::DINodeVisitor<DIPrinter> {
   }
 
   [[nodiscard]] unsigned width() const {
-    return depth() == 1 ? 0 : depth() + depth_derived_;
+    return depth() == 1 ? 0 : depth() - depth_var_;
   }
 
  public:
@@ -317,7 +319,7 @@ class DISemPrinter : public visitor::DINodeVisitor<DISemPrinter> {
   } meta_{};
 
   [[nodiscard]] unsigned width() const {
-    return depth() == 1 ? 0 : depth() + depth_derived_;
+    return depth() == 1 ? 0 : depth() - this->depth_var_;
   }
 
  public:
@@ -325,7 +327,7 @@ class DISemPrinter : public visitor::DINodeVisitor<DISemPrinter> {
   }
 
   bool visitLocalVariable(llvm::DIVariable const* var) {
-    outp_ << llvm::left_justify("", width()) << var->getName() << " = ";
+    outp_ << llvm::left_justify("", width()) << var->getName() << " = \n";
     return true;
   }
 
@@ -357,7 +359,8 @@ class DISemPrinter : public visitor::DINodeVisitor<DISemPrinter> {
 
     const auto tag = derived_type->getTag();
     if (tag == DW_TAG_inheritance) {
-      return false;
+      //      return false;
+      outp_ << llvm::left_justify("", width()) << "Inherited::";
     }
 
     if (tag == DW_TAG_pointer_type || tag == DW_TAG_reference_type) {
@@ -375,6 +378,11 @@ class DISemPrinter : public visitor::DINodeVisitor<DISemPrinter> {
     if (tag == DW_TAG_member) {
       meta_.member_offset = derived_type->getOffsetInBits();
       meta_.is_member     = true;
+      if (derived_type->getFlags() & DINode::DIFlags::FlagArtificial) {
+        outp_ << llvm::left_justify("", width()) << "Vtable[" << derived_type->getName() << ":"
+              << (derived_type->getSizeInBits() / 8) << ":" << (derived_type->getOffsetInBits() / 8) << "]\n";
+        return true;
+      }
       outp_ << llvm::left_justify("", width()) << derived_type->getName() << " = ";
     }
     return true;
@@ -417,8 +425,14 @@ class DISemPrinter : public visitor::DINodeVisitor<DISemPrinter> {
   void leaveCompositeType(const llvm::DICompositeType* t) {
     using namespace llvm::dwarf;
     if (t->getTag() != DW_TAG_array_type) {
-      outp_ << llvm::left_justify("", width()) << "}\n";
+      outp_ << llvm::left_justify("", width() - (this->depth_composite_ > 0 ? 1 : 0)) << "}\n";
+      //      llvm::errs() << "v:" << this->depth_var_ << "d:" << this->depth_derived_ << "c:" << this->depth_composite_
+      //                   << "w:" << width() << "\n";
     }
+  }
+
+  void enterBasicType(const llvm::DIBasicType*) {
+    //    outp_ << llvm::left_justify("", width());
   }
 
   void leaveBasicType(const llvm::DIBasicType*) {
