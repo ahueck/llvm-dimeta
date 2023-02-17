@@ -12,6 +12,8 @@ class Base {
 class X : public Base {
  public:
   int y;
+  char c;
+  unsigned char d;
 
   double foo() {
     return y;
