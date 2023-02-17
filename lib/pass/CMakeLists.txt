@@ -1,6 +1,5 @@
 set(PASS_SOURCES
   DimetaPass.cpp
-  ../type/Dimeta.cpp
 )
 
 dimeta_llvm_module(dimeta_AnalysisPass
@@ -23,3 +22,5 @@ target_include_directories(dimeta_AnalysisPass
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
          ${PROJECT_SOURCE_DIR}/lib/
 )
+
+target_link_libraries(dimeta_AnalysisPass PRIVATE dimeta::Types)

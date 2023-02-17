@@ -6,11 +6,13 @@ struct Inner {
   int a;
 };
 
+typedef struct Inner InnerS_t;
+
 struct Outer {
-  struct Inner* struct_inner;
+  InnerS_t struct_inner;
 };
 
 int foo() {
   struct Outer out_struct = {0};
-  return out_struct.struct_inner->a;
+  return out_struct.struct_inner.a;
 }

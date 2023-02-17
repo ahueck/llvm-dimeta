@@ -49,12 +49,12 @@ template <typename SubClass>
 class DINodeVisitor {
  private:
   template <typename TySink, typename TySource, typename VisitFn>
-  bool invoke_if(VisitFn&& visiter, TySource&& type) {
+  bool invoke_if(VisitFn&& visitor, TySource&& type) {
     if (auto* base_t = llvm::dyn_cast<TySink>(type)) {
       if constexpr (std::is_same_v<std::invoke_result_t<VisitFn, decltype(this), decltype(base_t)>, bool>) {
-        return std::invoke(std::forward<VisitFn>(visiter), *this, base_t);
+        return std::invoke(std::forward<VisitFn>(visitor), *this, base_t);
       } else {
-        std::invoke(std::forward<VisitFn>(visiter), *this, base_t);
+        std::invoke(std::forward<VisitFn>(visitor), *this, base_t);
         return true;
       }
     }
@@ -89,12 +89,7 @@ class DINodeVisitor {
   }
 
   bool traverseLocalVariable(const llvm::DIVariable* var) {
-    ++depth_var_;
-    const auto exit = detail::create_scope_exit([&]() {
-      get().leaveLocalVariable(var);
-      assert(depth_var_ > 0);
-      --depth_var_;
-    });
+    const auto exit = detail::create_scope_exit([&]() { get().leaveLocalVariable(var); });
     get().enterLocalVariable(var);
 
     const bool ret = get().visitLocalVariable(var);
@@ -239,16 +234,6 @@ inline std::string tag2string(unsigned tag) {
   }
 }
 
-// struct Data;
-
-struct Data {
-  bool is_composite;
-  bool is_array;
-  unsigned array_size;
-  llvm::SmallVector<Data*, 4> member;
-  llvm::SmallVector<unsigned, 4> tags;
-};
-
 class DIPrinter : public visitor::DINodeVisitor<DIPrinter> {
  private:
   llvm::raw_ostream& outp_;
@@ -268,7 +253,7 @@ class DIPrinter : public visitor::DINodeVisitor<DIPrinter> {
   }
 
   [[nodiscard]] unsigned width() const {
-    return depth() == 1 ? 0 : depth() - depth_var_;
+    return depth() == 1 ? 0 : depth();
   }
 
  public:
@@ -319,7 +304,7 @@ class DISemPrinter : public visitor::DINodeVisitor<DISemPrinter> {
   } meta_{};
 
   [[nodiscard]] unsigned width() const {
-    return depth() == 1 ? 0 : depth() - this->depth_var_;
+    return depth() == 1 ? 0 : depth();
   }
 
  public:
@@ -425,7 +410,7 @@ class DISemPrinter : public visitor::DINodeVisitor<DISemPrinter> {
   void leaveCompositeType(const llvm::DICompositeType* t) {
     using namespace llvm::dwarf;
     if (t->getTag() != DW_TAG_array_type) {
-      outp_ << llvm::left_justify("", width() - (this->depth_composite_ > 0 ? 1 : 0)) << "}\n";
+      outp_ << llvm::left_justify("", width()) << "}\n";
       //      llvm::errs() << "v:" << this->depth_var_ << "d:" << this->depth_derived_ << "c:" << this->depth_composite_
       //                   << "w:" << width() << "\n";
     }

@@ -49,7 +49,7 @@ include(modules/dimeta-format)
 include(modules/dimeta-target-util)
 
 dimeta_find_llvm_progs(DIMETA_CLANG_EXEC "clang-${LLVM_VERSION_MAJOR};clang" DEFAULT_EXE "clang")
-dimeta_find_llvm_progs(DIMETA_CLANGCXX_EXEC "clang-${LLVM_VERSION_MAJOR};clang++" DEFAULT_EXE "clang++")
+dimeta_find_llvm_progs(DIMETA_CLANGCXX_EXEC "clang++-${LLVM_VERSION_MAJOR};clang++" DEFAULT_EXE "clang++")
 dimeta_find_llvm_progs(DIMETA_LLC_EXEC "llc-${LLVM_VERSION_MAJOR};llc" DEFAULT_EXE "llc")
 dimeta_find_llvm_progs(DIMETA_OPT_EXEC "opt-${LLVM_VERSION_MAJOR};opt" DEFAULT_EXE "opt")
 

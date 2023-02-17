@@ -1,0 +1,16 @@
+#!/bin/bash
+
+target=$1
+extension="${target##*.}"
+
+if [ $extension == "c" ]; then
+  compiler="@DIMETA_CLANG_EXEC@"
+else
+  compiler="@DIMETA_CLANGCXX_EXEC@"
+fi
+
+opt_tool="@DIMETA_OPT_EXEC@ @DIMETA_OPT_ARGS@"
+dimeta_pass_plugin="$<TARGET_FILE:dimeta::AnalysisPass> -dimeta"
+
+$compiler -S -O1 -g -emit-llvm -Xclang -disable-llvm-passes -fno-discard-value-names "$target" -o - | \
+  $opt_tool -load $dimeta_pass_plugin 2>&1

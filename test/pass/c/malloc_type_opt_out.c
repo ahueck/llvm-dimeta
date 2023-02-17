@@ -1,4 +1,6 @@
-// RUN: clang -O2 -S -emit-llvm %s -o - | %apply-dimeta -S 2>&1 | %filecheck %s --check-prefix CHECK-OPT
+// RUN: clang -O2 -S -emit-llvm %s -o - | %apply-verifier -S 2>&1 | %filecheck %s --check-prefix CHECK-OPT
+
+// XFAIL: *
 
 // This is a dummy test illustrating problems with -Xclang approach and higher optimizations, losing infos about the
 // malloc type

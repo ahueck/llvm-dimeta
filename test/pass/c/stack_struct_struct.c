@@ -1,4 +1,6 @@
-// RUN: %c-to-llvm %s | %apply-dimeta 2>&1 | %filecheck %s
+// RUN: %c-to-llvm %s | %apply-verifier 2>&1 | %filecheck %s
+
+// CHECK: Yaml Verifier: 1
 
 struct Inner {
   int a;
@@ -6,6 +8,7 @@ struct Inner {
 
 struct Outer {
   struct Inner struct_inner;
+  double b;
 };
 
 int foo() {

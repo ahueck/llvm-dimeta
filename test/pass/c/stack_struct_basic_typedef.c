@@ -2,11 +2,13 @@
 
 // CHECK: Yaml Verifier: 1
 
+typedef int Integer;
+
 struct BasicStruct {
-  int* a;
+  Integer a;
 };
 
-int* foo() {
+int foo() {
   struct BasicStruct b_struct = {0};
   return b_struct.a;
 }

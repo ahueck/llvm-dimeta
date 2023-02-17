@@ -1,12 +1,17 @@
 set(LIB_SOURCES
   Dimeta.cpp
+  MetaIO.cpp
+  Dimeta.h
+  MetaParse.h
 )
 
-add_library(dimeta_Types
+add_library(dimeta_Types STATIC
   "${LIB_SOURCES}"
 )
 
 add_library(dimeta::Types ALIAS dimeta_Types)
+
+set_property(TARGET dimeta_Types PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 target_include_directories(dimeta_Types
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
@@ -17,7 +22,7 @@ target_include_directories(dimeta_Types SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
 
 #target_compile_definitions(dimeta_Types PRIVATE LLVM_ENABLE_DUMP)
 
-target_link_libraries(dimeta_Types PRIVATE LLVMCore)
+#target_link_libraries(dimeta_Types PRIVATE LLVMCore)
 
 target_compile_definitions(dimeta_Types
         PRIVATE

@@ -1,4 +1,6 @@
-// RUN: %cpp-to-llvm %s | %apply-dimeta 2>&1 | %filecheck %s
+// RUN: %cpp-to-llvm %s | %apply-verifier 2>&1 | %filecheck %s
+
+// CHECK: Yaml Verifier: 1
 
 class Base {
  public:
@@ -11,7 +13,9 @@ class X {
  public:
   int y;
 
-  virtual int bar(){return y;};
+  virtual int bar() {
+    return y;
+  };
 };
 
 class Y : public X, public Base {

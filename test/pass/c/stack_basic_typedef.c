@@ -2,7 +2,9 @@
 
 // CHECK: Yaml Verifier: 1
 
+typedef int Integer;
+
 int foo() {
-  int a = 0;
+  Integer a = 0;
   return a;
 }

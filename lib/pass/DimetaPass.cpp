@@ -24,10 +24,10 @@ using namespace llvm;
 
 namespace dimeta {
 
-class DimetaPass : public ModulePass {
+class TestPass : public ModulePass {
  public:
   static char ID;  // NOLINT
-  DimetaPass() : ModulePass(ID) {
+  TestPass() : ModulePass(ID) {
   }
 
   bool runOnModule(Module& module) override {
@@ -47,28 +47,28 @@ class DimetaPass : public ModulePass {
       if (auto* ai = dyn_cast<AllocaInst>(&inst)) {
         dimeta::type_for(ai);
       }
-      if (auto* call = dyn_cast<CallInst>(&inst)) {
-        if (call->getIntrinsicID() == llvm::Intrinsic::not_intrinsic) {
-          dimeta::type_for(call);
-        }
-      }
+      //      if (auto* call = dyn_cast<CallInst>(&inst)) {
+      //        if (call->getIntrinsicID() == llvm::Intrinsic::not_intrinsic) {
+      //          dimeta::type_for(call);
+      //        }
+      //      }
     }
     llvm::outs() << "-------------------------------------\n";
   }
 
-  ~DimetaPass() override = default;
+  ~TestPass() override = default;
 };
 
 }  // namespace dimeta
 
 #define DEBUG_TYPE "dimeta-analysis-pass"
 
-char dimeta::DimetaPass::ID = 0;  // NOLINT
+char dimeta::TestPass::ID = 0;  // NOLINT
 
-static RegisterPass<dimeta::DimetaPass> x("dimeta", "Dimeta Pass");  // NOLINT
+static RegisterPass<dimeta::TestPass> x("dimeta", "Dimeta Pass");  // NOLINT
 
 ModulePass* createDimetaPass() {
-  return new dimeta::DimetaPass();
+  return new dimeta::TestPass();
 }
 
 extern "C" void AddDimetaPass(LLVMPassManagerRef pass_manager) {

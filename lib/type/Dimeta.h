@@ -8,9 +8,12 @@
 #ifndef DIMETA_DIMETA_H
 #define DIMETA_DIMETA_H
 
+#include "llvm/ADT/Optional.h"
+
 namespace llvm {
 class AllocaInst;
 class CallInst;
+class DILocalVariable;
 }  // namespace llvm
 
 namespace dimeta {
@@ -18,6 +21,8 @@ namespace dimeta {
 void type_for(llvm::AllocaInst*);
 
 void type_for(llvm::CallInst* call);
+
+llvm::Optional<llvm::DILocalVariable*> local_di_variable_for(llvm::AllocaInst*);
 
 }  // namespace dimeta
 

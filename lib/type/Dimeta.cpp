@@ -8,6 +8,8 @@
 #include "Dimeta.h"
 
 #include "DIVisitor.h"
+#include "MetaIO.h"
+#include "MetaParse.h"
 
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugInfoMetadata.h"
@@ -123,7 +125,7 @@ void type_for(llvm::AllocaInst* ai) {
     auto& func = *ai->getFunction();
     for (auto& bb : func) {
       for (auto& inst : bb) {
-        if (DbgVariableIntrinsic* dbg = dyn_cast<DbgVariableIntrinsic>(&inst)) {
+        if (auto* dbg = dyn_cast<DbgVariableIntrinsic>(&inst)) {
           if (compat::get_alloca_for(dbg) == ai) {
             di_finder.processInstruction(*ai->getModule(), inst);
             return dbg->getVariable();
@@ -151,41 +153,46 @@ void type_for(llvm::AllocaInst* ai) {
   //    llvm::errs() << *dbg_ad << "\n";
   //  }
 
-  //  if (di_var) {
-  printer.traverseLocalVariable(di_var.getValue());
-  printer2.traverseLocalVariable(di_var.getValue());
-  //  }
+  if (di_var.hasValue()) {
+    printer.traverseLocalVariable(di_var.getValue());
+    printer2.traverseLocalVariable(di_var.getValue());
+    parser::DITypeParser parser_types;
+    parser_types.traverseLocalVariable(di_var.getValue());
+    if (parser_types.hasCompound()) {
+      std::string out_s;
+      llvm::raw_string_ostream oss(out_s);
+      io::emit(oss, parser_types.getAs<QualifiedCompound>().value());
+      llvm::outs() << oss.str();
+      {
+        QualifiedCompound cmp;
+        io::input(oss.str(), cmp);
 
-  //  auto& O = llvm::errs();
-  //  O << "\n------------------\n";
-  //  for (const DIType* T : di_finder.types()) {
-  //    printer.visit(T);
-  //    O << "\n";
-  //  }
-  //  O << "\n------------------\n";
+        std::string out_s_2;
+        llvm::raw_string_ostream oss_round(out_s_2);
+        io::emit(oss_round, cmp);
+        llvm::outs() << oss_round.str();
+      }
+    }
+  }
+}
 
-  //  if (di_var) {
-  //    auto* v = *di_var.getPointer();
-  //    p("DI_LocalVar", v);
-  //    auto di_type = v->getType();
-  //    p("DI_Type", di_type);
-  //
-  //    if (auto der_type = dyn_cast<DIDerivedType>(di_type)) {
-  //      p("DI_baseType", der_type->getBaseType());
-  //      llvm::errs() << "DI_deriv name: " << der_type->getName() << "\n......\n";
-  //      llvm::errs() << "DI_basetype name: " << der_type->getBaseType()->getName() << "\n......\n";
-  //    }
-  //
-  //    if (auto com_type = dyn_cast<DICompositeType>(di_type)) {
-  //      p("baseType", com_type->getBaseType());
-  //      llvm::errs() << "name: " << com_type->getName() << "\n......\n";
-  //      for (auto elems : com_type->getElements()) {
-  //        p("Elem", elems);
-  //      }
-  //    }
-  //  } else {
-  //    p("Done", ai);
-  //  }
+llvm::Optional<llvm::DILocalVariable*> local_di_variable_for(llvm::AllocaInst* ai) {
+  using namespace llvm;
+  DebugInfoFinder di_finder;
+  const auto find_di_var = [&](auto* ai) -> llvm::Optional<DILocalVariable*> {
+    auto& func = *ai->getFunction();
+    for (auto& inst : llvm::instructions(func)) {
+      if (auto* dbg = dyn_cast<DbgVariableIntrinsic>(&inst)) {
+        if (compat::get_alloca_for(dbg) == ai) {
+          di_finder.processInstruction(*ai->getModule(), inst);
+          return dbg->getVariable();
+        }
+      }
+    }
+    return llvm::None;
+  };
+
+  return find_di_var(ai);
 }
 
 }  // namespace dimeta

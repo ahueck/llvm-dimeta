@@ -1,3 +1,5 @@
+add_subdirectory(verifier)
+
 dimeta_find_llvm_progs(DIMETA_FILECHECK_EXEC "FileCheck-${LLVM_VERSION_MAJOR};FileCheck" ABORT_IF_MISSING)
 
 if(LLVM_EXTERNAL_LIT)
@@ -26,6 +28,7 @@ function(configure_dimeta_lit_site_cfg input output)
   set(DIMETA_PROJECT_DIR ${PROJECT_SOURCE_DIR})
   set(DIMETA_LIBRARY_DIR ${CMAKE_BINARY_DIR}/lib)
   set(DIMETA_PASS_DIR ${DIMETA_LIBRARY_DIR}/pass)
+  set(DIMETA_TEST_PASS_DIR ${CMAKE_CURRENT_BINARY_DIR}/verifier)
   
   set(DIMETA_SCRIPT_DIR ${CMAKE_BINARY_DIR}/scripts)
 
@@ -86,7 +89,7 @@ function(dimeta_add_lit_target)
   endforeach()
 endfunction()
 
-set(DIMETA_TEST_DEPENDS dimeta::AnalysisPass dimeta::Types)
+set(DIMETA_TEST_DEPENDS dimeta::AnalysisPass dimeta::Types dimeta::TestPass)
 
 set(DIMETA_SUITES
   all
