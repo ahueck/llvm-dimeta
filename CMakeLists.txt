@@ -26,6 +26,7 @@ dimeta_target_format(
 )
 
 add_subdirectory(lib)
+add_subdirectory(script)
 
 enable_testing()
 add_subdirectory(test)

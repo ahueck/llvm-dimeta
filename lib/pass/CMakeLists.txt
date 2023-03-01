@@ -4,6 +4,7 @@ set(PASS_SOURCES
 
 dimeta_llvm_module(dimeta_AnalysisPass
   "${PASS_SOURCES}"
+  INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/lib/type
 )
 
 mark_as_advanced(LLVM_DIMETA_ANALYSISPASS_LINK_INTO_TOOLS)
@@ -22,3 +23,4 @@ target_include_directories(dimeta_AnalysisPass
          ${PROJECT_SOURCE_DIR}/lib/
 )
 
+target_link_libraries(dimeta_AnalysisPass PRIVATE dimeta::Types)
