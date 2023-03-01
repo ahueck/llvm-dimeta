@@ -237,11 +237,16 @@ inline std::string tag2string(unsigned tag) {
 class DIPrinter : public visitor::DINodeVisitor<DIPrinter> {
  private:
   llvm::raw_ostream& outp_;
+  llvm::Optional<const llvm::Module*> module_;
 
-  static std::string no_pointer_str(const llvm::Metadata& type) {
+  std::string no_pointer_str(const llvm::Metadata& type) {
     std::string view;
     llvm::raw_string_ostream rso(view);
-    type.print(rso);
+    type.print(rso, module_.value_or(nullptr));
+
+    if (module_.has_value()) {
+      return rso.str();
+    }
 
     const llvm::StringRef ref(rso.str());
     const auto a_pos = ref.find("=");
@@ -257,7 +262,7 @@ class DIPrinter : public visitor::DINodeVisitor<DIPrinter> {
   }
 
  public:
-  DIPrinter(llvm::raw_ostream& outp) : outp_(outp) {
+  explicit DIPrinter(llvm::raw_ostream& outp, const llvm::Module* mod = nullptr) : outp_(outp), module_(mod) {
   }
 
   bool visitLocalVariable(llvm::DIVariable const* var) {

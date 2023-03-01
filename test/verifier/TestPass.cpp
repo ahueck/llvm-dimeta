@@ -11,6 +11,7 @@
 
 #include "llvm-c/Types.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
@@ -24,8 +25,35 @@ using namespace llvm;
 
 static cl::opt<bool> cl_dimeta_test_print_yaml("yaml", cl::init(false));
 static cl::opt<bool> cl_dimeta_test_print_tree("dump-tree", cl::init(false));
+static cl::opt<bool> cl_dimeta_test_print("dump", cl::init(false));
 
 namespace dimeta::test {
+
+template <typename String>
+inline std::string demangle(String&& s) {
+  std::string name = std::string{s};
+  auto demangle    = llvm::itaniumDemangle(name.data(), nullptr, nullptr, nullptr);
+  if (demangle && !std::string(demangle).empty()) {
+    return {demangle};
+  }
+  return name;
+}
+
+template <typename T>
+inline std::string try_demangle(const T& site) {
+  if constexpr (std::is_same_v<T, llvm::CallBase>) {
+    if (site.isIndirectCall()) {
+      return "";
+    }
+    return demangle(site.getCalledFunction()->getName());
+  } else {
+    if constexpr (std::is_same_v<T, llvm::Function>) {
+      return demangle(site.getName());
+    } else {
+      return demangle(site);
+    }
+  }
+}
 
 class TestPass : public ModulePass {
  private:
@@ -65,6 +93,11 @@ class TestPass : public ModulePass {
     if (func.isDeclaration()) {
       return;
     }
+    const auto f_name     = try_demangle(func);
+    const auto f_name_ref = llvm::StringRef(f_name);
+    if (f_name_ref.contains("std::") || f_name_ref.startswith("__")) {
+      return;
+    }
 
     llvm::outs() << "Function: " << func.getName() << ":\n";
 
@@ -77,6 +110,11 @@ class TestPass : public ModulePass {
 
           if (cl_dimeta_test_print_tree) {
             di_var.getValue()->dumpTree(func.getParent());
+          }
+
+          if (cl_dimeta_test_print) {
+            util::DIPrinter printer(llvm::outs(), func.getParent());
+            printer.traverseLocalVariable(di_var.getValue());
           }
 
           bool result{false};
