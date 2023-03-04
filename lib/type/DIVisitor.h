@@ -242,12 +242,19 @@ class DIPrinter : public visitor::DINodeVisitor<DIPrinter> {
   std::string no_pointer_str(const llvm::Metadata& type) {
     std::string view;
     llvm::raw_string_ostream rso(view);
+#if LLVM_VERSION_MAJOR > 13
     type.print(rso, module_.value_or(nullptr));
 
     if (module_.has_value()) {
       return rso.str();
     }
+#else
+    type.print(rso, module_.getValueOr(nullptr));
 
+    if (module_.hasValue()) {
+      return rso.str();
+    }
+#endif
     const llvm::StringRef ref(rso.str());
     const auto a_pos = ref.find("=");
     if (a_pos == llvm::StringRef::npos || (a_pos + 2) > ref.size()) {

@@ -21,6 +21,8 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <string>
+
 using namespace llvm;
 
 static cl::opt<bool> cl_dimeta_test_print_yaml("yaml", cl::init(false));
@@ -109,7 +111,11 @@ class TestPass : public ModulePass {
           parser_types.traverseLocalVariable(di_var.getValue());
 
           if (cl_dimeta_test_print_tree) {
+#if LLVM_MAJOR_VERSION < 14
+            di_var.getValue()->print(llvm::outs(), func.getParent());
+#else
             di_var.getValue()->dumpTree(func.getParent());
+#endif
           }
 
           if (cl_dimeta_test_print) {
