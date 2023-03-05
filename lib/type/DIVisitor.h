@@ -70,6 +70,12 @@ class DINodeVisitor {
            invoke_if<DILocalVariable>(&DINodeVisitor::traverseLocalVariable, std::forward<T>(type));
   }
 
+  enum class VisitRet {
+    kContinue = 0,  // Follow further
+    kSkip,          // Skip (subtree and continue)
+    kStop,          // Stop visitation
+  };
+
  protected:
   unsigned depth_composite_{0};
   unsigned depth_derived_{0};
@@ -77,6 +83,10 @@ class DINodeVisitor {
 
   [[nodiscard]] inline unsigned depth() const {
     return depth_composite_ + depth_derived_ + depth_var_;
+  }
+
+  inline bool followPointer() {
+    return false;
   }
 
  public:
@@ -150,7 +160,16 @@ class DINodeVisitor {
       return false;
     }
 
-    const bool ret_v = get().traverseType(derived_type->getBaseType());
+    const bool is_pointer = (derived_type->getTag() == llvm::dwarf::DW_TAG_pointer_type);
+    const auto* next_base = derived_type->getBaseType();
+
+    if (!followPointer() && is_pointer && !llvm::isa<llvm::DIDerivedType>(next_base)) {
+      // workaround for endless recursion (e.g., pointer points to encapsulating struct)
+      // see test pass/cpp/stack_struct_reprod_map_recursion.cpp
+      return true;
+    }
+
+    const bool ret_v = get().traverseType(next_base);
     return ret_v;
   }
 
