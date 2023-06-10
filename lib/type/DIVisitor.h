@@ -70,12 +70,6 @@ class DINodeVisitor {
            invoke_if<DILocalVariable>(&DINodeVisitor::traverseLocalVariable, std::forward<T>(type));
   }
 
-  enum class VisitRet {
-    kContinue = 0,  // Follow further
-    kSkip,          // Skip (subtree and continue)
-    kStop,          // Stop visitation
-  };
-
  protected:
   unsigned depth_composite_{0};
   unsigned depth_derived_{0};
