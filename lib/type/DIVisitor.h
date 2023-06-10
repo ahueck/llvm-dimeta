@@ -79,6 +79,10 @@ class DINodeVisitor {
     return depth_composite_ + depth_derived_ + depth_var_;
   }
 
+  inline bool followPointer() {
+    return false;
+  }
+
  public:
   [[nodiscard]] SubClass& get() {
     return static_cast<SubClass&>(*this);
@@ -150,7 +154,16 @@ class DINodeVisitor {
       return false;
     }
 
-    const bool ret_v = get().traverseType(derived_type->getBaseType());
+    const bool is_pointer = (derived_type->getTag() == llvm::dwarf::DW_TAG_pointer_type);
+    const auto* next_base = derived_type->getBaseType();
+
+    if (!followPointer() && is_pointer && !llvm::isa<llvm::DIDerivedType>(next_base)) {
+      // workaround for endless recursion (e.g., pointer points to encapsulating struct)
+      // see test pass/cpp/stack_struct_reprod_map_recursion.cpp
+      return true;
+    }
+
+    const bool ret_v = get().traverseType(next_base);
     return ret_v;
   }
 
