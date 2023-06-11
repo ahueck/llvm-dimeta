@@ -1,6 +1,8 @@
-// RUN: clang -O2 -S -emit-llvm %s -o - | %apply-verifier -S 2>&1 | %filecheck %s --check-prefix CHECK-OPT
+// RUN: clang -g -O2 -S -emit-llvm %s -o - | %apply-verifier -S 2>&1 | %filecheck %s
 
 // XFAIL: *
+
+// CHECK: Final Type: {{.*}} = !DIBasicType(name: "int", size: 32, encoding: DW_ATE_signed)
 
 // This is a dummy test illustrating problems with -Xclang approach and higher optimizations, losing infos about the
 // malloc type

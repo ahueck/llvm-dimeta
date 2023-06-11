@@ -8,6 +8,8 @@
 #ifndef DIMETA_DIVISITOR_H
 #define DIMETA_DIVISITOR_H
 
+#include "Util.h"
+
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugInfoMetadata.h"
@@ -19,35 +21,13 @@ namespace dimeta {
 
 namespace visitor {
 
-namespace detail {
-
-template <typename Fn>
-class ScopeExit {
- private:
-  Fn exit_fn_;
-
- public:
-  explicit ScopeExit(Fn&& exit_fn) : exit_fn_(std::forward<Fn>(exit_fn)) {
-  }
-
-  ScopeExit(const ScopeExit&)            = delete;
-  ScopeExit& operator=(const ScopeExit&) = delete;
-
-  ~ScopeExit() {
-    std::invoke(exit_fn_);
-  }
-};
-
-template <typename Fn>
-ScopeExit<Fn> create_scope_exit(Fn&& exit_fn) {
-  return ScopeExit<Fn>(std::forward<Fn>(exit_fn));
-}
-
-}  // namespace detail
+namespace detail {}  // namespace detail
 
 template <typename SubClass>
 class DINodeVisitor {
  private:
+  llvm::SmallPtrSet<const llvm::DINode*, 8> visited_dinodes_;
+
   template <typename TySink, typename TySource, typename VisitFn>
   bool invoke_if(VisitFn&& visitor, TySource&& type) {
     if (auto* base_t = llvm::dyn_cast<TySink>(type)) {
@@ -79,8 +59,12 @@ class DINodeVisitor {
     return depth_composite_ + depth_derived_ + depth_var_;
   }
 
-  inline bool followPointer() {
-    return false;
+  //  inline bool followPointer() {
+  //    return false;
+  //  }
+
+  inline bool visited_node(const llvm::DINode* node) {
+    return visited_dinodes_.contains(node);
   }
 
  public:
@@ -93,7 +77,7 @@ class DINodeVisitor {
   }
 
   bool traverseLocalVariable(const llvm::DIVariable* var) {
-    const auto exit = detail::create_scope_exit([&]() { get().leaveLocalVariable(var); });
+    const auto exit = util::create_scope_exit([&]() { get().leaveLocalVariable(var); });
     get().enterLocalVariable(var);
 
     const bool ret = get().visitLocalVariable(var);
@@ -127,7 +111,7 @@ class DINodeVisitor {
 
   bool traverseBasicType(const llvm::DIBasicType* basic_type) {
     ++depth_var_;
-    const auto exit = detail::create_scope_exit([&]() {
+    const auto exit = util::create_scope_exit([&]() {
       get().leaveBasicType(basic_type);
       assert(depth_var_ > 0);
       --depth_var_;
@@ -142,7 +126,7 @@ class DINodeVisitor {
 
   bool traverseDerivedType(const llvm::DIDerivedType* derived_type) {
     ++depth_derived_;
-    const auto exit = detail::create_scope_exit([&]() {
+    const auto exit = util::create_scope_exit([&]() {
       get().leaveDerivedType(derived_type);
       assert(depth_derived_ > 0);
       --depth_derived_;
@@ -157,11 +141,11 @@ class DINodeVisitor {
     const bool is_pointer = (derived_type->getTag() == llvm::dwarf::DW_TAG_pointer_type);
     const auto* next_base = derived_type->getBaseType();
 
-    if (!followPointer() && is_pointer && !llvm::isa<llvm::DIDerivedType>(next_base)) {
-      // workaround for endless recursion (e.g., pointer points to encapsulating struct)
-      // see test pass/cpp/stack_struct_reprod_map_recursion.cpp
-      return true;
-    }
+    //    if (!followPointer() && is_pointer && !llvm::isa<llvm::DIDerivedType>(next_base)) {
+    //      // workaround for endless recursion (e.g., pointer points to encapsulating struct)
+    //      // see test pass/cpp/stack_struct_reprod_map_recursion.cpp
+    //      return true;
+    //    }
 
     const bool ret_v = get().traverseType(next_base);
     return ret_v;
@@ -172,8 +156,12 @@ class DINodeVisitor {
   }
 
   bool traverseCompositeType(const llvm::DICompositeType* composite_type) {
+    if (visited_node(composite_type)) {
+      return true;
+    }
+
     ++depth_composite_;
-    const auto exit = detail::create_scope_exit([&]() {
+    const auto exit = util::create_scope_exit([&]() {
       get().leaveCompositeType(composite_type);
       assert(depth_composite_ > 0);
       --depth_composite_;
@@ -181,6 +169,7 @@ class DINodeVisitor {
     get().enterCompositeType(composite_type);
 
     const bool ret = get().visitCompositeType(composite_type);
+    visited_dinodes_.insert(composite_type);
     if (!ret) {
       return false;
     }

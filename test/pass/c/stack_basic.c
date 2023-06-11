@@ -3,6 +3,6 @@
 // CHECK: Yaml Verifier: 1
 
 int foo() {
-  int a = 0;
+  const int a = 0;
   return a;
 }

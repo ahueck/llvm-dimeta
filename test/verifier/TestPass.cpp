@@ -19,6 +19,7 @@
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <string>
@@ -104,8 +105,17 @@ class TestPass : public ModulePass {
     llvm::outs() << "Function: " << func.getName() << ":\n";
 
     for (auto& inst : llvm::instructions(func)) {
+      if (auto* call_inst = dyn_cast<CallBase>(&inst)) {
+        llvm::outs() << "Handle " << *call_inst << "\n";
+        type_for(call_inst);
+      }
+
       if (auto* alloca_inst = dyn_cast<AllocaInst>(&inst)) {
-        auto di_var = local_di_variable_for(alloca_inst);
+        if (isa<llvm::PointerType>(alloca_inst->getAllocatedType())) {
+          llvm::outs() << "Skip " << *alloca_inst << "\n";
+          continue;
+        }
+        auto di_var = type_for(alloca_inst);
         if (di_var) {
           parser::DITypeParser parser_types;
           parser_types.traverseLocalVariable(di_var.getValue());

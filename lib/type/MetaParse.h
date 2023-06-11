@@ -10,6 +10,7 @@
 
 #include "DIVisitor.h"
 #include "DimetaData.h"
+#include "Util.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -250,9 +251,10 @@ class DITypeParser : public visitor::DINodeVisitor<DITypeParser> {
       return true;
     }
 
-    const auto exit_clear  = visitor::detail::create_scope_exit([&]() { meta_.clear(); });
-    auto compound_type     = helper::make_compound(composite_type->getName(), composite_type->getIdentifier(),
-                                                   composite_type->getTag(), composite_type->getSizeInBits());
+    const auto exit_clear = util::create_scope_exit([&]() { meta_.clear(); });
+    auto compound_type =
+        helper::make_compound(composite_type->getName(), composite_type->getIdentifier(),
+                              static_cast<llvm::dwarf::Tag>(composite_type->getTag()), composite_type->getSizeInBits());
     const Qualifiers quals = helper::make_qual(meta_.tag_collector);
     const auto array_size  = helper::make_array_size(compound_type, meta_.array_size_bits);
 

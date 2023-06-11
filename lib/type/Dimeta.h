@@ -12,17 +12,17 @@
 
 namespace llvm {
 class AllocaInst;
-class CallInst;
+class CallBase;
 class DILocalVariable;
+class DIType;
+class Value;
 }  // namespace llvm
 
 namespace dimeta {
 
-void type_for(llvm::AllocaInst*);
+llvm::Optional<llvm::DILocalVariable*> type_for(const llvm::AllocaInst*);
 
-void type_for(llvm::CallInst* call);
-
-llvm::Optional<llvm::DILocalVariable*> local_di_variable_for(llvm::AllocaInst*);
+llvm::Optional<llvm::DIType*> type_for(const llvm::CallBase*);
 
 }  // namespace dimeta
 

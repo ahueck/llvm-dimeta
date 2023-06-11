@@ -30,6 +30,9 @@ mark_as_advanced(DIMETA_TEST_CONFIGURE_IDE)
 option(DIMETA_CONFIG_DIR_IS_SHARE "Install to \"share/cmake/\" instead of \"lib/cmake/\"" OFF)
 mark_as_advanced(DIMETA_CONFIG_DIR_IS_SHARE)
 
+option(DIMETA_ENABLE_COVERAGE "Enable coverage targets" OFF)
+
+
 set(warning_guard "")
 if(NOT PROJECT_IS_TOP_LEVEL)
   option(
@@ -47,6 +50,9 @@ endif()
 include(modules/dimeta-llvm)
 include(modules/dimeta-format)
 include(modules/dimeta-target-util)
+if(DIMETA_ENABLE_COVERAGE)
+  include(modules/coverage-lcov)
+endif()
 
 dimeta_find_llvm_progs(DIMETA_CLANG_EXEC "clang-${LLVM_VERSION_MAJOR};clang" DEFAULT_EXE "clang")
 dimeta_find_llvm_progs(DIMETA_CLANGCXX_EXEC "clang++-${LLVM_VERSION_MAJOR};clang++" DEFAULT_EXE "clang++")
