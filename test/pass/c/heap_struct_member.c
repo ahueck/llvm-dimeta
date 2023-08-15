@@ -2,8 +2,6 @@
 
 // CHECK: Final Type: {{.*}} = !DIBasicType(name: "int", size: 32, encoding: DW_ATE_signed)
 
-// XFAIL: *
-
 #include <stdlib.h>
 
 struct A {

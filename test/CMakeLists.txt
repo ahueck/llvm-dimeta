@@ -71,7 +71,8 @@ function(dimeta_add_lit_target)
       set(TARGET_NAME check-dimeta)
     else()
       set(SUITE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/${suite})
-      set(TARGET_NAME check-dimeta-${suite})
+      string(REPLACE "/" "_" suite_target ${suite})
+      set(TARGET_NAME check-dimeta-${suite_target})
     endif()
 
     if(NOT EXISTS ${SUITE_PATH})
@@ -94,6 +95,7 @@ set(DIMETA_TEST_DEPENDS dimeta::AnalysisPass dimeta::Types dimeta::TestPass)
 set(DIMETA_SUITES
   all
   pass
+  pass/gep
 )
 
 dimeta_add_lit_target(SUITES ${DIMETA_SUITES})

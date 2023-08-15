@@ -55,6 +55,21 @@ struct ValuePath {
     return *path_to_value.begin();
   }
 
+  //  const llvm::Value* operator[](unsigned index) const {
+  //    assert(index < path_to_value.size() && "Index out of bounds!");
+  //    return path_to_value[index];
+  //  }
+  const llvm::Optional<const llvm::Value*> at(int index) const {
+    if (index < path_to_value.size() && index >= 0) {
+      return path_to_value[index];
+    }
+    return llvm::None;
+  }
+
+  int size() const {
+    return path_to_value.size();
+  }
+
   //  [[nodiscard]] llvm::Value* value() {
   //    if (path_to_value.empty()) {
   //      return nullptr;

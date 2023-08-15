@@ -4,14 +4,10 @@
 
 #include <stdlib.h>
 
-struct B {
+struct A {
   int* a;
 };
-struct A {
-  struct B b;
-};
 
-void foo() {
-  struct A a_struct;
-  a_struct.b.a = malloc(sizeof(int));
+void foo(int** ar) {
+  ar[2] = (int*)malloc(sizeof(int));
 }
