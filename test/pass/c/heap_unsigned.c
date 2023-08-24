@@ -1,6 +1,6 @@
 // RUN: %c-to-llvm %s | %apply-verifier 2>&1 | %filecheck %s
 
-// CHECK: Yaml Verifier: 1
+// CHECK: Final Type: {{.*}} = !DIBasicType(name: "unsigned int", size: 32, encoding: DW_ATE_unsigned)
 
 #include <stdlib.h>
 

@@ -7,5 +7,5 @@
 struct A {};
 
 void foo(struct A** ar) {
-  ar[1] = (struct A*)malloc(sizeof(struct A));
+  ar[0] = (struct A*)malloc(sizeof(struct A));
 }

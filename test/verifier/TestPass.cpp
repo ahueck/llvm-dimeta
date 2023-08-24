@@ -5,24 +5,39 @@
 //  SPDX-License-Identifier: BSD-3-Clause
 //
 
+#include "DIVisitor.h"
 #include "Dimeta.h"
+#include "DimetaData.h"
 #include "MetaIO.h"
 #include "MetaParse.h"
 
 #include "llvm-c/Types.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/ilist_iterator.h"
 #include "llvm/Demangle/Demangle.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
+#include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/Value.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <optional>
 #include <string>
+
+namespace llvm {
+class PointerType;
+
+class PointerType;
+}  // namespace llvm
 
 using namespace llvm;
 
@@ -104,10 +119,27 @@ class TestPass : public ModulePass {
 
     llvm::outs() << "Function: " << func.getName() << ":\n";
 
+    const auto ditype_tostring = [](auto* ditype) {
+      llvm::DIType* type = ditype;
+      while (llvm::isa<llvm::DIDerivedType>(type)) {
+        auto ditype = llvm::dyn_cast<llvm::DIDerivedType>(type);
+        // void*-based derived types:
+        if (ditype->getBaseType() == nullptr) {
+          return type;
+        }
+        type = ditype->getBaseType();
+      }
+
+      return type;
+    };
+
     for (auto& inst : llvm::instructions(func)) {
       if (auto* call_inst = dyn_cast<CallBase>(&inst)) {
         llvm::outs() << "Handle " << *call_inst << "\n";
-        type_for(call_inst);
+        auto ditype = type_for(call_inst);
+        if (ditype) {
+          llvm::outs() << "Final Type: " << *ditype_tostring(ditype.value()) << "\n\n";
+        }
       }
 
       if (auto* alloca_inst = dyn_cast<AllocaInst>(&inst)) {
@@ -118,11 +150,11 @@ class TestPass : public ModulePass {
         auto di_var = type_for(alloca_inst);
         if (di_var) {
           parser::DITypeParser parser_types;
-          parser_types.traverseLocalVariable(di_var.getValue());
+          parser_types.traverseLocalVariable(di_var.value());
 
           if (cl_dimeta_test_print_tree) {
 #if LLVM_MAJOR_VERSION < 14
-            di_var.getValue()->print(llvm::outs(), func.getParent());
+            di_var.value()->print(llvm::outs(), func.getParent());
 #else
             di_var.getValue()->dumpTree(func.getParent());
 #endif
@@ -130,7 +162,7 @@ class TestPass : public ModulePass {
 
           if (cl_dimeta_test_print) {
             util::DIPrinter printer(llvm::outs(), func.getParent());
-            printer.traverseLocalVariable(di_var.getValue());
+            printer.traverseLocalVariable(di_var.value());
           }
 
           bool result{false};

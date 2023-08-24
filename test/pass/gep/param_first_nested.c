@@ -12,13 +12,13 @@ typedef struct foo {
     struct xx {
       struct bb {
         double* x;
+        double* z;
       } baz;
     } foobar;
   } bar;
 
 } foo;
 
-char take_field(foo* chunky2) {
+void take_field(foo* chunky2) {
   chunky2->bar.foobar.baz.x = (double*)malloc(sizeof(double));
-  return 'a';
 }

@@ -5,6 +5,15 @@
 
 #include <stdlib.h>
 
-void foo(int** p) {
-  *p = malloc(sizeof(int) * 4);
+extern void g(int* data);
+
+void foo(int n) {
+  g(malloc(sizeof(int)));
+}
+
+extern void h(double, double, double, float, int* data);
+
+void bar() {
+  double d = 0.0;
+  h(d, d, d, d, malloc(sizeof(int)));
 }

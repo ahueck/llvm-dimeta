@@ -1,6 +1,8 @@
+// RUN: %c-to-llvm %s | %apply-verifier 2>&1 | %filecheck %s
 // RUN: %c-to-llvm %s | %opt -instcombine -S -o - |%apply-verifier 2>&1 | %filecheck %s
+// RUN: %c-to-llvm %s | %opt -O1 -S | %apply-verifier 2>&1 | %filecheck %s
 
-// CHECK: Final Type: {{.*}} = !DIBasicType(name: "char", size: 8, encoding: DW_ATE_signed_char)
+// TODO handle nested constant geps without "instcombine"
 
 #include "stdlib.h"
 
@@ -28,9 +30,14 @@ struct foo {
 };
 
 struct foo chunky;
+struct foo* chunky2;
 
-char take_field() {
-  //  foo chunky;
+void take_field() {
+  // CHECK: Final Type: {{.*}} = !DIBasicType(name: "char", size: 8, encoding: DW_ATE_signed_char)
   chunky.bar.baz.quux.field5[17] = (char*)malloc(1);
-  return 'a';
+}
+
+void take_field_ptr() {
+  // CHECK: Final Type: {{.*}} = !DIBasicType(name: "char", size: 8, encoding: DW_ATE_signed_char)
+  chunky2->bar.baz.quux.field5[0] = (char*)malloc(1);
 }

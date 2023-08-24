@@ -177,7 +177,7 @@ struct DefUseChain {
     const auto apply_search_direction = [&](const ValuePath& current_path) {
       auto value = search(current_path);
       if (value) {
-        addToWork(value.getValue(), current_path);
+        addToWork(value.value(), current_path);
       }
     };
 
@@ -212,7 +212,7 @@ struct DefUseChain {
   void traverse(const llvm::Value* start, CallBackFn&& match, ShouldSearchFn&& should_search) {
     do_traverse(
         std::forward<ShouldSearchFn>(should_search),
-        [](const ValuePath& val) -> llvm::Optional<decltype(val.value()->users())> {
+        [](const ValuePath& val) -> std::optional<decltype(val.value()->users())> {
           const auto* value = val.value();
           return value->users();
         },
