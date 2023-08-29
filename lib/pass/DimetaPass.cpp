@@ -17,7 +17,10 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
+#include "llvm/Passes/PassBuilder.h"
+#include "llvm/Passes/PassPlugin.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -25,15 +28,12 @@ using namespace llvm;
 
 namespace dimeta {
 
-class TestPass : public ModulePass {
+class TestPass : public PassInfoMixin<TestPass> {
  public:
-  static char ID;  // NOLINT
-  TestPass() : ModulePass(ID) {
-  }
-
-  bool runOnModule(Module& module) override {
-    llvm::for_each(module.functions(), [&](auto& func) { return runOnFunc(func); });
-    return false;
+  PreservedAnalyses run(Module& M, ModuleAnalysisManager& MAM) {
+    llvm::for_each(M.functions(), [&](auto& func) { return runOnFunc(func); });
+    PreservedAnalyses pa = PreservedAnalyses::all();
+    return pa;
   }
 
   static void runOnFunc(Function& func) {
@@ -44,9 +44,32 @@ class TestPass : public ModulePass {
     llvm::outs() << "Function: " << func.getName() << ":\n";
     llvm::outs() << "-------------------------------------\n";
 
+    const auto ditype_tostring = [](auto* ditype) {
+      llvm::DIType* type = ditype;
+      while (llvm::isa<llvm::DIDerivedType>(type)) {
+        auto ditype = llvm::dyn_cast<llvm::DIDerivedType>(type);
+        // void*-based derived types:
+        if (ditype->getBaseType() == nullptr) {
+          return type;
+        }
+        type = ditype->getBaseType();
+      }
+
+      return type;
+    };
+
     for (auto& inst : llvm::instructions(func)) {
+      if (auto* call_inst = dyn_cast<CallBase>(&inst)) {
+        auto ditype = type_for(call_inst);
+        if (ditype) {
+          llvm::outs() << "Final heap type: " << *ditype_tostring(ditype.value()) << "\n\n";
+        }
+      }
       if (auto* ai = dyn_cast<AllocaInst>(&inst)) {
-        dimeta::type_for(ai);
+        auto alloca_di = dimeta::type_for(ai);
+        if (alloca_di) {
+          llvm::outs() << "Final alloca type: " << *ditype_tostring(alloca_di.value()->getType()) << "\n\n";
+        }
       }
       //      if (auto* call = dyn_cast<CallInst>(&inst)) {
       //        if (call->getIntrinsicID() == llvm::Intrinsic::not_intrinsic) {
@@ -56,22 +79,23 @@ class TestPass : public ModulePass {
     }
     llvm::outs() << "-------------------------------------\n";
   }
-
-  ~TestPass() override = default;
 };
 
 }  // namespace dimeta
 
 #define DEBUG_TYPE "dimeta-analysis-pass"
 
-char dimeta::TestPass::ID = 0;  // NOLINT
+PassPluginLibraryInfo getPassPluginInfo() {
+  const auto callback = [](PassBuilder& PB) {
+    PB.registerPipelineEarlySimplificationEPCallback([&](ModulePassManager& MPM, auto) {
+      MPM.addPass(dimeta::TestPass());
+      return true;
+    });
+  };
 
-static RegisterPass<dimeta::TestPass> x("dimeta", "Dimeta Pass");  // NOLINT
+  return {LLVM_PLUGIN_API_VERSION, DEBUG_TYPE, "0.0.1", callback};
+};
 
-ModulePass* createDimetaPass() {
-  return new dimeta::TestPass();
-}
-
-extern "C" void AddDimetaPass(LLVMPassManagerRef pass_manager) {
-  unwrap(pass_manager)->add(createDimetaPass());
+extern "C" LLVM_ATTRIBUTE_WEAK PassPluginLibraryInfo llvmGetPassPluginInfo() {
+  return getPassPluginInfo();
 }
