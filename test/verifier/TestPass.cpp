@@ -149,6 +149,9 @@ class TestPass : public ModulePass {
         }
         auto di_var = type_for(alloca_inst);
         if (di_var) {
+          llvm::outs() << "Final Stack Type: " << *ditype_tostring(di_var.value()->getType()) << "\n\n";
+        }
+        if (di_var) {
           parser::DITypeParser parser_types;
           parser_types.traverseLocalVariable(di_var.value());
 

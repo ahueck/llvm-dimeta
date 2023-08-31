@@ -21,8 +21,6 @@ namespace dimeta {
 
 namespace visitor {
 
-namespace detail {}  // namespace detail
-
 template <typename SubClass>
 class DINodeVisitor {
  private:

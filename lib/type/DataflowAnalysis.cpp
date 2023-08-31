@@ -125,6 +125,8 @@ auto MallocBacktrackSearch::operator()(const dataflow::ValuePath& path) -> std::
     return {};
   }
 
+  dbgs() << "Backtracking " << *inst << "\n";
+
   switch (inst->getOpcode()) {
     case Instruction::Store: {
       result.push_back(llvm::dyn_cast<StoreInst>(inst)->getPointerOperand());
@@ -140,6 +142,14 @@ auto MallocBacktrackSearch::operator()(const dataflow::ValuePath& path) -> std::
     }
     case Instruction::BitCast: {
       result.push_back(llvm::dyn_cast<llvm::BitCastInst>(inst)->getOperand(0));
+      return result;
+    }
+    case Instruction::PHI: {
+      auto* phi = llvm::dyn_cast<PHINode>(inst);
+      for (auto& incoming : phi->incoming_values()) {
+        dbgs() << "  > Backtracking phi incoming " << *incoming.get() << "\n";
+        result.push_back(incoming.get());
+      }
       return result;
     }
   }

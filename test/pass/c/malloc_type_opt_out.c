@@ -1,9 +1,8 @@
-// RUN: clang -g -O2 -S -emit-llvm %s -o - | %apply-verifier -S 2>&1 | %filecheck %s
+// RUN: %clang-cc -g -O2 -S -emit-llvm %s -o - | %apply-verifier -S 2>&1 | %filecheck %s
+// RUN: %c-to-llvm %s | %apply-verifier -S 2>&1 | %filecheck %s
 
 // CHECK: Final Type: {{.*}} = !DIBasicType(name: "int", size: 32, encoding: DW_ATE_signed)
 
-// This is a dummy test illustrating problems with -Xclang approach and higher optimizations, losing infos about the
-// malloc type
 #include <stdlib.h>
 
 typedef struct {

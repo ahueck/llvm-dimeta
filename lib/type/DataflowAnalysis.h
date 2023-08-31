@@ -8,8 +8,6 @@
 #ifndef DIMETA_DATAFLOWANALYSIS_H
 #define DIMETA_DATAFLOWANALYSIS_H
 
-#include "DefUseAnalysis.h"
-
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/TinyPtrVector.h"
 #include "llvm/IR/DebugInfoMetadata.h"
