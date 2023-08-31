@@ -14,6 +14,8 @@ add_library(dimeta_Types STATIC
 
 add_library(dimeta::Types ALIAS dimeta_Types)
 
+dimeta_target_define_file_basename(dimeta_Types)
+
 set_property(TARGET dimeta_Types PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 target_include_directories(dimeta_Types
@@ -31,6 +33,8 @@ target_compile_definitions(dimeta_Types
         PRIVATE
         LLVM_VERSION_MAJOR=${LLVM_VERSION_MAJOR}
         )
+
+dimeta_target_compile_opts(dimeta_Types)
 
 target_include_directories(
   dimeta_Types

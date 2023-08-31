@@ -8,6 +8,7 @@
 #include "TBAA.h"
 
 #include "DefUseAnalysis.h"
+#include "support/Logger.h"
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Constants.h"
@@ -79,11 +80,14 @@ std::optional<llvm::DIType*> resolve_tbaa(llvm::DIType* root, const dataflow::Va
   }
   assert(value != nullptr && "Last value should be a store instruction.");
 
+  LOG_DEBUG("Resolve TBAA of ditype: " << log::ditype_str(root))
+
   auto tbaa = TBAAHandle::create(*value);
   assert(tbaa.has_value() && "Requires TBAA.");
 
   // assign any ptr to any ptr, e.g., struct A** a; a[0] = malloc(struct A):
   if (tbaa->base_ty == tbaa->access_ty && tbaa->access_is_ptr()) {
+    LOG_DEBUG("No work: TBAA base type is same as access type (both ptr).")
     return root;
   }
 
@@ -98,9 +102,12 @@ std::optional<llvm::DIType*> resolve_tbaa(llvm::DIType* root, const dataflow::Va
 
   auto maybe_composite = find_composite(root);
   if (!maybe_composite || !llvm::isa<llvm::DICompositeType>(maybe_composite)) {
+    LOG_DEBUG("Returning: DIType is not composite required for TBAA descend.")
     return root;
   }
   auto composite = llvm::dyn_cast<llvm::DICompositeType>(maybe_composite);
+
+  LOG_DEBUG("Found legible composite node: " << log::ditype_str(composite))
 
   //  assert(root->getTag() == llvm::dwarf::DW_TAG_structure_type && "Root should be struct-like");
 
@@ -125,6 +132,9 @@ std::optional<llvm::DIType*> resolve_tbaa(llvm::DIType* root, const dataflow::Va
   bool endpoint_reached = false;
   auto next_tbaa        = tbaa->base_ty;
   auto next_ditype      = composite;
+  LOG_DEBUG("TBAA tree iteration.")
+  LOG_DEBUG("  From ditype: " << log::ditype_str(composite))
+  LOG_DEBUG("  From tbaa: " << log::ditype_str(next_tbaa))
   do {
     next_tbaa        = next_tbaa_type(next_tbaa);
     auto try_next_di = next_di_member(next_ditype);

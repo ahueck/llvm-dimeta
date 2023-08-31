@@ -10,6 +10,7 @@
 #include "DimetaData.h"
 #include "MetaIO.h"
 #include "MetaParse.h"
+#include "support/Logger.h"
 
 #include "llvm-c/Types.h"
 #include "llvm/ADT/STLExtras.h"
@@ -103,6 +104,7 @@ class TestPass : public ModulePass {
   }
 
   bool runOnModule(Module& module) override {
+    log::LogContext::get().setModule(&module);
     llvm::for_each(module.functions(), [&](auto& func) { return runOnFunc(func); });
     return false;
   }
@@ -117,7 +119,7 @@ class TestPass : public ModulePass {
       return;
     }
 
-    llvm::outs() << "Function: " << func.getName() << ":\n";
+    LOG_MSG("Function: " << func.getName() << ":");
 
     const auto ditype_tostring = [](auto* ditype) {
       llvm::DIType* type = ditype;
@@ -125,31 +127,33 @@ class TestPass : public ModulePass {
         auto ditype = llvm::dyn_cast<llvm::DIDerivedType>(type);
         // void*-based derived types:
         if (ditype->getBaseType() == nullptr) {
-          return type;
+          return log::ditype_str(type);
         }
         type = ditype->getBaseType();
       }
 
-      return type;
+      return log::ditype_str(type);
     };
 
     for (auto& inst : llvm::instructions(func)) {
       if (auto* call_inst = dyn_cast<CallBase>(&inst)) {
-        llvm::outs() << "Handle " << *call_inst << "\n";
         auto ditype = type_for(call_inst);
         if (ditype) {
-          llvm::outs() << "Final Type: " << *ditype_tostring(ditype.value()) << "\n\n";
+          LOG_DEBUG("Type for heap-like: " << *call_inst)
+          LOG_DEBUG("Extracted Type: " << log::ditype_str(ditype.value()) << "\n");
+          LOG_MSG("Final Type: " << ditype_tostring(ditype.value()) << "\n");
         }
       }
 
       if (auto* alloca_inst = dyn_cast<AllocaInst>(&inst)) {
         if (isa<llvm::PointerType>(alloca_inst->getAllocatedType())) {
-          llvm::outs() << "Skip " << *alloca_inst << "\n";
+          LOG_DEBUG("Skip " << *alloca_inst);
           continue;
         }
         auto di_var = type_for(alloca_inst);
         if (di_var) {
-          llvm::outs() << "Final Stack Type: " << *ditype_tostring(di_var.value()->getType()) << "\n\n";
+          LOG_DEBUG("Type for alloca: " << *alloca_inst)
+          LOG_MSG("Final Stack Type: " << ditype_tostring(di_var.value()->getType()) << "\n");
         }
         if (di_var) {
           parser::DITypeParser parser_types;
@@ -176,7 +180,7 @@ class TestPass : public ModulePass {
             auto const qual_type = parser_types.getAs<QualifiedFundamental>().value();
             result               = serialization_roundtrip(qual_type, cl_dimeta_test_print_yaml.getValue());
           }
-          llvm::outs() << *alloca_inst << ": Yaml Verifier: " << static_cast<int>(result) << "\n";
+          LOG_MSG(*alloca_inst << ": Yaml Verifier: " << static_cast<int>(result));
         }
       }
     }

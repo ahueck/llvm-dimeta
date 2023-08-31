@@ -19,6 +19,10 @@ function(dimeta_target_define_file_basename targetname)
   endforeach()
 endfunction()
 
+function(dimeta_target_compile_opts targetname)
+  set_property(TARGET ${targetname} APPEND_STRING PROPERTY
+          COMPILE_FLAGS "-fno-exceptions -fno-rtti")
+endfunction()
 
 function (dimeta_target_generate_file input output)
   file(READ ${input} contents)

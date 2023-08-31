@@ -8,6 +8,7 @@
 #include "DataflowAnalysis.h"
 
 #include "DefUseAnalysis.h"
+#include "support/Logger.h"
 
 #include "llvm/ADT/TinyPtrVector.h"
 #include "llvm/ADT/iterator_range.h"
@@ -94,9 +95,9 @@ llvm::SmallVector<dataflow::ValuePath, 4> type_for_heap_call(const llvm::CallBas
     ditype_paths.emplace_back(anchor_path);
   }
 
-  llvm::dbgs() << "Paths to types: \n";
+  LOG_DEBUG("Paths to types:");
   for (const auto& path : ditype_paths) {
-    llvm::dbgs() << "  T: " << path << "\n";
+    LOG_DEBUG("  T: " << path);
   }
 
   return ditype_paths;
@@ -125,7 +126,7 @@ auto MallocBacktrackSearch::operator()(const dataflow::ValuePath& path) -> std::
     return {};
   }
 
-  dbgs() << "Backtracking " << *inst << "\n";
+  LOG_DEBUG("Backtracking " << *inst);
 
   switch (inst->getOpcode()) {
     case Instruction::Store: {
@@ -147,7 +148,7 @@ auto MallocBacktrackSearch::operator()(const dataflow::ValuePath& path) -> std::
     case Instruction::PHI: {
       auto* phi = llvm::dyn_cast<PHINode>(inst);
       for (auto& incoming : phi->incoming_values()) {
-        dbgs() << "  > Backtracking phi incoming " << *incoming.get() << "\n";
+        LOG_DEBUG("  > Backtracking phi incoming " << *incoming.get());
         result.push_back(incoming.get());
       }
       return result;
@@ -184,7 +185,7 @@ auto MallocTargetMatcher::operator()(const dataflow::ValuePath& path) -> decltyp
   }
 
   if (const auto* const_expr = llvm::dyn_cast<llvm::ConstantExpr>(value)) {
-    llvm::dbgs() << "Unsupported: Found constant expr: " << *const_expr << "\n";
+    LOG_DEBUG("Unsupported: Found constant expr: " << *const_expr);
   }
 
   return DefUseChain::kContinue;
@@ -213,14 +214,10 @@ auto MallocAnchorMatcher::operator()(const ValuePath& path) -> decltype(DefUseCh
 
   switch (inst->getOpcode()) {
     case Instruction::Ret: {
-      outs() << "Matched Ret! " << *inst << "\n";
-      outs() << "  Path: " << path << "\n";
       anchors.push_back(path);
       return DefUseChain::kCancel;
     }
     case Instruction::Store: {
-      outs() << "Matched store! " << *inst << "\n";
-      outs() << "  Path: " << path << "\n";
       anchors.push_back(path);
       return DefUseChain::kCancel;
     }
@@ -232,8 +229,6 @@ auto MallocAnchorMatcher::operator()(const ValuePath& path) -> decltype(DefUseCh
       if (path.only_start()) {
         return DefUseChain::kContinue;
       }
-      outs() << "Matched call! " << *inst << "\n";
-      outs() << "  Path: " << path << "\n";
 
       anchors.push_back(path);
 

@@ -13,6 +13,7 @@
 #include "MemoryOps.h"
 #include "TBAA.h"
 #include "Util.h"
+#include "support/Logger.h"
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
@@ -67,7 +68,7 @@ std::optional<llvm::DIType*> type_for_newlike(const llvm::CallBase* call) {
   if (auto* type = llvm::dyn_cast<llvm::DIType>(heapalloc_md)) {
     //    util::DIPrinter printer(llvm::outs(), call->getParent()->getParent()->getParent());
     //    printer.traverseType(type);
-    llvm::dbgs() << "Final Type: " << *type << "\n";
+    //    llvm::dbgs() << "Final Type: " << *type << "\n";
     return type;
   }
   return {};
@@ -84,9 +85,9 @@ bool contains_gep(const dataflow::ValuePath& path) {
 
 std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
   using namespace llvm;
-  const auto* value = path.value();
+  const auto* root_value = path.value();
 
-  if (const auto* ret = dyn_cast<ReturnInst>(value)) {
+  if (const auto* ret = dyn_cast<ReturnInst>(root_value)) {
     auto* sub_prog  = ret->getFunction()->getSubprogram();
     auto type_array = sub_prog->getType()->getTypeArray();
     if (type_array.size() > 0) {
@@ -95,7 +96,7 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
     return {};
   }
 
-  if (const auto* alloca = dyn_cast<AllocaInst>(value)) {
+  if (const auto* alloca = dyn_cast<AllocaInst>(root_value)) {
     auto local_di_var = type_for(alloca);
     if (local_di_var) {
       return local_di_var.value()->getType();
@@ -103,7 +104,7 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
     return {};
   }
 
-  if (const auto* call_inst = llvm::dyn_cast<CallBase>(value)) {
+  if (const auto* call_inst = llvm::dyn_cast<CallBase>(root_value)) {
     const auto* called_f = call_inst->getCalledFunction();
     if (called_f != nullptr) {
       // Argument passed to current call:
@@ -125,7 +126,7 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
     return {};
   }
 
-  if (const auto* global_variable = llvm::dyn_cast<llvm::GlobalVariable>(value)) {
+  if (const auto* global_variable = llvm::dyn_cast<llvm::GlobalVariable>(root_value)) {
     auto dbg_md = global_variable->getMetadata("dbg");
     if (!dbg_md) {
       return {};
@@ -136,7 +137,7 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
     return {};
   }
 
-  if (const auto* argument = llvm::dyn_cast<llvm::Argument>(value)) {
+  if (const auto* argument = llvm::dyn_cast<llvm::Argument>(root_value)) {
     if (auto* subprogram = argument->getParent()->getSubprogram(); subprogram != nullptr) {
       const auto arg_pos    = argument->getArgNo() + 1;
       const auto type_array = subprogram->getType()->getTypeArray();
@@ -146,19 +147,20 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
     return {};
   }
 
-  if (const auto* const_expr = llvm::dyn_cast<llvm::ConstantExpr>(value)) {
-    // TODO
-    llvm::dbgs() << "find_type: ConstantExpr unsupported\n";
+  if (const auto* const_expr = llvm::dyn_cast<llvm::ConstantExpr>(root_value)) {
+    LOG_DEBUG("find_type: ConstantExpr unsupported");
   }
 
-  llvm::dbgs() << "find_type: No matching value found for " << *value << "\n";
+  LOG_DEBUG("find_type: No matching value found for " << *root_value);
   return {};
 }
 
 template <typename Iter, typename Iter2>
 std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const Iter& path_iter, const Iter2& path_end) {
   std::optional<llvm::DIType*> type = type_to_reset;
-  llvm::dbgs() << "Extracted type: " << *type << "\n";
+  if (type) {
+    LOG_DEBUG("Type to reset: " << log::ditype_str(*type));
+  }
 
   // Look at next value after gep (e.g., a load or the final store)
   auto next_value = std::next(path_iter);
@@ -170,7 +172,7 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const Ite
   // - a load ofter a gep is likely the first element of the composite type
   // - a load also resolves to the basetype w.r.t. an array composite
   // - a store with a ditype(array) is likely the first element of the array
-  llvm::dbgs() << "Looking at " << **next_value << "\n";
+  LOG_DEBUG("Looking at " << **next_value);
   if (const auto* value = llvm::dyn_cast<llvm::LoadInst>(*next_value)) {
     // workaround for gep/array_composite_sub.c (non-optim/optim):
     auto next_after_load = std::next(next_value);
@@ -181,7 +183,7 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const Ite
     }
 
     auto ditype_val = type.value();
-    llvm::dbgs() << "With ditype " << *ditype_val << "\n";
+    LOG_DEBUG("  with ditype " << log::ditype_str(ditype_val));
     if (auto* ptr_to_composite = llvm::dyn_cast<llvm::DIDerivedType>(ditype_val)) {
       auto base_type = ptr_to_composite->getBaseType();
       assert(base_type != nullptr && "Pointer points to null-type (void*?)");
@@ -191,13 +193,14 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const Ite
 
         auto first_elem = composite->getElements()[0];
         if (auto loaded_elem = llvm::dyn_cast<llvm::DIType>(first_elem)) {
-          llvm::dbgs() << "Loaded from extracted type: " << *loaded_elem << "\n";
+          LOG_DEBUG("Loaded from extracted type: " << *loaded_elem);
           type = loaded_elem;
         }
       }
     }
     if (auto* ptr_to_array = llvm::dyn_cast<llvm::DICompositeType>(ditype_val)) {
       if (ptr_to_array->getTag() == llvm::dwarf::DW_TAG_array_type) {
+        LOG_DEBUG("Loaded from extracted type of array type " << *ptr_to_array->getBaseType())
         type = ptr_to_array->getBaseType();
       }
     }
@@ -205,9 +208,10 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const Ite
 
   if (const auto* value = llvm::dyn_cast<llvm::StoreInst>(*next_value)) {
     auto ditype_val = type.value();
-    llvm::dbgs() << "With stored ditype " << *ditype_val << "\n";
+    LOG_DEBUG("With stored ditype " << log::ditype_str(ditype_val));
     if (auto* array_to_composite = llvm::dyn_cast<llvm::DICompositeType>(ditype_val)) {
       if (array_to_composite->getTag() == llvm::dwarf::DW_TAG_array_type) {
+        LOG_DEBUG("Loaded from extracted type of array type " << log::ditype_str(array_to_composite->getBaseType()))
         type = array_to_composite->getBaseType();
       }
     }
@@ -226,12 +230,12 @@ std::optional<llvm::DIType*> find_type(const dataflow::ValuePath& path) {
     }
 
     auto* gep = llvm::cast<llvm::GEPOperator>(*path_iter);
-    llvm::dbgs() << "Iter " << *gep << "\n";
+    LOG_DEBUG("Iter " << *gep);
 
     type = gep::extract_gep_deref_type(type.value(), *gep);
 
     if (type) {
-      llvm::dbgs() << "Extracted type: " << **type << "\n";
+      LOG_DEBUG("Extracted type: " << log::ditype_str(*type));
       type = reset_ditype(type.value(), path_iter, path_end).value_or(type.value());
     }
   }
@@ -257,11 +261,6 @@ std::optional<llvm::DIType*> type_for_malloclike(const llvm::CallBase* call) {
   const auto ditype_paths = dataflow::type_for_heap_call(call);
 
   const auto ditypes_vector = ditype::collect_types(ditype_paths);
-  for (auto* ditype : ditypes_vector) {
-    if (ditype == nullptr) {
-      continue;
-    }
-  }
   if (ditypes_vector.empty()) {
     return {};
   }
@@ -278,7 +277,7 @@ std::optional<llvm::DIType*> type_for(const llvm::CallBase* call) {
   }
 
   if (!mem_ops.isAlloc(cb_fun->getName())) {
-    dbgs() << "Skipping call base: " << cb_fun->getName() << "\n";
+    LOG_TRACE("Skipping call base: " << cb_fun->getName());
     return {};
   }
 
@@ -286,7 +285,7 @@ std::optional<llvm::DIType*> type_for(const llvm::CallBase* call) {
     return type_for_newlike(call);
   }
 
-  dbgs() << "Type for malloc-like: " << cb_fun->getName() << "\n";
+  LOG_TRACE("Type for malloc-like: " << cb_fun->getName());
   return type_for_malloclike(call);
 }
 
