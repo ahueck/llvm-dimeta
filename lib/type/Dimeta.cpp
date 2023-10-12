@@ -162,7 +162,7 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const Ite
     LOG_DEBUG("Type to reset: " << log::ditype_str(*type));
   }
 
-  // Look at next value after gep (e.g., a load or the final store)
+  // Look at next value after gep [path_iter] (e.g., a load or the final store)
   auto next_value = std::next(path_iter);
   if (next_value == path_end) {
     return {};
@@ -179,22 +179,28 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const Ite
     assert(next_after_load != path_end && "After load there should be a instruction!");
     if (!llvm::isa<llvm::StoreInst>(*next_after_load)) {
       // a load resolves a pointer level in the DI type, but we only look at the final gep before the store.
+      // for now..
       return {};
     }
 
     auto ditype_val = type.value();
     LOG_DEBUG("  with ditype " << log::ditype_str(ditype_val));
-    if (auto* ptr_to_composite = llvm::dyn_cast<llvm::DIDerivedType>(ditype_val)) {
-      auto base_type = ptr_to_composite->getBaseType();
+    if (auto* ptr_to_type = llvm::dyn_cast<llvm::DIDerivedType>(ditype_val)) {
+      auto base_type = ptr_to_type->getBaseType();
       assert(base_type != nullptr && "Pointer points to null-type (void*?)");
 
-      if (auto* composite = llvm::dyn_cast<llvm::DICompositeType>(ptr_to_composite->getBaseType())) {
+      if (auto* composite = llvm::dyn_cast<llvm::DICompositeType>(base_type)) {
         assert(!composite->getElements().empty() && "Load should target member of composite type!");
 
         auto first_elem = composite->getElements()[0];
         if (auto loaded_elem = llvm::dyn_cast<llvm::DIType>(first_elem)) {
           LOG_DEBUG("Loaded from extracted type: " << *loaded_elem);
           type = loaded_elem;
+        }
+      }
+      if (auto* ptr_to_ptr = llvm::dyn_cast<llvm::DIDerivedType>(base_type)) {
+        if (ptr_to_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type) {
+          type = ptr_to_ptr;
         }
       }
     }
@@ -208,11 +214,22 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const Ite
 
   if (const auto* value = llvm::dyn_cast<llvm::StoreInst>(*next_value)) {
     auto ditype_val = type.value();
-    LOG_DEBUG("With stored ditype " << log::ditype_str(ditype_val));
+    LOG_DEBUG("With stored to ditype " << log::ditype_str(ditype_val));
     if (auto* array_to_composite = llvm::dyn_cast<llvm::DICompositeType>(ditype_val)) {
       if (array_to_composite->getTag() == llvm::dwarf::DW_TAG_array_type) {
         LOG_DEBUG("Loaded from extracted type of array type " << log::ditype_str(array_to_composite->getBaseType()))
         type = array_to_composite->getBaseType();
+      }
+    }
+    // A store directly to a pointer, remove one level of "pointerness", see test heap_matrix_simple with -O2.
+    if (auto* ptr_type = llvm::dyn_cast<llvm::DIDerivedType>(ditype_val)) {
+      assert(ptr_type->getTag() == llvm::dwarf::DW_TAG_pointer_type && "Expected a store inst to a pointer here.");
+      auto base_type = ptr_type->getBaseType();
+      if (auto* ptr_to_ptr = llvm::dyn_cast<llvm::DIDerivedType>(base_type)) {
+        if (ptr_to_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type) {
+          LOG_DEBUG("Store to a pointer type, resolving to " << log::ditype_str(base_type))
+          return base_type;
+        }
       }
     }
   }
@@ -223,21 +240,32 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const Ite
 std::optional<llvm::DIType*> find_type(const dataflow::ValuePath& path) {
   auto type = find_type_root(path);
 
+  bool has_gep{false};
+
   const auto path_end = path.path_to_value.rend();
   for (auto path_iter = path.path_to_value.rbegin(); path_iter != path_end; ++path_iter) {
     if (!llvm::isa<llvm::GEPOperator>(*path_iter)) {
       continue;
     }
 
-    auto* gep = llvm::cast<llvm::GEPOperator>(*path_iter);
-    LOG_DEBUG("Iter " << *gep);
+    has_gep = true;
 
+    auto* gep = llvm::cast<llvm::GEPOperator>(*path_iter);
+
+    LOG_DEBUG("Path iter for extraction is currently " << *gep);
     type = gep::extract_gep_deref_type(type.value(), *gep);
 
     if (type) {
-      LOG_DEBUG("Extracted type: " << log::ditype_str(*type));
+      LOG_DEBUG("Extracted type w.r.t. gep: " << log::ditype_str(*type));
       type = reset_ditype(type.value(), path_iter, path_end).value_or(type.value());
     }
+  }
+
+  if (type && !has_gep) {
+    // handle load of pointer (without gep, see heap_matrix_simple.c)
+    // FIXME: rbegin might be wrong here, need a better anchor, as the function only loos at next(rbegin()), which is
+    // usually a gep, but not with this call.
+    type = reset_ditype(type.value(), path.path_to_value.rbegin(), path_end).value_or(type.value());
   }
 
   if (type) {

@@ -1,10 +1,9 @@
 // RUN: %c-to-llvm %s | %apply-verifier 2>&1 | %filecheck %s
 
-// CHECK: T: [store ptr %2, ptr %1{{.*}} --> %1 = alloca ptr{{.*}}]
-// CHECK: Final Type: {{.*}} = !DIBasicType(name: "int", size: 32, encoding: DW_ATE_signed)
-
 #include <stdlib.h>
 
 void foo() {
+  // CHECK: Extracted Type: {{.*}} = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: [[DIREF:![0-9]+]], size: 64)
+  // CHECK: Final Type: [[DIREF]] = !DIBasicType(name: "int", size: 32, encoding: DW_ATE_signed)
   int* p = malloc(sizeof(int) * 4);
 }

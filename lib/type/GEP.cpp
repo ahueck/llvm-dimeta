@@ -98,7 +98,7 @@ std::optional<llvm::DIType*> resolve_gep_index_to_type(llvm::DICompositeType* co
   if (inst.skipped_first() && inst.indices_[0] != 0) {
     // This assumes that a single (and only single) first 0 skips through to the first element with more than one
     // member: struct A { struct B { struct C { int, int } } } -> would skip to "struct C" for gep [0 1]
-    LOG_DEBUG("IN: " << *composite_type);
+    LOG_DEBUG("IN: " << log::ditype_str(composite_type))
     const auto find_composite = [](llvm::DIType* root) {
       llvm::DIType* type = root;
       while (type && llvm::isa<llvm::DIDerivedType>(type)) {
@@ -169,8 +169,12 @@ std::optional<llvm::DIType*> extract_gep_deref_type(llvm::DIType* root, const ll
 
   auto gep_src = inst.getSourceElementType();
   if (gep_src->isPointerTy()) {
-    LOG_DEBUG("Gep to ptr");
-    return root;  // basetype
+    LOG_DEBUG("Gep to ptr " << log::ditype_str(root));
+    if (auto* type_behind_ptr = llvm::dyn_cast<llvm::DIDerivedType>(root)) {
+      assert((type_behind_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type) && "Expected a DI pointer type.");
+      return type_behind_ptr->getBaseType();
+    }
+    return root;
   }
 
   if (gep_src->isArrayTy()) {

@@ -74,16 +74,16 @@ inline bool tbaa_operand_is_ptr(llvm::MDNode* type_node) {
 
 std::optional<llvm::DIType*> resolve_tbaa(llvm::DIType* root, const dataflow::ValuePath& path) {
   using namespace tbaa;
-  auto value = llvm::dyn_cast<llvm::StoreInst>(path.start_value());
-  if (!value) {
+  auto store_inst = llvm::dyn_cast<llvm::StoreInst>(path.start_value());
+  if (!store_inst) {
     return root;
   }
-  assert(value != nullptr && "Last value should be a store instruction.");
+  assert(store_inst != nullptr && "Last value in path should be a store instruction.");
 
   LOG_DEBUG("Resolve TBAA of ditype: " << log::ditype_str(root))
 
-  auto tbaa = TBAAHandle::create(*value);
-  assert(tbaa.has_value() && "Requires TBAA.");
+  auto tbaa = TBAAHandle::create(*store_inst);
+  assert(tbaa.has_value() && "Requires TBAA metadata in LLVM IR.");
 
   // assign any ptr to any ptr, e.g., struct A** a; a[0] = malloc(struct A):
   if (tbaa->base_ty == tbaa->access_ty && tbaa->access_is_ptr()) {
