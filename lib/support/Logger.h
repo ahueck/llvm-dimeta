@@ -51,6 +51,9 @@ class LogContext {
 };
 
 inline std::string ditype_str(const llvm::Metadata* type) {
+  if (type == nullptr) {
+    return "";
+  }
   auto* module = LogContext::get().getModule();
   std::string logging_message;
   llvm::raw_string_ostream rso(logging_message);

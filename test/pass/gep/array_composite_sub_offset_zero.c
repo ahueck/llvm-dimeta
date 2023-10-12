@@ -13,12 +13,14 @@ struct A {
   struct B* a[2];
 };
 
-// CHECK: Final Type: {{.*}} = !DIBasicType(name: "double", size: 64, encoding: DW_ATE_float)
 void foo(struct A* ar) {
+  // CHECK: Extracted Type: {{.*}} = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: [[DIREF1:![0-9]+]], size: 64)
+  // CHECK: Final Type: [[DIREF1]] = !DIBasicType(name: "double", size: 64, encoding: DW_ATE_float)
   ar->a[0]->x = (double*)malloc(sizeof(double));
 }
 
-// CHECK: Final Type: {{.*}} = distinct !DICompositeType(tag: DW_TAG_structure_type, name: "B"
 void bar(struct A* as) {
+  // CHECK: Extracted Type: {{.*}} = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: [[DIREF:![0-9]+]], size: 64)
+  // CHECK: Final Type: [[DIREF]] = distinct !DICompositeType(tag: DW_TAG_structure_type, name: "B"
   as->a[0] = (struct B*)malloc(sizeof(struct B));
 }

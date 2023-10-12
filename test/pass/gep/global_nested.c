@@ -33,11 +33,13 @@ struct foo chunky;
 struct foo* chunky2;
 
 void take_field() {
-  // CHECK: Final Type: {{.*}} = !DIBasicType(name: "char", size: 8, encoding: DW_ATE_signed_char)
+  // CHECK: Extracted Type: {{.*}} = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: [[DIREF:![0-9]+]], size: 64)
+  // CHECK: Final Type: [[DIREF]] = !DIBasicType(name: "char", size: 8, encoding: DW_ATE_signed_char)
   chunky.bar.baz.quux.field5[17] = (char*)malloc(1);
 }
 
 void take_field_ptr() {
-  // CHECK: Final Type: {{.*}} = !DIBasicType(name: "char", size: 8, encoding: DW_ATE_signed_char)
+  // CHECK: Extracted Type: {{.*}} = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: [[DIREF2:![0-9]+]], size: 64)
+  // CHECK: Final Type: [[DIREF2]] = !DIBasicType(name: "char", size: 8, encoding: DW_ATE_signed_char)
   chunky2->bar.baz.quux.field5[0] = (char*)malloc(1);
 }

@@ -173,7 +173,7 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const Ite
   // - a load also resolves to the basetype w.r.t. an array composite
   // - a store with a ditype(array) is likely the first element of the array
   LOG_DEBUG("Looking at " << **next_value);
-  if (const auto* value = llvm::dyn_cast<llvm::LoadInst>(*next_value)) {
+  if (llvm::isa<llvm::LoadInst>(*next_value)) {
     // workaround for gep/array_composite_sub.c (non-optim/optim):
     auto next_after_load = std::next(next_value);
     assert(next_after_load != path_end && "After load there should be a instruction!");
@@ -194,7 +194,11 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const Ite
 
         auto first_elem = composite->getElements()[0];
         if (auto loaded_elem = llvm::dyn_cast<llvm::DIType>(first_elem)) {
-          LOG_DEBUG("Loaded from extracted type: " << *loaded_elem);
+          LOG_DEBUG("Loaded from extracted type: " << log::ditype_str(loaded_elem))
+          if (loaded_elem->getTag() == llvm::dwarf::DW_TAG_member) {
+            loaded_elem = llvm::cast<llvm::DIDerivedType>(loaded_elem)->getBaseType();
+            LOG_DEBUG("Resetting loaded element from member to base " << log::ditype_str(loaded_elem))
+          }
           type = loaded_elem;
         }
       }
@@ -206,13 +210,13 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const Ite
     }
     if (auto* ptr_to_array = llvm::dyn_cast<llvm::DICompositeType>(ditype_val)) {
       if (ptr_to_array->getTag() == llvm::dwarf::DW_TAG_array_type) {
-        LOG_DEBUG("Loaded from extracted type of array type " << *ptr_to_array->getBaseType())
+        LOG_DEBUG("Loaded from extracted type of array type " << log::ditype_str(ptr_to_array->getBaseType()))
         type = ptr_to_array->getBaseType();
       }
     }
   }
 
-  if (const auto* value = llvm::dyn_cast<llvm::StoreInst>(*next_value)) {
+  if (llvm::isa<llvm::StoreInst>(*next_value)) {
     auto ditype_val = type.value();
     LOG_DEBUG("With stored to ditype " << log::ditype_str(ditype_val));
     if (auto* array_to_composite = llvm::dyn_cast<llvm::DICompositeType>(ditype_val)) {
@@ -252,7 +256,7 @@ std::optional<llvm::DIType*> find_type(const dataflow::ValuePath& path) {
 
     auto* gep = llvm::cast<llvm::GEPOperator>(*path_iter);
 
-    LOG_DEBUG("Path iter for extraction is currently " << *gep);
+    LOG_DEBUG("Path iter gep for extraction is currently " << *gep);
     type = gep::extract_gep_deref_type(type.value(), *gep);
 
     if (type) {

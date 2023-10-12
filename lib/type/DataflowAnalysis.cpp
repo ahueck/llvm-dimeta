@@ -73,6 +73,7 @@ llvm::SmallVector<dataflow::ValuePath, 4> type_for_heap_call(const llvm::CallBas
   DefUseChain value_traversal;
 
   // forward: find pathes to anchor (store, ret, func call etc.) from malloc-like
+  LOG_DEBUG("Find heap-call to anchor w.r.t. " << *call)
   MallocAnchorMatcher malloc_anchor_finder{call};
   value_traversal.traverse(call, malloc_anchor_finder, should_search);
 
@@ -85,9 +86,11 @@ llvm::SmallVector<dataflow::ValuePath, 4> type_for_heap_call(const llvm::CallBas
 
   for (const auto& anchor_path : malloc_anchor_finder.anchors) {
     if (isa<StoreInst>(anchor_path.value())) {
+      LOG_DEBUG("Backtracking from anchor " << *anchor_path.value())
       //      dbgs() << "Traverse " << anchor_path.value() << "\n";
       value_traversal.traverse_custom(anchor_path.value(), malloc_anchor_backtrack, should_search, backtracker_search);
       for (const auto& backtrack_path : malloc_anchor_backtrack.types_path) {
+        LOG_DEBUG("Found backtrack path " << backtrack_path)
         ditype_paths.emplace_back(backtrack_path);
       }
       continue;
@@ -95,7 +98,7 @@ llvm::SmallVector<dataflow::ValuePath, 4> type_for_heap_call(const llvm::CallBas
     ditype_paths.emplace_back(anchor_path);
   }
 
-  LOG_DEBUG("Paths to types:");
+  LOG_DEBUG("Final paths to types:");
   for (const auto& path : ditype_paths) {
     LOG_DEBUG("  T: " << path);
   }
@@ -126,7 +129,7 @@ auto MallocBacktrackSearch::operator()(const dataflow::ValuePath& path) -> std::
     return {};
   }
 
-  LOG_DEBUG("Backtracking " << *inst);
+  LOG_DEBUG("Backtracking from " << *inst);
 
   switch (inst->getOpcode()) {
     case Instruction::Store: {

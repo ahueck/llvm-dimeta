@@ -11,6 +11,7 @@
 #include "support/Logger.h"
 
 #include "llvm/ADT/StringRef.h"
+#include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/Instructions.h"
@@ -80,7 +81,7 @@ std::optional<llvm::DIType*> resolve_tbaa(llvm::DIType* root, const dataflow::Va
   }
   assert(store_inst != nullptr && "Last value in path should be a store instruction.");
 
-  LOG_DEBUG("Resolve TBAA of ditype: " << log::ditype_str(root))
+  LOG_DEBUG("Resolve TBAA of store '" << *store_inst << "' with ditype: " << log::ditype_str(root))
 
   auto tbaa = TBAAHandle::create(*store_inst);
   assert(tbaa.has_value() && "Requires TBAA metadata in LLVM IR.");
@@ -96,6 +97,18 @@ std::optional<llvm::DIType*> resolve_tbaa(llvm::DIType* root, const dataflow::Va
     while (type && llvm::isa<llvm::DIDerivedType>(type)) {
       auto ditype = llvm::dyn_cast<llvm::DIDerivedType>(type);
       type        = ditype->getBaseType();
+    }
+    return type;
+  };
+
+  const auto find_first_non_member = [](llvm::DIType* root) {
+    llvm::DIType* type = root;
+    while (type && llvm::isa<llvm::DIDerivedType>(type)) {
+      auto ditype = llvm::dyn_cast<llvm::DIDerivedType>(type);
+      if (ditype->getTag() != llvm::dwarf::DW_TAG_member) {
+        break;
+      }
+      type = ditype->getBaseType();
     }
     return type;
   };
@@ -121,7 +134,8 @@ std::optional<llvm::DIType*> resolve_tbaa(llvm::DIType* root, const dataflow::Va
       return {};
     }
     auto node = *base->getElements().begin();
-    return find_composite(llvm::dyn_cast<llvm::DIType>(node));
+    // this ignores pointer types etc.:    return find_composite(llvm::dyn_cast<llvm::DIType>(node));
+    return find_first_non_member(llvm::dyn_cast<llvm::DIType>(node));
   };
 
   const auto next_tbaa_type = [](llvm::MDNode* base_ty) -> llvm::MDNode* {
@@ -134,17 +148,22 @@ std::optional<llvm::DIType*> resolve_tbaa(llvm::DIType* root, const dataflow::Va
   auto next_ditype      = composite;
   LOG_DEBUG("TBAA tree iteration.")
   LOG_DEBUG("  From ditype: " << log::ditype_str(composite))
-  LOG_DEBUG("  From tbaa: " << log::ditype_str(next_tbaa))
+  LOG_DEBUG("  From TBAA: " << log::ditype_str(next_tbaa))
   do {
     next_tbaa        = next_tbaa_type(next_tbaa);
     auto try_next_di = next_di_member(next_ditype);
 
     endpoint_reached = tbaa_operand_is_ptr(next_tbaa);
+
+    LOG_DEBUG("  New ditype: " << log::ditype_str(try_next_di.value()))
+    LOG_DEBUG("  New TBAA: " << log::ditype_str(next_tbaa))
     if (endpoint_reached) {
+      LOG_DEBUG("  Endpoint " << log::ditype_str(try_next_di.value()))
       return try_next_di.value();
     } else {
       // not yet found the any_pointer, hence recurse!
       next_ditype = llvm::dyn_cast<llvm::DICompositeType>(try_next_di.value());
+      LOG_DEBUG("  Try to recurse to " << log::ditype_str(next_ditype))
       assert(next_ditype && "We expect a composite type here");
     }
   } while (!endpoint_reached);

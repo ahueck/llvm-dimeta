@@ -98,7 +98,7 @@ std::optional<llvm::DIType*> resolve_gep_index_to_type(llvm::DICompositeType* co
   if (inst.skipped_first() && inst.indices_[0] != 0) {
     // This assumes that a single (and only single) first 0 skips through to the first element with more than one
     // member: struct A { struct B { struct C { int, int } } } -> would skip to "struct C" for gep [0 1]
-    LOG_DEBUG("IN: " << log::ditype_str(composite_type))
+    LOG_DEBUG("Skip single member nested of: " << log::ditype_str(composite_type))
     const auto find_composite = [](llvm::DIType* root) {
       llvm::DIType* type = root;
       while (type && llvm::isa<llvm::DIDerivedType>(type)) {
@@ -122,11 +122,11 @@ std::optional<llvm::DIType*> resolve_gep_index_to_type(llvm::DICompositeType* co
       }
       composite_type = llvm::dyn_cast<llvm::DICompositeType>(next_di.value());
     }
-    LOG_DEBUG("OUT " << *composite_type);
+    LOG_DEBUG("Result of skip: " << log::ditype_str(composite_type))
   }
 
   const auto has_next_idx = [&inst](size_t pos) { return pos + 1 < inst.size(); };
-  LOG_DEBUG("Gep: " << inst);
+  LOG_DEBUG("Iterate over gep: " << inst);
   for (const auto& enum_index : llvm::enumerate(inst.indices())) {
     const auto index  = enum_index.value();
     const auto& elems = composite_type->getElements();
@@ -134,7 +134,7 @@ std::optional<llvm::DIType*> resolve_gep_index_to_type(llvm::DICompositeType* co
 
     auto element = elems[index];
 
-    LOG_DEBUG(" element: " << *element);
+    LOG_DEBUG(" element: " << log::ditype_str(element))
 
     if (auto derived_type = llvm::dyn_cast<llvm::DIDerivedType>(element)) {
       assert(derived_type->getTag() == llvm::dwarf::DW_TAG_member);
@@ -178,10 +178,12 @@ std::optional<llvm::DIType*> extract_gep_deref_type(llvm::DIType* root, const ll
   }
 
   if (gep_src->isArrayTy()) {
-    LOG_DEBUG("Gep to array");
     if (auto composite_type = llvm::dyn_cast<llvm::DICompositeType>(root)) {
-      return composite_type->getBaseType();
+      auto base_type = composite_type->getBaseType();
+      LOG_DEBUG("Gep to array of DI composite, with base type " << log::ditype_str(base_type));
+      return base_type;
     }
+    LOG_DEBUG("Gep to array " << log::ditype_str(root));
     return root;
   }
 
@@ -197,7 +199,7 @@ std::optional<llvm::DIType*> extract_gep_deref_type(llvm::DIType* root, const ll
   auto composite_type = llvm::dyn_cast<llvm::DICompositeType>(find_composite(root));
   assert(composite_type != nullptr && "Root should be a struct-like type.");
 
-  LOG_DEBUG("Gep to composite");
+  LOG_DEBUG("Gep to DI composite: " << log::ditype_str(composite_type))
   auto accessed_ditype = resolve_gep_index_to_type(composite_type, GepIndices::create(&inst));
 
   return accessed_ditype;
