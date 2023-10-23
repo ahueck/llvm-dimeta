@@ -32,7 +32,9 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <iterator>
 #include <optional>
+#include <sstream>
 #include <string>
 
 namespace llvm {
@@ -136,11 +138,19 @@ class TestPass : public ModulePass {
     //      return log::ditype_str(type);
     //    };
 
-    const auto to_string = [](dimeta::DimetaData& data) {
+    const auto rep_string = [](auto& input, auto rep) {
+      std::ostringstream os;
+      std::fill_n(std::ostream_iterator<std::string>(os), rep, input);
+      return os.str();
+    };
+
+    const auto to_string = [&rep_string](dimeta::DimetaData& data, bool stack = false) {
+      const std::string prefix = stack ? " Stack" : "";
       std::string logging_message;
       llvm::raw_string_ostream rso(logging_message);
-      rso << "Extracted Type: " << log::ditype_str(data.entry_type.value()) << "\n";
-      rso << "Final Type: " << log::ditype_str(data.base_type.value());
+      rso << "Extracted Type" << prefix << ": " << log::ditype_str(data.entry_type.value()) << "\n";
+      rso << "Final Type" << prefix << ": " << log::ditype_str(data.base_type.value()) << "\n";
+      rso << "Pointer level: " << data.pointer_level << " (T" << rep_string("*", data.pointer_level) << ")";
       return rso.str();
     };
 
@@ -164,7 +174,7 @@ class TestPass : public ModulePass {
         if (di_var) {
           LOG_DEBUG("Type for alloca: " << *alloca_inst)
           //          LOG_MSG("Final Stack Type: " << ditype_tostring(di_var.value()->getType()) << "\n");
-          LOG_DEBUG(to_string(di_var.value()));
+          LOG_DEBUG(to_string(di_var.value(), true));
         }
         if (di_var) {
           parser::DITypeParser parser_types;

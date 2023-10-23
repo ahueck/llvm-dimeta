@@ -320,21 +320,25 @@ std::optional<llvm::DIType*> type_for_malloclike(const llvm::CallBase* call) {
   return *ditypes_vector.begin();
 }
 
-auto final_ditype(std::optional<llvm::DIType*> root_ditype) -> std::optional<llvm::DIType*> {
+auto final_ditype(std::optional<llvm::DIType*> root_ditype) -> std::pair<std::optional<llvm::DIType*>, int> {
   if (!root_ditype) {
-    return {};
+    return {{}, 0};
   }
+  int level{0};
   llvm::DIType* type = *root_ditype;
   while (llvm::isa<llvm::DIDerivedType>(type)) {
     auto ditype = llvm::dyn_cast<llvm::DIDerivedType>(type);
+    if (ditype->getTag() == llvm::dwarf::DW_TAG_pointer_type) {
+      ++level;
+    }
     // void*-based derived types have basetype=null:
     if (ditype->getBaseType() == nullptr) {
-      return type;
+      return {type, level};
     }
     type = ditype->getBaseType();
   }
 
-  return type;
+  return {type, level};
 };
 
 std::optional<DimetaData> type_for(const llvm::CallBase* call) {
@@ -354,18 +358,24 @@ std::optional<DimetaData> type_for(const llvm::CallBase* call) {
   const auto is_cxx_new = mem_ops.isNewLike(cb_fun->getName());
   std::optional<llvm::DIType*> extracted_type{};
 
+  int pointer_level_offset{0};
 #ifdef DIMETA_USE_HEAPALLOCSITE
   if (is_cxx_new) {
     LOG_TRACE("Type for new-like " << cb_fun->getName())
     extracted_type = type_for_newlike(call);
+    // !heapallocsite gives the type after "new", i.e., new int -> int, new int*[n] -> int*.
+    // Our malloc-related algorithm would return int* and int** respectively, however.
+    pointer_level_offset += 1;
   }
 #endif
 
-  LOG_TRACE("Type for malloc-like: " << cb_fun->getName())
-
-  extracted_type  = type_for_malloclike(call);
-  const auto lang = is_cxx_new ? DimetaData::Lang::CXX : DimetaData::Lang::C;
-  const auto meta = DimetaData{lang, {}, extracted_type, final_ditype(extracted_type)};
+  if (!extracted_type) {
+    LOG_TRACE("Type for malloc-like: " << cb_fun->getName())
+    extracted_type = type_for_malloclike(call);
+  }
+  const auto lang                = is_cxx_new ? DimetaData::Lang::CXX : DimetaData::Lang::C;
+  const auto [final_type, level] = final_ditype(extracted_type);
+  const auto meta                = DimetaData{lang, {}, extracted_type, final_type, level + pointer_level_offset};
   return meta;
 }
 
@@ -374,8 +384,9 @@ std::optional<DimetaData> type_for(const llvm::AllocaInst* ai) {
   const auto lang         = DimetaData::Lang::C;
 
   if (local_di_var) {
-    const auto meta =
-        DimetaData{lang, local_di_var, local_di_var.value()->getType(), final_ditype(local_di_var.value()->getType())};
+    auto extracted_type            = local_di_var.value()->getType();
+    const auto [final_type, level] = final_ditype(extracted_type);
+    const auto meta                = DimetaData{lang, local_di_var, extracted_type, final_type, level};
     return meta;
   }
 

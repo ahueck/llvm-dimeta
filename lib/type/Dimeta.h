@@ -23,10 +23,10 @@ namespace dimeta {
 struct DimetaData {
   enum Lang { C = 0, CXX };
   Lang language{C};
-  std::optional<llvm::DILocalVariable*> stack_alloca{};
-  std::optional<llvm::DIType*> entry_type{};
-  std::optional<llvm::DIType*> base_type{};
-  int pointer_level{0};
+  std::optional<llvm::DILocalVariable*> stack_alloca{};  // if existing the named variable w.r.t. allocation
+  std::optional<llvm::DIType*> entry_type{};             // determined to be the allocation including "pointer" DITypes
+  std::optional<llvm::DIType*> base_type{};              // The base type (int, struct X...) of the allocated memory
+  int pointer_level{0};                                  // e.g., 1 -> int*, 2 -> int**, etc.
 };
 
 std::optional<DimetaData> type_for(const llvm::AllocaInst*);
