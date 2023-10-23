@@ -1,8 +1,8 @@
 include(CMakeDependentOption)
 include(CMakePackageConfigHelpers)
 include(FeatureSummary)
-set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE STRING "" FORCE)
-include(FetchContent)
+#set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE STRING "" FORCE)
+#include(FetchContent)
 
 find_package(LLVM CONFIG HINTS "${LLVM_DIR}")
 if(NOT LLVM_FOUND)
@@ -24,6 +24,8 @@ include(AddLLVM)
 string(COMPARE EQUAL "${CMAKE_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}"
   PROJECT_IS_TOP_LEVEL
 )
+
+option(DIMETA_USE_HEAPALLOCSITE "Use heapallocsite metadata for C++ heap allocations." ON)
 
 option(DIMETA_TEST_CONFIGURE_IDE "Add targets for tests to help the IDE with completion etc." ON)
 mark_as_advanced(DIMETA_TEST_CONFIGURE_IDE)

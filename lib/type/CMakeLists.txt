@@ -25,7 +25,7 @@ target_include_directories(dimeta_Types
 
 target_include_directories(dimeta_Types SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
 
-#target_compile_definitions(dimeta_Types PRIVATE LLVM_ENABLE_DUMP)
+target_compile_definitions(dimeta_Types PRIVATE $<$<BOOL:${DIMETA_USE_HEAPALLOCSITE}>:DIMETA_USE_HEAPALLOCSITE=1>)
 
 #target_link_libraries(dimeta_Types PRIVATE LLVMCore)
 

@@ -20,11 +20,13 @@ function(dimeta_target_format target comment)
     filter_dir(${exclude})
   endforeach()
 
-  find_program(FORMAT_COMMAND
+  find_program(DIMETA_CLANG_FORMAT_EXEC
+               HINTS ${LLVM_TOOLS_BINARY_DIR}
                NAMES clang-format-${LLVM_VERSION_MAJOR} clang-format)
-  if(FORMAT_COMMAND)
+  mark_as_advanced(DIMETA_CLANG_FORMAT_EXEC)
+  if(DIMETA_CLANG_FORMAT_EXEC)
     add_custom_target(${target}
-      COMMAND ${FORMAT_COMMAND} -i -style=file ${ARG_OTHER} ${ARG_UNPARSED_ARGUMENTS}
+      COMMAND ${DIMETA_CLANG_FORMAT_EXEC} -i -style=file ${ARG_OTHER} ${ARG_UNPARSED_ARGUMENTS}
               ${ALL_CXX_FILES}
       WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
       COMMENT "${comment}"

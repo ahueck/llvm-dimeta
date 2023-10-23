@@ -216,7 +216,7 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const Ite
     }
   }
 
-  if (llvm::isa<llvm::StoreInst>(*next_value)) {
+  if (auto store_inst = llvm::dyn_cast<llvm::StoreInst>(*next_value)) {
     auto ditype_val = type.value();
     LOG_DEBUG("With stored to ditype " << log::ditype_str(ditype_val));
     if (auto* array_to_composite = llvm::dyn_cast<llvm::DICompositeType>(ditype_val)) {
@@ -229,10 +229,13 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const Ite
     if (auto* ptr_type = llvm::dyn_cast<llvm::DIDerivedType>(ditype_val)) {
       assert(ptr_type->getTag() == llvm::dwarf::DW_TAG_pointer_type && "Expected a store inst to a pointer here.");
       auto base_type = ptr_type->getBaseType();
-      if (auto* ptr_to_ptr = llvm::dyn_cast<llvm::DIDerivedType>(base_type)) {
-        if (ptr_to_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type) {
-          LOG_DEBUG("Store to a pointer type, resolving to " << log::ditype_str(base_type))
-          return base_type;
+      if (llvm::isa<llvm::Argument>(store_inst->getPointerOperand())) {
+        // alloca vs. argument: argument has no indirection for store, hence, we can substract a pointer-level
+        if (auto* ptr_to_ptr = llvm::dyn_cast<llvm::DIDerivedType>(base_type)) {
+          if (ptr_to_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type) {
+            LOG_DEBUG("Store to a pointer type, resolving to " << log::ditype_str(base_type))
+            return base_type;
+          }
         }
       }
     }
@@ -313,11 +316,14 @@ std::optional<llvm::DIType*> type_for(const llvm::CallBase* call) {
     return {};
   }
 
+#ifdef DIMETA_USE_HEAPALLOCSITE
   if (mem_ops.isNewLike(cb_fun->getName())) {
+    LOG_TRACE("Type for new-like " << cb_fun->getName())
     return type_for_newlike(call);
   }
+#endif
 
-  LOG_TRACE("Type for malloc-like: " << cb_fun->getName());
+  LOG_TRACE("Type for malloc-like: " << cb_fun->getName())
   return type_for_malloclike(call);
 }
 
