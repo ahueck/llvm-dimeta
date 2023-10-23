@@ -62,13 +62,13 @@ class TestPass : public PassInfoMixin<TestPass> {
       if (auto* call_inst = dyn_cast<CallBase>(&inst)) {
         auto ditype = type_for(call_inst);
         if (ditype) {
-          llvm::outs() << "Final heap type: " << *ditype_tostring(ditype.value()) << "\n\n";
+          llvm::outs() << "Final heap type: " << *ditype_tostring(ditype.value().base_type.value()) << "\n\n";
         }
       }
       if (auto* ai = dyn_cast<AllocaInst>(&inst)) {
         auto alloca_di = dimeta::type_for(ai);
         if (alloca_di) {
-          llvm::outs() << "Final alloca type: " << *ditype_tostring(alloca_di.value()->getType()) << "\n\n";
+          llvm::outs() << "Final alloca type: " << *ditype_tostring(alloca_di.value().base_type.value()) << "\n\n";
         }
       }
       //      if (auto* call = dyn_cast<CallInst>(&inst)) {

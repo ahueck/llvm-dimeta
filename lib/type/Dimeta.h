@@ -20,9 +20,18 @@ class Value;
 
 namespace dimeta {
 
-std::optional<llvm::DILocalVariable*> type_for(const llvm::AllocaInst*);
+struct DimetaData {
+  enum Lang { C = 0, CXX };
+  Lang language{C};
+  std::optional<llvm::DILocalVariable*> stack_alloca{};
+  std::optional<llvm::DIType*> entry_type{};
+  std::optional<llvm::DIType*> base_type{};
+  int pointer_level{0};
+};
 
-std::optional<llvm::DIType*> type_for(const llvm::CallBase*);
+std::optional<DimetaData> type_for(const llvm::AllocaInst*);
+
+std::optional<DimetaData> type_for(const llvm::CallBase*);
 
 }  // namespace dimeta
 

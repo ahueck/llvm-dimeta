@@ -83,6 +83,24 @@ bool contains_gep(const dataflow::ValuePath& path) {
 }
 }  // namespace util
 
+std::optional<llvm::DILocalVariable*> find_local_var_for(const llvm::AllocaInst* ai) {
+  using namespace llvm;
+  //  DebugInfoFinder di_finder;
+  const auto find_di_var = [&](auto* ai) -> std::optional<DILocalVariable*> {
+    auto& func = *ai->getFunction();
+    for (auto& inst : llvm::instructions(func)) {
+      if (auto* dbg = dyn_cast<DbgVariableIntrinsic>(&inst)) {
+        if (compat::get_alloca_for(dbg) == ai) {
+          //          di_finder.processInstruction(*ai->getModule(), inst);
+          return dbg->getVariable();
+        }
+      }
+    }
+    return {};
+  };
+  return find_di_var(ai);
+}
+
 std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
   using namespace llvm;
   const auto* root_value = path.value();
@@ -97,7 +115,7 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
   }
 
   if (const auto* alloca = dyn_cast<AllocaInst>(root_value)) {
-    auto local_di_var = type_for(alloca);
+    auto local_di_var = find_local_var_for(alloca);
     if (local_di_var) {
       return local_di_var.value()->getType();
     }
@@ -302,7 +320,24 @@ std::optional<llvm::DIType*> type_for_malloclike(const llvm::CallBase* call) {
   return *ditypes_vector.begin();
 }
 
-std::optional<llvm::DIType*> type_for(const llvm::CallBase* call) {
+auto final_ditype(std::optional<llvm::DIType*> root_ditype) -> std::optional<llvm::DIType*> {
+  if (!root_ditype) {
+    return {};
+  }
+  llvm::DIType* type = *root_ditype;
+  while (llvm::isa<llvm::DIDerivedType>(type)) {
+    auto ditype = llvm::dyn_cast<llvm::DIDerivedType>(type);
+    // void*-based derived types have basetype=null:
+    if (ditype->getBaseType() == nullptr) {
+      return type;
+    }
+    type = ditype->getBaseType();
+  }
+
+  return type;
+};
+
+std::optional<DimetaData> type_for(const llvm::CallBase* call) {
   using namespace llvm;
   const dimeta::memory::MemOps mem_ops;
 
@@ -316,34 +351,35 @@ std::optional<llvm::DIType*> type_for(const llvm::CallBase* call) {
     return {};
   }
 
+  const auto is_cxx_new = mem_ops.isNewLike(cb_fun->getName());
+  std::optional<llvm::DIType*> extracted_type{};
+
 #ifdef DIMETA_USE_HEAPALLOCSITE
-  if (mem_ops.isNewLike(cb_fun->getName())) {
+  if (is_cxx_new) {
     LOG_TRACE("Type for new-like " << cb_fun->getName())
-    return type_for_newlike(call);
+    extracted_type = type_for_newlike(call);
   }
 #endif
 
   LOG_TRACE("Type for malloc-like: " << cb_fun->getName())
-  return type_for_malloclike(call);
+
+  extracted_type  = type_for_malloclike(call);
+  const auto lang = is_cxx_new ? DimetaData::Lang::CXX : DimetaData::Lang::C;
+  const auto meta = DimetaData{lang, {}, extracted_type, final_ditype(extracted_type)};
+  return meta;
 }
 
-std::optional<llvm::DILocalVariable*> type_for(const llvm::AllocaInst* ai) {
-  using namespace llvm;
-  //  DebugInfoFinder di_finder;
-  const auto find_di_var = [&](auto* ai) -> std::optional<DILocalVariable*> {
-    auto& func = *ai->getFunction();
-    for (auto& inst : llvm::instructions(func)) {
-      if (auto* dbg = dyn_cast<DbgVariableIntrinsic>(&inst)) {
-        if (compat::get_alloca_for(dbg) == ai) {
-          //          di_finder.processInstruction(*ai->getModule(), inst);
-          return dbg->getVariable();
-        }
-      }
-    }
-    return {};
-  };
+std::optional<DimetaData> type_for(const llvm::AllocaInst* ai) {
+  const auto local_di_var = ditype::find_local_var_for(ai);
+  const auto lang         = DimetaData::Lang::C;
 
-  return find_di_var(ai);
+  if (local_di_var) {
+    const auto meta =
+        DimetaData{lang, local_di_var, local_di_var.value()->getType(), final_ditype(local_di_var.value()->getType())};
+    return meta;
+  }
+
+  return DimetaData{lang};
 }
 
 }  // namespace dimeta

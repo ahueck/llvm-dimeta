@@ -11,6 +11,7 @@
 #include "MetaIO.h"
 #include "MetaParse.h"
 #include "support/Logger.h"
+#include "type/Dimeta.h"
 
 #include "llvm-c/Types.h"
 #include "llvm/ADT/STLExtras.h"
@@ -121,27 +122,36 @@ class TestPass : public ModulePass {
 
     LOG_MSG("Function: " << func.getName() << ":");
 
-    const auto ditype_tostring = [](auto* ditype) {
-      llvm::DIType* type = ditype;
-      while (llvm::isa<llvm::DIDerivedType>(type)) {
-        auto ditype = llvm::dyn_cast<llvm::DIDerivedType>(type);
-        // void*-based derived types:
-        if (ditype->getBaseType() == nullptr) {
-          return log::ditype_str(type);
-        }
-        type = ditype->getBaseType();
-      }
+    //    const auto ditype_tostring = [](auto* ditype) {
+    //      llvm::DIType* type = ditype;
+    //      while (llvm::isa<llvm::DIDerivedType>(type)) {
+    //        auto ditype = llvm::dyn_cast<llvm::DIDerivedType>(type);
+    //        // void*-based derived types:
+    //        if (ditype->getBaseType() == nullptr) {
+    //          return log::ditype_str(type);
+    //        }
+    //        type = ditype->getBaseType();
+    //      }
+    //
+    //      return log::ditype_str(type);
+    //    };
 
-      return log::ditype_str(type);
+    const auto to_string = [](dimeta::DimetaData& data) {
+      std::string logging_message;
+      llvm::raw_string_ostream rso(logging_message);
+      rso << "Extracted Type: " << log::ditype_str(data.entry_type.value()) << "\n";
+      rso << "Final Type: " << log::ditype_str(data.base_type.value());
+      return rso.str();
     };
 
     for (auto& inst : llvm::instructions(func)) {
       if (auto* call_inst = dyn_cast<CallBase>(&inst)) {
-        auto ditype = type_for(call_inst);
-        if (ditype) {
+        auto ditype_meta = type_for(call_inst);
+        if (ditype_meta) {
           LOG_DEBUG("Type for heap-like: " << *call_inst)
-          LOG_DEBUG("Extracted Type: " << log::ditype_str(ditype.value()) << "\n");
-          LOG_MSG("Final Type: " << ditype_tostring(ditype.value()) << "\n");
+          //          LOG_DEBUG("Extracted Type: " << log::ditype_str(ditype_meta.value()) << "\n");
+          //          LOG_MSG("Final Type: " << ditype_tostring(ditype_meta.value()) << "\n");
+          LOG_DEBUG(to_string(ditype_meta.value()));
         }
       }
 
@@ -153,23 +163,24 @@ class TestPass : public ModulePass {
         auto di_var = type_for(alloca_inst);
         if (di_var) {
           LOG_DEBUG("Type for alloca: " << *alloca_inst)
-          LOG_MSG("Final Stack Type: " << ditype_tostring(di_var.value()->getType()) << "\n");
+          //          LOG_MSG("Final Stack Type: " << ditype_tostring(di_var.value()->getType()) << "\n");
+          LOG_DEBUG(to_string(di_var.value()));
         }
         if (di_var) {
           parser::DITypeParser parser_types;
-          parser_types.traverseLocalVariable(di_var.value());
+          parser_types.traverseLocalVariable(di_var.value().stack_alloca.value());
 
           if (cl_dimeta_test_print_tree) {
 #if LLVM_MAJOR_VERSION < 14
-            di_var.value()->print(llvm::outs(), func.getParent());
+            di_var.value().stack_alloca.value()->print(llvm::outs(), func.getParent());
 #else
-            di_var.getValue()->dumpTree(func.getParent());
+            di_var.stack_alloca.value()->dumpTree(func.getParent());
 #endif
           }
 
           if (cl_dimeta_test_print) {
             util::DIPrinter printer(llvm::outs(), func.getParent());
-            printer.traverseLocalVariable(di_var.value());
+            printer.traverseLocalVariable(di_var.value().stack_alloca.value());
           }
 
           bool result{false};
