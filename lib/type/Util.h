@@ -46,11 +46,7 @@ struct OptionalBackInsertIterator : public std::iterator<std::output_iterator_ta
 
   OptionalBackInsertIterator<Container>& operator=(const std::optional<value_type> opt) {
     if (opt) {
-#if LLVM_VERSION_MAJOR > 12
       container_->emplace_back(std::move(opt.value()));
-#else
-      container_->emplace_back(std::move(opt.value()));
-#endif
     }
     return *this;
   }

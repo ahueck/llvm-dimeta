@@ -136,7 +136,7 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
       if (auto* sub_program = called_f->getSubprogram(); sub_program != nullptr) {
         const auto sub_prog_arg_pos = arg_num + 1;
         auto types_of_subprog       = sub_program->getType()->getTypeArray();
-        assert((types_of_subprog.size() > sub_prog_arg_pos) && "Type array smaller than arg num!");
+        assert((types_of_subprog.size() <= sub_prog_arg_pos) && "Type array smaller than arg num!");
         auto* type = types_of_subprog[sub_prog_arg_pos];
         return type;
       }
@@ -159,6 +159,7 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
     if (auto* subprogram = argument->getParent()->getSubprogram(); subprogram != nullptr) {
       const auto arg_pos    = argument->getArgNo() + 1;
       const auto type_array = subprogram->getType()->getTypeArray();
+      assert(arg_pos >= type_array.size() && "Arg position greater than DI type array of subprogram!");
       return type_array[arg_pos];
     }
 
@@ -166,10 +167,10 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
   }
 
   if (const auto* const_expr = llvm::dyn_cast<llvm::ConstantExpr>(root_value)) {
-    LOG_DEBUG("find_type: ConstantExpr unsupported");
+    LOG_DEBUG("ConstantExpr unsupported");
   }
 
-  LOG_DEBUG("find_type: No matching value found for " << *root_value);
+  LOG_DEBUG("No matching value found for " << *root_value);
   return {};
 }
 
@@ -364,7 +365,7 @@ std::optional<DimetaData> type_for(const llvm::CallBase* call) {
     LOG_TRACE("Type for new-like " << cb_fun->getName())
     extracted_type = type_for_newlike(call);
     // !heapallocsite gives the type after "new", i.e., new int -> int, new int*[n] -> int*.
-    // Our malloc-related algorithm would return int* and int** respectively, however.
+    // Our malloc-related algorithm would return int* and int** respectively, however, hence:
     pointer_level_offset += 1;
   }
 #endif
@@ -375,7 +376,8 @@ std::optional<DimetaData> type_for(const llvm::CallBase* call) {
   }
   const auto lang                = is_cxx_new ? DimetaData::Lang::CXX : DimetaData::Lang::C;
   const auto [final_type, level] = final_ditype(extracted_type);
-  const auto meta                = DimetaData{lang, {}, extracted_type, final_type, level + pointer_level_offset};
+  const auto meta =
+      DimetaData{lang, DimetaData::MemLoc::Heap, {}, extracted_type, final_type, level + pointer_level_offset};
   return meta;
 }
 
@@ -386,11 +388,15 @@ std::optional<DimetaData> type_for(const llvm::AllocaInst* ai) {
   if (local_di_var) {
     auto extracted_type            = local_di_var.value()->getType();
     const auto [final_type, level] = final_ditype(extracted_type);
-    const auto meta                = DimetaData{lang, local_di_var, extracted_type, final_type, level};
+    const auto meta = DimetaData{lang, DimetaData::MemLoc::Stack, local_di_var, extracted_type, final_type, level};
     return meta;
   }
 
-  return DimetaData{lang};
+  return {};
+}
+
+std::optional<DimetaData> type_for(const llvm::GlobalVariable* gv) {
+  return {};
 }
 
 }  // namespace dimeta
