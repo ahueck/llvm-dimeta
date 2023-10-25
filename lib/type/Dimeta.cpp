@@ -175,7 +175,8 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
 }
 
 template <typename Iter, typename Iter2>
-std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const Iter& path_iter, const Iter2& path_end) {
+std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dataflow::ValuePath& path,
+                                          const Iter& path_iter, const Iter2& path_end) {
   std::optional<llvm::DIType*> type = type_to_reset;
   if (type) {
     LOG_DEBUG("Type to reset: " << log::ditype_str(*type));
@@ -184,7 +185,18 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const Ite
   // Look at next value after gep [path_iter] (e.g., a load or the final store)
   auto next_value = std::next(path_iter);
   if (next_value == path_end) {
+    LOG_DEBUG("Next is empty of " << **path_iter)
     return {};
+  }
+
+  // For non-opaque ptr LLVM configs, a bitcast may be between a chain like "argument -> bitcast -> store", we are not
+  // interested in bitcasts:
+  while (llvm::isa<llvm::BitCastInst>(*next_value)) {
+    next_value = std::next(next_value);
+    if (next_value == path_end) {
+      LOG_DEBUG("Next non-bitcast is empty of " << **path_iter)
+      return {};
+    }
   }
 
   // Re-set the DIType from the gep, if presence of:
@@ -248,7 +260,30 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const Ite
     if (auto* ptr_type = llvm::dyn_cast<llvm::DIDerivedType>(ditype_val)) {
       assert(ptr_type->getTag() == llvm::dwarf::DW_TAG_pointer_type && "Expected a store inst to a pointer here.");
       auto base_type = ptr_type->getBaseType();
-      if (llvm::isa<llvm::Argument>(store_inst->getPointerOperand())) {
+
+      // LLVM-14 etc. bitcasts may be applied to the argument, hence, we need backward dataflow!:
+      const auto store_to_arg = [&path]() {
+        auto store_target = path.value();
+        LOG_DEBUG("Store target resolver " << *store_target)
+        if (llvm::isa<llvm::Argument>(store_target)) {
+          LOG_DEBUG("isa argument")
+          return true;
+        }
+        if (auto* alloca = llvm::dyn_cast<llvm::AllocaInst>(store_target)) {
+          for (auto* user : alloca->users()) {
+            if (auto* store = llvm::dyn_cast<llvm::StoreInst>(user)) {
+              if (llvm::isa<llvm::Argument>(store->getValueOperand())) {
+                LOG_DEBUG("isa a alloca -> store -> argument chain")
+                return true;
+              }
+            }
+          }
+        }
+        LOG_DEBUG("not stored to argument")
+        return false;
+      }();
+
+      if (store_to_arg) {
         // alloca vs. argument: argument has no indirection for store, hence, we can subtract a pointer-level
         if (auto* ptr_to_ptr = llvm::dyn_cast<llvm::DIDerivedType>(base_type)) {
           if (ptr_to_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type) {
@@ -283,7 +318,7 @@ std::optional<llvm::DIType*> find_type(const dataflow::ValuePath& path) {
 
     if (type) {
       LOG_DEBUG("Extracted type w.r.t. gep: " << log::ditype_str(*type));
-      type = reset_ditype(type.value(), path_iter, path_end).value_or(type.value());
+      type = reset_ditype(type.value(), path, path_iter, path_end).value_or(type.value());
     }
   }
 
@@ -291,7 +326,8 @@ std::optional<llvm::DIType*> find_type(const dataflow::ValuePath& path) {
     // handle load of pointer (without gep, see heap_matrix_simple.c)
     // FIXME: rbegin might be wrong here, need a better anchor, as the function only looks at next(rbegin()), which is
     // usually a gep, but not with this call.
-    type = reset_ditype(type.value(), path.path_to_value.rbegin(), path_end).value_or(type.value());
+    LOG_DEBUG("Path has no gep")
+    type = reset_ditype(type.value(), path, path.path_to_value.rbegin(), path_end).value_or(type.value());
   }
 
   if (type) {
