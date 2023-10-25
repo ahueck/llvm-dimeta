@@ -199,19 +199,22 @@ class TestPass : public ModulePass {
         }
         if (di_var) {
           parser::DITypeParser parser_types;
-          parser_types.traverseLocalVariable(di_var.value().stack_alloca.value());
+          auto local_di_var = std::get<llvm::DILocalVariable*>(di_var.value().di_variable.value());
+          parser_types.traverseLocalVariable(local_di_var);
 
           if (cl_dimeta_test_print_tree) {
+            auto local_di_var = std::get<llvm::DILocalVariable*>(di_var.value().di_variable.value());
 #if LLVM_MAJOR_VERSION < 14
-            di_var.value().stack_alloca.value()->print(llvm::outs(), func.getParent());
+            local_di_var->print(llvm::outs(), func.getParent());
 #else
-            di_var.stack_alloca.value()->dumpTree(func.getParent());
+            local_di_var->dumpTree(func.getParent());
 #endif
           }
 
           if (cl_dimeta_test_print) {
             dimeta::util::DIPrinter printer(llvm::outs(), func.getParent());
-            printer.traverseLocalVariable(di_var.value().stack_alloca.value());
+            auto local_di_var = std::get<llvm::DILocalVariable*>(di_var.value().di_variable.value());
+            printer.traverseLocalVariable(local_di_var);
           }
 
           bool result{false};

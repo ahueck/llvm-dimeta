@@ -374,22 +374,19 @@ std::optional<DimetaData> type_for(const llvm::CallBase* call) {
     LOG_TRACE("Type for malloc-like: " << cb_fun->getName())
     extracted_type = type_for_malloclike(call);
   }
-  const auto lang                        = is_cxx_new ? DimetaData::Lang::CXX : DimetaData::Lang::C;
   const auto [final_type, pointer_level] = final_ditype(extracted_type);
   const auto meta =
-      DimetaData{lang, DimetaData::MemLoc::Heap, {}, extracted_type, final_type, pointer_level + pointer_level_offset};
+      DimetaData{DimetaData::MemLoc::Heap, {}, extracted_type, final_type, pointer_level + pointer_level_offset};
   return meta;
 }
 
 std::optional<DimetaData> type_for(const llvm::AllocaInst* ai) {
   const auto local_di_var = ditype::find_local_var_for(ai);
-  const auto lang         = DimetaData::Lang::C;
 
   if (local_di_var) {
     auto extracted_type                    = local_di_var.value()->getType();
     const auto [final_type, pointer_level] = final_ditype(extracted_type);
-    const auto meta =
-        DimetaData{lang, DimetaData::MemLoc::Stack, local_di_var, extracted_type, final_type, pointer_level};
+    const auto meta = DimetaData{DimetaData::MemLoc::Stack, local_di_var, extracted_type, final_type, pointer_level};
     return meta;
   }
 
@@ -400,11 +397,10 @@ std::optional<DimetaData> type_for(const llvm::GlobalVariable* gv) {
   llvm::SmallVector<llvm::DIGlobalVariableExpression*, 2> dbg_info;
   gv->getDebugInfo(dbg_info);
   if (!dbg_info.empty()) {
-    const auto lang                        = DimetaData::Lang::C;
     auto gv_expr                           = *dbg_info.begin();
     auto gv_type                           = gv_expr->getVariable()->getType();
     const auto [final_type, pointer_level] = final_ditype(gv_type);
-    return DimetaData{lang, DimetaData::MemLoc::Global, {}, gv_type, final_type, pointer_level};
+    return DimetaData{DimetaData::MemLoc::Global, {}, gv_type, final_type, pointer_level};
   }
   return {};
 }
