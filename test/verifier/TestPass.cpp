@@ -76,6 +76,35 @@ inline std::string try_demangle(const T& site) {
   }
 }
 
+namespace util {
+
+const std::string rep_string(std::string input, int rep) {
+  std::ostringstream os;
+  std::fill_n(std::ostream_iterator<std::string>(os), rep, input);
+  return os.str();
+};
+
+const auto to_string(dimeta::DimetaData& data, bool stack = false) {
+  const std::string prefix = [&]() {
+    switch (data.location) {
+      case DimetaData::MemLoc::Global:
+        return " Global";
+      case DimetaData::MemLoc::Stack:
+        return " Stack";
+      default:
+        return "";
+    }
+  }();
+  std::string logging_message;
+  llvm::raw_string_ostream rso(logging_message);
+  rso << "Extracted Type" << prefix << ": " << log::ditype_str(data.entry_type.value()) << "\n";
+  rso << "Final Type" << prefix << ": " << log::ditype_str(data.base_type.value()) << "\n";
+  rso << "Pointer level: " << data.pointer_level << " (T" << rep_string("*", data.pointer_level) << ")";
+  return rso.str();
+};
+
+}  // namespace util
+
 class TestPass : public ModulePass {
  private:
   template <typename Type>
@@ -108,6 +137,14 @@ class TestPass : public ModulePass {
   bool runOnModule(Module& module) override {
     log::LogContext::get().setModule(&module);
 
+    for (auto& global : module.globals()) {
+      auto global_meta = type_for(&global);
+      if (global_meta) {
+        LOG_DEBUG("Type for global: " << global)
+        LOG_DEBUG(util::to_string(global_meta.value()));
+      }
+    }
+
     llvm::for_each(module.functions(), [&](auto& func) { return runOnFunc(func); });
     return false;
   }
@@ -138,22 +175,6 @@ class TestPass : public ModulePass {
     //      return log::ditype_str(type);
     //    };
 
-    const auto rep_string = [](auto& input, auto rep) {
-      std::ostringstream os;
-      std::fill_n(std::ostream_iterator<std::string>(os), rep, input);
-      return os.str();
-    };
-
-    const auto to_string = [&rep_string](dimeta::DimetaData& data, bool stack = false) {
-      const std::string prefix = stack ? " Stack" : "";
-      std::string logging_message;
-      llvm::raw_string_ostream rso(logging_message);
-      rso << "Extracted Type" << prefix << ": " << log::ditype_str(data.entry_type.value()) << "\n";
-      rso << "Final Type" << prefix << ": " << log::ditype_str(data.base_type.value()) << "\n";
-      rso << "Pointer level: " << data.pointer_level << " (T" << rep_string("*", data.pointer_level) << ")";
-      return rso.str();
-    };
-
     for (auto& inst : llvm::instructions(func)) {
       if (auto* call_inst = dyn_cast<CallBase>(&inst)) {
         auto ditype_meta = type_for(call_inst);
@@ -161,7 +182,7 @@ class TestPass : public ModulePass {
           LOG_DEBUG("Type for heap-like: " << *call_inst)
           //          LOG_DEBUG("Extracted Type: " << log::ditype_str(ditype_meta.value()) << "\n");
           //          LOG_MSG("Final Type: " << ditype_tostring(ditype_meta.value()) << "\n");
-          LOG_DEBUG(to_string(ditype_meta.value()));
+          LOG_DEBUG(util::to_string(ditype_meta.value()));
         }
       }
 
@@ -174,7 +195,7 @@ class TestPass : public ModulePass {
         if (di_var) {
           LOG_DEBUG("Type for alloca: " << *alloca_inst)
           //          LOG_MSG("Final Stack Type: " << ditype_tostring(di_var.value()->getType()) << "\n");
-          LOG_DEBUG(to_string(di_var.value(), true));
+          LOG_DEBUG(util::to_string(di_var.value()));
         }
         if (di_var) {
           parser::DITypeParser parser_types;
@@ -189,7 +210,7 @@ class TestPass : public ModulePass {
           }
 
           if (cl_dimeta_test_print) {
-            util::DIPrinter printer(llvm::outs(), func.getParent());
+            dimeta::util::DIPrinter printer(llvm::outs(), func.getParent());
             printer.traverseLocalVariable(di_var.value().stack_alloca.value());
           }
 

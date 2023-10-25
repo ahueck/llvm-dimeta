@@ -397,6 +397,15 @@ std::optional<DimetaData> type_for(const llvm::AllocaInst* ai) {
 }
 
 std::optional<DimetaData> type_for(const llvm::GlobalVariable* gv) {
+  llvm::SmallVector<llvm::DIGlobalVariableExpression*, 2> dbg_info;
+  gv->getDebugInfo(dbg_info);
+  if (!dbg_info.empty()) {
+    const auto lang                        = DimetaData::Lang::C;
+    auto gv_expr                           = *dbg_info.begin();
+    auto gv_type                           = gv_expr->getVariable()->getType();
+    const auto [final_type, pointer_level] = final_ditype(gv_type);
+    return DimetaData{lang, DimetaData::MemLoc::Global, {}, gv_type, final_type, pointer_level};
+  }
   return {};
 }
 

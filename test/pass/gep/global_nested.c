@@ -1,6 +1,7 @@
 // RUN: %c-to-llvm %s | %apply-verifier 2>&1 | %filecheck %s
 // RUN: %c-to-llvm %s | %opt -instcombine -S -o - |%apply-verifier 2>&1 | %filecheck %s
 // RUN: %c-to-llvm %s | %opt -O1 -S | %apply-verifier 2>&1 | %filecheck %s
+// RUN: %c-to-llvm %s | %opt -O3 -S | %apply-verifier 2>&1 | %filecheck %s
 
 // TODO handle nested constant geps without "instcombine"
 
@@ -29,7 +30,12 @@ struct foo {
   } bar;
 };
 
+// CHECK: Final Type Global: {{.*}} = distinct !DICompositeType(tag: DW_TAG_structure_type, name: "foo"
+// CHECK: Pointer level: 0
 struct foo chunky;
+// CHECK: Extracted Type Global: !11 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: [[DIREFG:![0-9]+]], size: 64)
+// CHECK: Final Type Global: [[DIREFG]] = distinct !DICompositeType(tag: DW_TAG_structure_type, name: "foo"
+// CHECK: Pointer level: 1
 struct foo* chunky2;
 
 void take_field() {
