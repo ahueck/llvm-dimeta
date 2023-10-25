@@ -71,7 +71,8 @@ function(dimeta_add_lit_target)
       set(TARGET_NAME check-dimeta)
     else()
       set(SUITE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/${suite})
-      set(TARGET_NAME check-dimeta-${suite})
+      string(REPLACE "/" "_" suite_target ${suite})
+      set(TARGET_NAME check-dimeta-${suite_target})
     endif()
 
     if(NOT EXISTS ${SUITE_PATH})
@@ -94,6 +95,7 @@ set(DIMETA_TEST_DEPENDS dimeta::AnalysisPass dimeta::Types dimeta::TestPass)
 set(DIMETA_SUITES
   all
   pass
+  pass/gep
 )
 
 dimeta_add_lit_target(SUITES ${DIMETA_SUITES})
@@ -128,9 +130,9 @@ if(DIMETA_TEST_CONFIGURE_IDE)
     set_target_properties(${target} PROPERTIES LINKER_LANGUAGE ${linker_language})
   endfunction()
 
-  file(GLOB_RECURSE DIMETA_CXX_TESTS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
-  file(GLOB_RECURSE DIMETA_CC_TESTS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/*.c)
-  file(GLOB_RECURSE DIMETA_HEADER_TESTS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/*.h)
+  file(GLOB_RECURSE DIMETA_CXX_TESTS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/pass/*.cpp)
+  file(GLOB_RECURSE DIMETA_CC_TESTS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/pass/*.c)
+  file(GLOB_RECURSE DIMETA_HEADER_TESTS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/pass/*.h)
 
   add_test_target_ide(dimeta_cxx_test_objects
     "${DIMETA_HEADER_TESTS}" "${DIMETA_CXX_TESTS}"

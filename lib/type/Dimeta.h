@@ -8,21 +8,36 @@
 #ifndef DIMETA_DIMETA_H
 #define DIMETA_DIMETA_H
 
-#include "llvm/ADT/Optional.h"
+#include <optional>
+#include <variant>
 
 namespace llvm {
 class AllocaInst;
-class CallInst;
+class CallBase;
 class DILocalVariable;
+class DIType;
+class Value;
+class GlobalVariable;
 }  // namespace llvm
 
 namespace dimeta {
 
-void type_for(llvm::AllocaInst*);
+using DimetaDIVar = std::variant<llvm::DILocalVariable*, llvm::GlobalVariable*>;
 
-void type_for(llvm::CallInst* call);
+struct DimetaData {
+  enum MemLoc { Stack = 0, Heap, Global };
+  MemLoc location{Stack};
+  std::optional<DimetaDIVar> di_variable{};   // if existing the named variable w.r.t. allocation
+  std::optional<llvm::DIType*> entry_type{};  // determined to be the allocation including "pointer" DITypes
+  std::optional<llvm::DIType*> base_type{};   // The base type (int, struct X...) of the allocated memory
+  int pointer_level{0};                       // e.g., 1 -> int*, 2 -> int**, etc.
+};
 
-llvm::Optional<llvm::DILocalVariable*> local_di_variable_for(llvm::AllocaInst*);
+std::optional<DimetaData> type_for(const llvm::AllocaInst*);
+
+std::optional<DimetaData> type_for(const llvm::CallBase*);
+
+std::optional<DimetaData> type_for(const llvm::GlobalVariable*);
 
 }  // namespace dimeta
 

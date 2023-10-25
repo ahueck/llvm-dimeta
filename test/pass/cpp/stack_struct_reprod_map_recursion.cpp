@@ -10,5 +10,5 @@ struct TreeNode {
 };
 
 void foo() {
-  TreeNode impl;
+  const TreeNode impl;
 }

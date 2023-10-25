@@ -5,16 +5,20 @@
 //  SPDX-License-Identifier: BSD-3-Clause
 //
 
-#include "MetaParse.h"
+#include "DimetaData.h"
+#include "Util.h"
 
-#include "llvm/Support/ErrorOr.h"
-#include "llvm/Support/FileSystem.h"
-#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/YAMLParser.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
+#include <cstddef>
+#include <memory>
+#include <string_view>
+#include <variant>
 
 using namespace llvm::yaml;
 using namespace llvm;

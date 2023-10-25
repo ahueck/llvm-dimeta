@@ -6,4 +6,10 @@
 //
 #include "llvm/Pass.h"
 
+namespace llvm {
+class ModulePass;
+
+class ModulePass;
+}  // namespace llvm
+
 llvm::ModulePass* createDimetaPass();

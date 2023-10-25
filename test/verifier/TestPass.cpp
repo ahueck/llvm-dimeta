@@ -5,23 +5,42 @@
 //  SPDX-License-Identifier: BSD-3-Clause
 //
 
-#include "Dimeta.h"
-#include "MetaIO.h"
-#include "MetaParse.h"
+#include "support/Logger.h"
+#include "type/DIVisitor.h"
+#include "type/Dimeta.h"
+#include "type/DimetaData.h"
+#include "type/MetaIO.h"
+#include "type/MetaParse.h"
 
 #include "llvm-c/Types.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/ilist_iterator.h"
 #include "llvm/Demangle/Demangle.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
+#include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/Value.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/Casting.h"
+#include "llvm/Support/CommandLine.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <iterator>
+#include <optional>
+#include <sstream>
 #include <string>
+
+namespace llvm {
+class PointerType;
+
+class PointerType;
+}  // namespace llvm
 
 using namespace llvm;
 
@@ -57,6 +76,35 @@ inline std::string try_demangle(const T& site) {
   }
 }
 
+namespace util {
+
+const std::string rep_string(std::string input, int rep) {
+  std::ostringstream os;
+  std::fill_n(std::ostream_iterator<std::string>(os), rep, input);
+  return os.str();
+};
+
+const auto to_string(dimeta::DimetaData& data, bool stack = false) {
+  const std::string prefix = [&]() {
+    switch (data.location) {
+      case DimetaData::MemLoc::Global:
+        return " Global";
+      case DimetaData::MemLoc::Stack:
+        return " Stack";
+      default:
+        return "";
+    }
+  }();
+  std::string logging_message;
+  llvm::raw_string_ostream rso(logging_message);
+  rso << "Extracted Type" << prefix << ": " << log::ditype_str(data.entry_type.value()) << "\n";
+  rso << "Final Type" << prefix << ": " << log::ditype_str(data.base_type.value()) << "\n";
+  rso << "Pointer level: " << data.pointer_level << " (T" << rep_string("*", data.pointer_level) << ")";
+  return rso.str();
+};
+
+}  // namespace util
+
 class TestPass : public ModulePass {
  private:
   template <typename Type>
@@ -87,6 +135,16 @@ class TestPass : public ModulePass {
   }
 
   bool runOnModule(Module& module) override {
+    log::LogContext::get().setModule(&module);
+
+    for (auto& global : module.globals()) {
+      auto global_meta = type_for(&global);
+      if (global_meta) {
+        LOG_DEBUG("Type for global: " << global)
+        LOG_DEBUG(util::to_string(global_meta.value()));
+      }
+    }
+
     llvm::for_each(module.functions(), [&](auto& func) { return runOnFunc(func); });
     return false;
   }
@@ -101,26 +159,62 @@ class TestPass : public ModulePass {
       return;
     }
 
-    llvm::outs() << "Function: " << func.getName() << ":\n";
+    LOG_MSG("Function: " << func.getName() << ":");
+
+    //    const auto ditype_tostring = [](auto* ditype) {
+    //      llvm::DIType* type = ditype;
+    //      while (llvm::isa<llvm::DIDerivedType>(type)) {
+    //        auto ditype = llvm::dyn_cast<llvm::DIDerivedType>(type);
+    //        // void*-based derived types:
+    //        if (ditype->getBaseType() == nullptr) {
+    //          return log::ditype_str(type);
+    //        }
+    //        type = ditype->getBaseType();
+    //      }
+    //
+    //      return log::ditype_str(type);
+    //    };
 
     for (auto& inst : llvm::instructions(func)) {
+      if (auto* call_inst = dyn_cast<CallBase>(&inst)) {
+        auto ditype_meta = type_for(call_inst);
+        if (ditype_meta) {
+          LOG_DEBUG("Type for heap-like: " << *call_inst)
+          //          LOG_DEBUG("Extracted Type: " << log::ditype_str(ditype_meta.value()) << "\n");
+          //          LOG_MSG("Final Type: " << ditype_tostring(ditype_meta.value()) << "\n");
+          LOG_DEBUG(util::to_string(ditype_meta.value()));
+        }
+      }
+
       if (auto* alloca_inst = dyn_cast<AllocaInst>(&inst)) {
-        auto di_var = local_di_variable_for(alloca_inst);
+        if (isa<llvm::PointerType>(alloca_inst->getAllocatedType())) {
+          LOG_DEBUG("Skip " << *alloca_inst);
+          continue;
+        }
+        auto di_var = type_for(alloca_inst);
+        if (di_var) {
+          LOG_DEBUG("Type for alloca: " << *alloca_inst)
+          //          LOG_MSG("Final Stack Type: " << ditype_tostring(di_var.value()->getType()) << "\n");
+          LOG_DEBUG(util::to_string(di_var.value()));
+        }
         if (di_var) {
           parser::DITypeParser parser_types;
-          parser_types.traverseLocalVariable(di_var.getValue());
+          auto local_di_var = std::get<llvm::DILocalVariable*>(di_var.value().di_variable.value());
+          parser_types.traverseLocalVariable(local_di_var);
 
           if (cl_dimeta_test_print_tree) {
+            auto local_di_var = std::get<llvm::DILocalVariable*>(di_var.value().di_variable.value());
 #if LLVM_MAJOR_VERSION < 14
-            di_var.getValue()->print(llvm::outs(), func.getParent());
+            local_di_var->print(llvm::outs(), func.getParent());
 #else
-            di_var.getValue()->dumpTree(func.getParent());
+            local_di_var->dumpTree(func.getParent());
 #endif
           }
 
           if (cl_dimeta_test_print) {
-            util::DIPrinter printer(llvm::outs(), func.getParent());
-            printer.traverseLocalVariable(di_var.getValue());
+            dimeta::util::DIPrinter printer(llvm::outs(), func.getParent());
+            auto local_di_var = std::get<llvm::DILocalVariable*>(di_var.value().di_variable.value());
+            printer.traverseLocalVariable(local_di_var);
           }
 
           bool result{false};
@@ -131,7 +225,7 @@ class TestPass : public ModulePass {
             auto const qual_type = parser_types.getAs<QualifiedFundamental>().value();
             result               = serialization_roundtrip(qual_type, cl_dimeta_test_print_yaml.getValue());
           }
-          llvm::outs() << *alloca_inst << ": Yaml Verifier: " << static_cast<int>(result) << "\n";
+          LOG_MSG(*alloca_inst << ": Yaml Verifier: " << static_cast<int>(result));
         }
       }
     }
