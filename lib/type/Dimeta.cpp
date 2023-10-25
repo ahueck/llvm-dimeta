@@ -136,7 +136,7 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
       if (auto* sub_program = called_f->getSubprogram(); sub_program != nullptr) {
         const auto sub_prog_arg_pos = arg_num + 1;
         auto types_of_subprog       = sub_program->getType()->getTypeArray();
-        assert((types_of_subprog.size() <= sub_prog_arg_pos) && "Type array smaller than arg num!");
+        assert((types_of_subprog.size() > sub_prog_arg_pos) && "Type array smaller than arg num!");
         auto* type = types_of_subprog[sub_prog_arg_pos];
         return type;
       }
@@ -159,7 +159,7 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
     if (auto* subprogram = argument->getParent()->getSubprogram(); subprogram != nullptr) {
       const auto arg_pos    = argument->getArgNo() + 1;
       const auto type_array = subprogram->getType()->getTypeArray();
-      assert(arg_pos >= type_array.size() && "Arg position greater than DI type array of subprogram!");
+      assert(arg_pos < type_array.size() && "Arg position greater than DI type array of subprogram!");
       return type_array[arg_pos];
     }
 
@@ -374,10 +374,10 @@ std::optional<DimetaData> type_for(const llvm::CallBase* call) {
     LOG_TRACE("Type for malloc-like: " << cb_fun->getName())
     extracted_type = type_for_malloclike(call);
   }
-  const auto lang                = is_cxx_new ? DimetaData::Lang::CXX : DimetaData::Lang::C;
-  const auto [final_type, level] = final_ditype(extracted_type);
+  const auto lang                        = is_cxx_new ? DimetaData::Lang::CXX : DimetaData::Lang::C;
+  const auto [final_type, pointer_level] = final_ditype(extracted_type);
   const auto meta =
-      DimetaData{lang, DimetaData::MemLoc::Heap, {}, extracted_type, final_type, level + pointer_level_offset};
+      DimetaData{lang, DimetaData::MemLoc::Heap, {}, extracted_type, final_type, pointer_level + pointer_level_offset};
   return meta;
 }
 
@@ -386,9 +386,10 @@ std::optional<DimetaData> type_for(const llvm::AllocaInst* ai) {
   const auto lang         = DimetaData::Lang::C;
 
   if (local_di_var) {
-    auto extracted_type            = local_di_var.value()->getType();
-    const auto [final_type, level] = final_ditype(extracted_type);
-    const auto meta = DimetaData{lang, DimetaData::MemLoc::Stack, local_di_var, extracted_type, final_type, level};
+    auto extracted_type                    = local_di_var.value()->getType();
+    const auto [final_type, pointer_level] = final_ditype(extracted_type);
+    const auto meta =
+        DimetaData{lang, DimetaData::MemLoc::Stack, local_di_var, extracted_type, final_type, pointer_level};
     return meta;
   }
 
