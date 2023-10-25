@@ -18,7 +18,13 @@ add_library(dimeta::TestPass ALIAS dimeta_TestPass)
 
 target_include_directories(dimeta_TestPass
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
-         ${PROJECT_SOURCE_DIR}/lib/
+          ${PROJECT_SOURCE_DIR}/lib/
+)
+
+target_include_directories(dimeta_TestPass
+        SYSTEM
+        PRIVATE
+        ${LLVM_INCLUDE_DIRS}
 )
 
 target_link_libraries(dimeta_TestPass PRIVATE dimeta::Types)

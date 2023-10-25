@@ -5,13 +5,12 @@
 //  SPDX-License-Identifier: BSD-3-Clause
 //
 
-#include "DIVisitor.h"
-#include "Dimeta.h"
-#include "DimetaData.h"
-#include "MetaIO.h"
-#include "MetaParse.h"
 #include "support/Logger.h"
+#include "type/DIVisitor.h"
 #include "type/Dimeta.h"
+#include "type/DimetaData.h"
+#include "type/MetaIO.h"
+#include "type/MetaParse.h"
 
 #include "llvm-c/Types.h"
 #include "llvm/ADT/STLExtras.h"
@@ -108,6 +107,7 @@ class TestPass : public ModulePass {
 
   bool runOnModule(Module& module) override {
     log::LogContext::get().setModule(&module);
+
     llvm::for_each(module.functions(), [&](auto& func) { return runOnFunc(func); });
     return false;
   }
