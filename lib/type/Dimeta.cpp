@@ -188,7 +188,7 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const Ite
   }
 
   // Re-set the DIType from the gep, if presence of:
-  // - a load ofter a gep is likely the first element of the composite type
+  // - a load after a gep is likely the first element of the composite type
   // - a load also resolves to the basetype w.r.t. an array composite
   // - a store with a ditype(array) is likely the first element of the array
   LOG_DEBUG("Looking at " << **next_value);
@@ -249,7 +249,7 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const Ite
       assert(ptr_type->getTag() == llvm::dwarf::DW_TAG_pointer_type && "Expected a store inst to a pointer here.");
       auto base_type = ptr_type->getBaseType();
       if (llvm::isa<llvm::Argument>(store_inst->getPointerOperand())) {
-        // alloca vs. argument: argument has no indirection for store, hence, we can substract a pointer-level
+        // alloca vs. argument: argument has no indirection for store, hence, we can subtract a pointer-level
         if (auto* ptr_to_ptr = llvm::dyn_cast<llvm::DIDerivedType>(base_type)) {
           if (ptr_to_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type) {
             LOG_DEBUG("Store to a pointer type, resolving to " << log::ditype_str(base_type))
@@ -289,7 +289,7 @@ std::optional<llvm::DIType*> find_type(const dataflow::ValuePath& path) {
 
   if (type && !has_gep) {
     // handle load of pointer (without gep, see heap_matrix_simple.c)
-    // FIXME: rbegin might be wrong here, need a better anchor, as the function only loos at next(rbegin()), which is
+    // FIXME: rbegin might be wrong here, need a better anchor, as the function only looks at next(rbegin()), which is
     // usually a gep, but not with this call.
     type = reset_ditype(type.value(), path.path_to_value.rbegin(), path_end).value_or(type.value());
   }

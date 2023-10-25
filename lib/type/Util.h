@@ -8,9 +8,8 @@
 #ifndef DIMETA_UTIL_H
 #define DIMETA_UTIL_H
 
-#include "llvm/ADT/Optional.h"
-
 #include <functional>
+#include <optional>
 
 namespace dimeta::util {
 
@@ -38,8 +37,12 @@ ScopeExit<Fn> create_scope_exit(Fn&& exit_fn) {
 
 namespace detail {
 template <typename Container>
-struct OptionalBackInsertIterator : public std::iterator<std::output_iterator_tag, void, void, void, void> {
-  using value_type = typename Container::value_type;
+struct OptionalBackInsertIterator {
+  using iterator_category = std::output_iterator_tag;
+  using value_type        = typename Container::value_type;
+  using difference_type   = void;
+  using pointer           = void;
+  using reference         = void;
 
   explicit OptionalBackInsertIterator(Container& container) : container_(std::addressof(container)) {
   }

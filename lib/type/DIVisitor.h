@@ -16,6 +16,7 @@
 #include "llvm/Support/Debug.h"
 
 #include <functional>
+#include <optional>
 
 namespace dimeta {
 
@@ -237,24 +238,16 @@ inline std::string tag2string(unsigned tag) {
 class DIPrinter : public visitor::DINodeVisitor<DIPrinter> {
  private:
   llvm::raw_ostream& outp_;
-  llvm::Optional<const llvm::Module*> module_;
+  std::optional<const llvm::Module*> module_;
 
   std::string no_pointer_str(const llvm::Metadata& type) {
     std::string view;
     llvm::raw_string_ostream rso(view);
-#if LLVM_VERSION_MAJOR > 13
     type.print(rso, module_.value_or(nullptr));
 
-    if (module_.has_value()) {
+    if (module_) {
       return rso.str();
     }
-#else
-    type.print(rso, module_.getValueOr(nullptr));
-
-    if (module_.hasValue()) {
-      return rso.str();
-    }
-#endif
     const llvm::StringRef ref(rso.str());
     const auto a_pos = ref.find("=");
     if (a_pos == llvm::StringRef::npos || (a_pos + 2) > ref.size()) {

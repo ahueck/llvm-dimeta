@@ -72,12 +72,12 @@ llvm::SmallVector<dataflow::ValuePath, 4> type_for_heap_call(const llvm::CallBas
   auto should_search = [&](const ValuePath&) -> bool { return true; };
   DefUseChain value_traversal;
 
-  // forward: find pathes to anchor (store, ret, func call etc.) from malloc-like
+  // forward: find paths to anchor (store, ret, func call etc.) from malloc-like
   LOG_DEBUG("Find heap-call to anchor w.r.t. " << *call)
   MallocAnchorMatcher malloc_anchor_finder{call};
   value_traversal.traverse(call, malloc_anchor_finder, should_search);
 
-  // backward: find pathes from anchor (store) to alloca/argument/global etc.
+  // backward: find paths from anchor (store) to alloca/argument/global etc.
   MallocTargetMatcher malloc_anchor_backtrack;
   MallocBacktrackSearch backtracker_search;
 
