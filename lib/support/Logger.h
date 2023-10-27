@@ -14,8 +14,8 @@
 
 #ifndef DIMETA_LOG_LEVEL
 /*
- * Usually set at compile time: -DDIMETA_LOG_LEVEL=<N>, N in [0, 3] for output
- * 3 being most verbose
+ * Usually set at compile time: -DDIMETA_LOG_LEVEL=<N>, N in [0, 4] for output
+ * 4 being most verbose with [Trace]
  */
 #define DIMETA_LOG_LEVEL 3
 #endif
@@ -82,7 +82,7 @@ inline void dimeta_log(const std::string& msg) {
     dimeta::log::dimeta_log(rso.str());                  \
   }
 
-#define LOG_TRACE(MSG) DIMETA_LOG_LEVEL_MSG_BARE(3, "[Trace]", MSG)
+#define LOG_TRACE(MSG) DIMETA_LOG_LEVEL_MSG_BARE(4, "[Trace]", MSG)
 #define LOG_DEBUG(MSG) DIMETA_LOG_LEVEL_MSG(3, "[Debug]", MSG)
 #define LOG_INFO(MSG) DIMETA_LOG_LEVEL_MSG(2, "[Info]", MSG)
 #define LOG_WARNING(MSG) DIMETA_LOG_LEVEL_MSG(1, "[Warning]", MSG)
