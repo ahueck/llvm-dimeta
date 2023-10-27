@@ -6,6 +6,7 @@
 //
 
 #ifndef DIMETA_LOGGER_H
+#define DIMETA_LOGGER_H
 
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/Module.h"

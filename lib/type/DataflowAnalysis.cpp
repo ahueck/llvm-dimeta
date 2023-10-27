@@ -121,12 +121,18 @@ auto MallocBacktrackSearch::operator()(const dataflow::ValuePath& path) -> std::
   if (auto const_expr = llvm::dyn_cast<llvm::ConstantExpr>(path.value())) {
     if (const_expr->getOpcode() == Instruction::GetElementPtr) {
       if (auto op = llvm::dyn_cast<llvm::GEPOperator>(const_expr)) {
-        //          dbgs() << "Gep Constant casted. ";
-        //          dbgs() << "gep of " << *op->getPointerOperand() << "\n";
         result.push_back(op->getPointerOperand());
       }
       return result;
     }
+    if (const_expr->getOpcode() == Instruction::BitCast) {
+      // #if LLVM_VERSION_MAJOR < 15
+      LOG_DEBUG("Found constant bitcast from value" << *const_expr->getOperand(0))
+      result.push_back(const_expr->getOperand(0));
+      // #endif
+      return result;
+    }
+    LOG_ERROR("Unsupported ConstantExpr for path generation " << *const_expr)
   }
 
   const auto* inst = dyn_cast<Instruction>(path.value());
@@ -192,9 +198,14 @@ auto MallocTargetMatcher::operator()(const dataflow::ValuePath& path) -> decltyp
     return DefUseChain::kSkip;
   }
 
-  if (const auto* const_expr = llvm::dyn_cast<llvm::ConstantExpr>(value)) {
-    LOG_DEBUG("Unsupported: Found constant expr: " << *const_expr);
-  }
+  //  if (const auto* const_expr = llvm::dyn_cast<llvm::ConstantExpr>(value)) {
+  //    if (const_expr->isCast()) {
+  //      LOG_DEBUG("Matcher adds constantexpr path " << path)
+  //      types_path.emplace_back(path);
+  //    } else {
+  //      LOG_DEBUG("Unsupported: Found constant expr: " << *const_expr);
+  //    }
+  //  }
 
   return DefUseChain::kContinue;
 }
