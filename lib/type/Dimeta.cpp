@@ -125,21 +125,46 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
   if (const auto* call_inst = llvm::dyn_cast<CallBase>(root_value)) {
     const auto* called_f = call_inst->getCalledFunction();
     if (called_f != nullptr) {
+      if (auto* prev = path.start_value()) {
+        // Here we look at if we store to a function that returns pointer/ref,
+        // indicating return of call is the type we need:
+        if (auto* store = llvm::dyn_cast<llvm::StoreInst>(prev)) {
+          if (store->getPointerOperand() == root_value) {
+            if (auto* sub_program = called_f->getSubprogram(); sub_program != nullptr) {
+              auto types_of_subprog = sub_program->getType()->getTypeArray();
+              assert(types_of_subprog.size() > 0 && "Need the return type of the function");
+              auto* return_type = types_of_subprog[0];
+              LOG_DEBUG("Found return type " << log::ditype_str(return_type))
+              return return_type;
+            }
+          }
+        }
+      }
+
       // Argument passed to current call:
       const auto* arg_val = path.previous_value();
       assert(arg_val != nullptr && "Previous value should be argument to some function!");
       // Argument number:
       const auto* const arg_pos = llvm::find_if(
           call_inst->args(), [&arg_val](const auto& arg_use) -> bool { return arg_use.get() == arg_val; });
+
+      if (arg_pos == std::end(call_inst->args())) {
+        LOG_DEBUG("Could not find arg position for " << *arg_val)
+        return {};
+      }
       auto arg_num = std::distance(call_inst->arg_begin(), arg_pos);
+      LOG_DEBUG("Looking at arg pos " << arg_num)
       // Extract debug info from function at arg_num:
       if (auto* sub_program = called_f->getSubprogram(); sub_program != nullptr) {
+        // DI-types of a subprog. include return type at pos 0, hence + 1:
         const auto sub_prog_arg_pos = arg_num + 1;
         auto types_of_subprog       = sub_program->getType()->getTypeArray();
         assert((types_of_subprog.size() > sub_prog_arg_pos) && "Type array smaller than arg num!");
         auto* type = types_of_subprog[sub_prog_arg_pos];
+        LOG_DEBUG("Found DIType at arg pos " << log::ditype_str(type))
         return type;
       }
+      LOG_DEBUG("Did not find arg pos")
     }
     return {};
   }
@@ -285,6 +310,26 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dat
 
       if (store_to_arg) {
         // alloca vs. argument: argument has no indirection for store, hence, we can subtract a pointer-level
+        if (auto* ptr_to_ptr = llvm::dyn_cast<llvm::DIDerivedType>(base_type)) {
+          if (ptr_to_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type) {
+            LOG_DEBUG("Store to a pointer type, resolving to " << log::ditype_str(base_type))
+            return base_type;
+          }
+        }
+      }
+
+      const auto store_to_function_return = [&path]() {
+        auto store_target = path.value();
+        LOG_DEBUG("Store target resolver " << *store_target)
+        if (llvm::isa<llvm::CallBase>(store_target)) {
+          LOG_DEBUG("isa call")
+          return true;
+        }
+        // TODO here we need to handle possible indirection for bitcasts?
+        LOG_DEBUG("not stored to call")
+        return false;
+      }();
+      if (store_to_function_return) {
         if (auto* ptr_to_ptr = llvm::dyn_cast<llvm::DIDerivedType>(base_type)) {
           if (ptr_to_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type) {
             LOG_DEBUG("Store to a pointer type, resolving to " << log::ditype_str(base_type))
