@@ -97,8 +97,8 @@ const auto to_string(dimeta::DimetaData& data, bool stack = false) {
   }();
   std::string logging_message;
   llvm::raw_string_ostream rso(logging_message);
-  rso << "Extracted Type" << prefix << ": " << log::ditype_str(data.entry_type.value()) << "\n";
-  rso << "Final Type" << prefix << ": " << log::ditype_str(data.base_type.value()) << "\n";
+  rso << "Extracted Type" << prefix << ": " << log::ditype_str(data.entry_type.value_or(nullptr)) << "\n";
+  rso << "Final Type" << prefix << ": " << log::ditype_str(data.base_type.value_or(nullptr)) << "\n";
   rso << "Pointer level: " << data.pointer_level << " (T" << rep_string("*", data.pointer_level) << ")";
   return rso.str();
 };

@@ -85,7 +85,12 @@ llvm::SmallVector<dataflow::ValuePath, 4> type_for_heap_call(const llvm::CallBas
   llvm::SmallVector<dataflow::ValuePath, 4> ditype_paths;
 
   for (const auto& anchor_path : malloc_anchor_finder.anchors) {
-    if (isa<StoreInst>(anchor_path.value())) {
+    LOG_DEBUG(anchor_path)
+    if (auto* store_inst = dyn_cast<StoreInst>(anchor_path.value())) {
+      if (store_inst->getPointerOperand() == call) {
+        // see test heap_lulesh_domain_mock.cpp with opt -O3
+        continue;
+      }
       LOG_DEBUG("Backtracking from anchor " << *anchor_path.value())
       //      dbgs() << "Traverse " << anchor_path.value() << "\n";
       value_traversal.traverse_custom(anchor_path.value(), malloc_anchor_backtrack, should_search, backtracker_search);
@@ -222,7 +227,9 @@ auto MallocAnchorMatcher::operator()(const ValuePath& path) -> decltype(DefUseCh
     }
     case Instruction::Store: {
       anchors.push_back(path);
-      return DefUseChain::kCancel;
+      // kSkip instead of kCancel, as multiple stores can be present for a "malloc-like" call, see test
+      // "heap_lulesh_domain_mock.cpp" at higher optim:
+      return DefUseChain::kSkip;
     }
     case Instruction::Call:  // NOLINT
       [[fallthrough]];
