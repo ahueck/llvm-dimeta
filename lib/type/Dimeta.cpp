@@ -229,7 +229,7 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dat
   // - a load also resolves to the basetype w.r.t. an array composite
   // - a store with a ditype(array) is likely the first element of the array
   LOG_DEBUG("Looking at " << **next_value);
-  if (llvm::isa<llvm::LoadInst>(*next_value)) {
+  if (const auto* load = llvm::dyn_cast<llvm::LoadInst>(*next_value)) {
     // workaround for gep/array_composite_sub.c (non-optim/optim):
     auto next_after_load = std::next(next_value);
     assert(next_after_load != path_end && "After load there should be a instruction!");
@@ -241,9 +241,20 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dat
 
     auto ditype_val = type.value();
     LOG_DEBUG("  with ditype " << log::ditype_str(ditype_val));
+
     if (auto* ptr_to_type = llvm::dyn_cast<llvm::DIDerivedType>(ditype_val)) {
       auto base_type = ptr_to_type->getBaseType();
       assert(base_type != nullptr && "Pointer points to null-type (void*?)");
+
+      if (llvm::isa<llvm::Argument>(load->getPointerOperand()) &&
+          base_type->getTag() == llvm::dwarf::DW_TAG_pointer_type) {
+        // a load w.r.t argument is likely a pointer-pointer (twice) removal..., see test heap_lhs_obj_opt.c
+        LOG_DEBUG("Next after load is argument")
+        if (auto* ptr_to_type = llvm::dyn_cast<llvm::DIDerivedType>(base_type)) {
+          base_type = ptr_to_type->getBaseType();
+          LOG_DEBUG("New base is " << log::ditype_str(base_type))
+        }
+      }
 
       if (auto* composite = llvm::dyn_cast<llvm::DICompositeType>(base_type)) {
         assert(!composite->getElements().empty() && "Load should target member of composite type!");
@@ -260,6 +271,7 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dat
       }
       if (auto* ptr_to_ptr = llvm::dyn_cast<llvm::DIDerivedType>(base_type)) {
         if (ptr_to_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type) {
+          LOG_DEBUG("Resetting type to " << log::ditype_str(ptr_to_ptr))
           type = ptr_to_ptr;
         }
       }
