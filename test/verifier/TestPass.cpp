@@ -155,11 +155,11 @@ class TestPass : public ModulePass {
     }
     const auto f_name     = try_demangle(func);
     const auto f_name_ref = llvm::StringRef(f_name);
-    if (f_name_ref.contains("std::") || f_name_ref.startswith("__")) {
+    if (f_name_ref.startswith("std::") || f_name_ref.startswith("__")) {
       return;
     }
 
-    LOG_MSG("Function: " << func.getName() << ":");
+    LOG_MSG("Function: " << f_name << ":");
 
     //    const auto ditype_tostring = [](auto* ditype) {
     //      llvm::DIType* type = ditype;
@@ -182,20 +182,20 @@ class TestPass : public ModulePass {
           LOG_DEBUG("Type for heap-like: " << *call_inst)
           //          LOG_DEBUG("Extracted Type: " << log::ditype_str(ditype_meta.value()) << "\n");
           //          LOG_MSG("Final Type: " << ditype_tostring(ditype_meta.value()) << "\n");
-          LOG_DEBUG(util::to_string(ditype_meta.value()));
+          LOG_DEBUG(util::to_string(ditype_meta.value()) << "\n");
         }
       }
 
       if (auto* alloca_inst = dyn_cast<AllocaInst>(&inst)) {
         if (isa<llvm::PointerType>(alloca_inst->getAllocatedType())) {
-          LOG_DEBUG("Skip " << *alloca_inst);
+          LOG_DEBUG("Skip " << *alloca_inst << "\n");
           continue;
         }
         auto di_var = type_for(alloca_inst);
         if (di_var) {
           LOG_DEBUG("Type for alloca: " << *alloca_inst)
           //          LOG_MSG("Final Stack Type: " << ditype_tostring(di_var.value()->getType()) << "\n");
-          LOG_DEBUG(util::to_string(di_var.value()));
+          LOG_DEBUG(util::to_string(di_var.value()) << "\n");
         }
         if (di_var) {
           parser::DITypeParser parser_types;

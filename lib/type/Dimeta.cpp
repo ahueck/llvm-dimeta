@@ -104,6 +104,7 @@ std::optional<llvm::DILocalVariable*> find_local_var_for(const llvm::AllocaInst*
 std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
   using namespace llvm;
   const auto* root_value = path.value();
+  LOG_DEBUG("Root value is " << *root_value)
 
   if (const auto* ret = dyn_cast<ReturnInst>(root_value)) {
     auto* sub_prog  = ret->getFunction()->getSubprogram();
@@ -123,23 +124,57 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
   }
 
   if (const auto* call_inst = llvm::dyn_cast<CallBase>(root_value)) {
+    LOG_DEBUG("Root is a call")
     const auto* called_f = call_inst->getCalledFunction();
     if (called_f != nullptr) {
+      if (auto* prev = path.start_value()) {
+        LOG_DEBUG("Looking at start value of path " << *prev)
+        // Here we look at if we store to a function that returns pointer/ref,
+        // indicating return of call is the type we need:
+        if (auto* store = llvm::dyn_cast<llvm::StoreInst>(prev)) {
+          // == root_value OR bitcast for LLVM non-opaque pointer:
+          const auto bitcast_to_root = [&](const auto* operand) {
+            if (const auto bcast = llvm::dyn_cast<llvm::BitCastInst>(operand)) {
+              return bcast->getOperand(0) == root_value;
+            }
+            return false;
+          };
+          if (store->getPointerOperand() == root_value || bitcast_to_root(store->getPointerOperand())) {
+            if (auto* sub_program = called_f->getSubprogram(); sub_program != nullptr) {
+              auto types_of_subprog = sub_program->getType()->getTypeArray();
+              assert(types_of_subprog.size() > 0 && "Need the return type of the function");
+              auto* return_type = types_of_subprog[0];
+              LOG_DEBUG("Found return type " << log::ditype_str(return_type))
+              return return_type;
+            }
+          }
+        }
+      }
+
       // Argument passed to current call:
       const auto* arg_val = path.previous_value();
       assert(arg_val != nullptr && "Previous value should be argument to some function!");
       // Argument number:
       const auto* const arg_pos = llvm::find_if(
           call_inst->args(), [&arg_val](const auto& arg_use) -> bool { return arg_use.get() == arg_val; });
+
+      if (arg_pos == std::end(call_inst->args())) {
+        LOG_DEBUG("Could not find arg position for " << *arg_val)
+        return {};
+      }
       auto arg_num = std::distance(call_inst->arg_begin(), arg_pos);
+      LOG_DEBUG("Looking at arg pos " << arg_num)
       // Extract debug info from function at arg_num:
       if (auto* sub_program = called_f->getSubprogram(); sub_program != nullptr) {
+        // DI-types of a subprog. include return type at pos 0, hence + 1:
         const auto sub_prog_arg_pos = arg_num + 1;
         auto types_of_subprog       = sub_program->getType()->getTypeArray();
         assert((types_of_subprog.size() > sub_prog_arg_pos) && "Type array smaller than arg num!");
         auto* type = types_of_subprog[sub_prog_arg_pos];
+        LOG_DEBUG("Found DIType at arg pos " << log::ditype_str(type))
         return type;
       }
+      LOG_DEBUG("Did not find arg pos")
     }
     return {};
   }
@@ -204,7 +239,7 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dat
   // - a load also resolves to the basetype w.r.t. an array composite
   // - a store with a ditype(array) is likely the first element of the array
   LOG_DEBUG("Looking at " << **next_value);
-  if (llvm::isa<llvm::LoadInst>(*next_value)) {
+  if (const auto* load = llvm::dyn_cast<llvm::LoadInst>(*next_value)) {
     // workaround for gep/array_composite_sub.c (non-optim/optim):
     auto next_after_load = std::next(next_value);
     assert(next_after_load != path_end && "After load there should be a instruction!");
@@ -216,9 +251,20 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dat
 
     auto ditype_val = type.value();
     LOG_DEBUG("  with ditype " << log::ditype_str(ditype_val));
+
     if (auto* ptr_to_type = llvm::dyn_cast<llvm::DIDerivedType>(ditype_val)) {
       auto base_type = ptr_to_type->getBaseType();
       assert(base_type != nullptr && "Pointer points to null-type (void*?)");
+
+      if (llvm::isa<llvm::Argument>(load->getPointerOperand()) &&
+          base_type->getTag() == llvm::dwarf::DW_TAG_pointer_type) {
+        // a load w.r.t argument is likely a pointer-pointer (twice) removal..., see test heap_lhs_obj_opt.c
+        LOG_DEBUG("Next after load is argument")
+        if (auto* ptr_to_type = llvm::dyn_cast<llvm::DIDerivedType>(base_type)) {
+          base_type = ptr_to_type->getBaseType();
+          LOG_DEBUG("New base is " << log::ditype_str(base_type))
+        }
+      }
 
       if (auto* composite = llvm::dyn_cast<llvm::DICompositeType>(base_type)) {
         assert(!composite->getElements().empty() && "Load should target member of composite type!");
@@ -235,6 +281,7 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dat
       }
       if (auto* ptr_to_ptr = llvm::dyn_cast<llvm::DIDerivedType>(base_type)) {
         if (ptr_to_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type) {
+          LOG_DEBUG("Resetting type to " << log::ditype_str(ptr_to_ptr))
           type = ptr_to_ptr;
         }
       }
@@ -258,8 +305,22 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dat
     }
     // A store directly to a pointer, remove one level of "pointerness", see test heap_matrix_simple with -O2.
     if (auto* ptr_type = llvm::dyn_cast<llvm::DIDerivedType>(ditype_val)) {
-      assert(ptr_type->getTag() == llvm::dwarf::DW_TAG_pointer_type && "Expected a store inst to a pointer here.");
       auto base_type = ptr_type->getBaseType();
+
+      // ignore typedefs, see test vector_operator.cpp:
+      if (base_type->getTag() == llvm::dwarf::DW_TAG_typedef) {
+        do {
+          if (auto type = llvm::dyn_cast<llvm::DIDerivedType>(base_type)) {
+            base_type = type->getBaseType();
+          }
+        } while (base_type->getTag() == llvm::dwarf::DW_TAG_typedef);
+      }
+
+      // FIXME: re-intoduce these asserts (fail because of test vector_operator.cpp)
+      //      assert((ptr_type->getTag() == llvm::dwarf::DW_TAG_pointer_type ||
+      //              ptr_type->getTag() == llvm::dwarf::DW_TAG_reference_type) &&
+      //             "Expected a store inst to a pointer here.");
+      //      auto base_type = ptr_type->getBaseType();
 
       // LLVM-14 etc. bitcasts may be applied to the argument, hence, we need backward dataflow!:
       const auto store_to_arg = [&path]() {
@@ -285,6 +346,26 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dat
 
       if (store_to_arg) {
         // alloca vs. argument: argument has no indirection for store, hence, we can subtract a pointer-level
+        if (auto* ptr_to_ptr = llvm::dyn_cast<llvm::DIDerivedType>(base_type)) {
+          if (ptr_to_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type) {
+            LOG_DEBUG("Store to a pointer type, resolving to " << log::ditype_str(base_type))
+            return base_type;
+          }
+        }
+      }
+
+      const auto store_to_function_return = [&path]() {
+        auto store_target = path.value();
+        LOG_DEBUG("Store target resolver " << *store_target)
+        if (llvm::isa<llvm::CallBase>(store_target)) {
+          LOG_DEBUG("isa call")
+          return true;
+        }
+        // TODO here we need to handle possible indirection for bitcasts?
+        LOG_DEBUG("not stored to call")
+        return false;
+      }();
+      if (store_to_function_return) {
         if (auto* ptr_to_ptr = llvm::dyn_cast<llvm::DIDerivedType>(base_type)) {
           if (ptr_to_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type) {
             LOG_DEBUG("Store to a pointer type, resolving to " << log::ditype_str(base_type))

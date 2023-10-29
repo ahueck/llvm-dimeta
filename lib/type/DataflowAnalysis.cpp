@@ -74,18 +74,19 @@ llvm::SmallVector<dataflow::ValuePath, 4> type_for_heap_call(const llvm::CallBas
 
   // forward: find paths to anchor (store, ret, func call etc.) from malloc-like
   LOG_DEBUG("Find heap-call to anchor w.r.t. " << *call)
-  MallocAnchorMatcher malloc_anchor_finder{call};
-  value_traversal.traverse(call, malloc_anchor_finder, should_search);
+  // Anchor can be anything like function call "malloc -> .. -> foo(malloc)" or "malloc -> .. -> store" etc.
+  MallocAnchorMatcher malloc_forward_anchor_finder{call};
+  value_traversal.traverse(call, malloc_forward_anchor_finder, should_search);
 
   // backward: find paths from anchor (store) to alloca/argument/global etc.
   MallocTargetMatcher malloc_anchor_backtrack;
-  MallocBacktrackSearch backtracker_search;
+  MallocBacktrackSearch backtrack_search_dir_fn;
 
-  assert(!malloc_anchor_finder.anchors.empty() && "Anchor should not be empty");
+  assert(!malloc_forward_anchor_finder.anchors.empty() && "Anchor should not be empty");
   llvm::SmallVector<dataflow::ValuePath, 4> ditype_paths;
 
-  for (const auto& anchor_path : malloc_anchor_finder.anchors) {
-    LOG_DEBUG(anchor_path)
+  for (const auto& anchor_path : malloc_forward_anchor_finder.anchors) {
+    LOG_DEBUG("Current anchor path " << anchor_path)
     if (auto* store_inst = dyn_cast<StoreInst>(anchor_path.value())) {
       if (store_inst->getPointerOperand() == call) {
         // see test heap_lulesh_domain_mock.cpp with opt -O3
@@ -93,7 +94,8 @@ llvm::SmallVector<dataflow::ValuePath, 4> type_for_heap_call(const llvm::CallBas
       }
       LOG_DEBUG("Backtracking from anchor " << *anchor_path.value())
       //      dbgs() << "Traverse " << anchor_path.value() << "\n";
-      value_traversal.traverse_custom(anchor_path.value(), malloc_anchor_backtrack, should_search, backtracker_search);
+      value_traversal.traverse_custom(anchor_path.value(), malloc_anchor_backtrack, should_search,
+                                      backtrack_search_dir_fn);
       for (const auto& backtrack_path : malloc_anchor_backtrack.types_path) {
         LOG_DEBUG("Found backtrack path " << backtrack_path)
         ditype_paths.emplace_back(backtrack_path);
@@ -112,6 +114,7 @@ llvm::SmallVector<dataflow::ValuePath, 4> type_for_heap_call(const llvm::CallBas
 }
 
 auto MallocBacktrackSearch::operator()(const dataflow::ValuePath& path) -> std::optional<ValueRange> {
+  // Backtracks form malloc target (a store) to, e.g., argument/global/etc.
   using namespace llvm;
   using dataflow::DefUseChain;
   using dataflow::ValuePath;
@@ -167,11 +170,17 @@ auto MallocBacktrackSearch::operator()(const dataflow::ValuePath& path) -> std::
       }
       return result;
     }
+      //    case Instruction::Call: {
+      //      LOG_DEBUG("Handle call inst")
+      //      result.push_back(inst);
+      //      return result;
+      //    }
   }
   return {};
 }
 
 auto MallocTargetMatcher::operator()(const dataflow::ValuePath& path) -> decltype(dataflow::DefUseChain::kContinue) {
+  // This builds the path (backtrack) from store to LHS target (argument, alloca etc.)
   using namespace llvm;
   using dataflow::DefUseChain;
   using dataflow::ValuePath;
@@ -194,6 +203,11 @@ auto MallocTargetMatcher::operator()(const dataflow::ValuePath& path) -> decltyp
   }
 
   if (llvm::isa<llvm::GlobalVariable>(value)) {
+    types_path.emplace_back(path);
+    return DefUseChain::kSkip;
+  }
+
+  if (llvm::isa<llvm::CallBase>(value)) {
     types_path.emplace_back(path);
     return DefUseChain::kSkip;
   }
@@ -237,9 +251,20 @@ auto MallocAnchorMatcher::operator()(const ValuePath& path) -> decltype(DefUseCh
       return DefUseChain::kCancel;
     }
     case Instruction::Store: {
-      anchors.push_back(path);
+      const auto* store = cast<StoreInst>(inst);
+      if (store->getPointerOperand() != path.start_value()) {
+        anchors.push_back(path);
+      } else {
+        LOG_DEBUG("Store to allocated object, skipping. " << *store)
+      }
+
       // kSkip instead of kCancel, as multiple stores can be present for a "malloc-like" call, see test
       // "heap_lulesh_domain_mock.cpp" at higher optim:
+      return DefUseChain::kSkip;
+    }
+    case Instruction::GetElementPtr: {
+      // Currently, we do not care about "new -> gep -> ...",
+      // since this may be C++ init of the allocated object
       return DefUseChain::kSkip;
     }
     case Instruction::Call:  // NOLINT
@@ -251,6 +276,7 @@ auto MallocAnchorMatcher::operator()(const ValuePath& path) -> decltype(DefUseCh
         return DefUseChain::kContinue;
       }
 
+      // TODO Maybe check if we have a constructor call here, and not take it if it is?
       anchors.push_back(path);
 
       //        const auto* call_inst = llvm::cast<CallBase>(inst);
