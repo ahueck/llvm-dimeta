@@ -21,8 +21,8 @@ include(dimetaToolchain)
 
 dimeta_target_format(
   format-dimeta-sources "Formats project source files"
-  TARGETS lib/pass/*.cpp
-          lib/pass/*.h
+  TARGETS lib/*/*.cpp
+          lib/*/*.h
 )
 
 add_subdirectory(lib)
