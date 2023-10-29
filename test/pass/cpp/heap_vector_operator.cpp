@@ -1,5 +1,5 @@
-// RUN: %c-to-llvm %s | %apply-verifier 2>&1 | %filecheck %s
-// RUN: %c-to-llvm %s | %opt -O1 -S | %apply-verifier 2>&1 | %filecheck %s
+// RUN: %cpp-to-llvm %s | %apply-verifier 2>&1 | %filecheck %s
+// RUN: %cpp-to-llvm %s | %opt -O1 -S | %apply-verifier 2>&1 | %filecheck %s
 
 #include <cstdlib>
 #include <vector>
