@@ -207,6 +207,7 @@ auto MallocTargetMatcher::operator()(const dataflow::ValuePath& path) -> decltyp
     return DefUseChain::kSkip;
   }
 
+
   if (llvm::isa<llvm::CallBase>(value)) {
     types_path.emplace_back(path);
     return DefUseChain::kSkip;
