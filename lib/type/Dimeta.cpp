@@ -104,6 +104,7 @@ std::optional<llvm::DILocalVariable*> find_local_var_for(const llvm::AllocaInst*
 std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
   using namespace llvm;
   const auto* root_value = path.value();
+  LOG_DEBUG("Root value is " << *root_value)
 
   if (const auto* ret = dyn_cast<ReturnInst>(root_value)) {
     auto* sub_prog  = ret->getFunction()->getSubprogram();
@@ -123,13 +124,22 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
   }
 
   if (const auto* call_inst = llvm::dyn_cast<CallBase>(root_value)) {
+    LOG_DEBUG("Root is a call")
     const auto* called_f = call_inst->getCalledFunction();
     if (called_f != nullptr) {
       if (auto* prev = path.start_value()) {
+        LOG_DEBUG("Looking at start value of path " << *prev)
         // Here we look at if we store to a function that returns pointer/ref,
         // indicating return of call is the type we need:
         if (auto* store = llvm::dyn_cast<llvm::StoreInst>(prev)) {
-          if (store->getPointerOperand() == root_value) {
+          // == root_value OR bitcast for LLVM non-opaque pointer:
+          const auto bitcast_to_root = [&](const auto* operand) {
+            if (const auto bcast = llvm::dyn_cast<llvm::BitCastInst>(operand)) {
+              return bcast->getOperand(0) == root_value;
+            }
+            return false;
+          };
+          if (store->getPointerOperand() == root_value || bitcast_to_root(store->getPointerOperand())) {
             if (auto* sub_program = called_f->getSubprogram(); sub_program != nullptr) {
               auto types_of_subprog = sub_program->getType()->getTypeArray();
               assert(types_of_subprog.size() > 0 && "Need the return type of the function");
