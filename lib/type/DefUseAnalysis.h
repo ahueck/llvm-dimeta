@@ -12,6 +12,7 @@
 
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
 #include <functional>
@@ -104,7 +105,7 @@ struct ValuePath {
   }
 
   ValuePath& operator+=(const ValuePath& other_p) {
-    path_to_value.append(other_p.path_to_value);
+    path_to_value.append(std::begin(other_p.path_to_value), std::end(other_p.path_to_value));
     return *this;
   }
 };

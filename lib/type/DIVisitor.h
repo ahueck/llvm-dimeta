@@ -63,7 +63,7 @@ class DINodeVisitor {
   //  }
 
   inline bool visited_node(const llvm::DINode* node) {
-    return visited_dinodes_.contains(node);
+    return visited_dinodes_.find(node) != std::end(visited_dinodes_);
   }
 
  public:

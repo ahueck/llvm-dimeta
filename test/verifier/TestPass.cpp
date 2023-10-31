@@ -159,7 +159,7 @@ class TestPass : public ModulePass {
       return;
     }
 
-    LOG_MSG("Function: " << f_name << ":");
+    LOG_MSG("\nFunction: " << f_name << ":");
 
     //    const auto ditype_tostring = [](auto* ditype) {
     //      llvm::DIType* type = ditype;

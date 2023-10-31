@@ -213,44 +213,30 @@ template <typename Iter, typename Iter2>
 std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dataflow::ValuePath& path,
                                           const Iter& path_iter, const Iter2& path_end) {
   std::optional<llvm::DIType*> type = type_to_reset;
-  if (type) {
-    LOG_DEBUG("Type to reset: " << log::ditype_str(*type));
-  }
-
-  // Look at next value after gep [path_iter] (e.g., a load or the final store)
-  auto next_value = std::next(path_iter);
-  if (next_value == path_end) {
-    LOG_DEBUG("Next is empty of " << **path_iter)
+  if (!type) {
+    LOG_DEBUG("No type to reset!")
     return {};
   }
 
-  // For non-opaque ptr LLVM configs, a bitcast may be between a chain like "argument -> bitcast -> store", we are not
-  // interested in bitcasts:
-  while (llvm::isa<llvm::BitCastInst>(*next_value)) {
-    next_value = std::next(next_value);
-    if (next_value == path_end) {
-      LOG_DEBUG("Next non-bitcast is empty of " << **path_iter)
-      return {};
-    }
-  }
+  auto next_value = path_iter;
+  LOG_DEBUG("Type to reset: " << log::ditype_str(*type));
+  LOG_DEBUG(">> based on IR: " << **next_value);
 
   // Re-set the DIType from the gep, if presence of:
   // - a load after a gep is likely the first element of the composite type
   // - a load also resolves to the basetype w.r.t. an array composite
   // - a store with a ditype(array) is likely the first element of the array
-  LOG_DEBUG("Looking at " << **next_value);
   if (const auto* load = llvm::dyn_cast<llvm::LoadInst>(*next_value)) {
-    // workaround for gep/array_composite_sub.c (non-optim/optim):
-    auto next_after_load = std::next(next_value);
-    assert(next_after_load != path_end && "After load there should be a instruction!");
-    if (!llvm::isa<llvm::StoreInst>(*next_after_load)) {
-      // a load resolves a pointer level in the DI type, but we only look at the final gep before the store.
-      // for now..
-      return {};
-    }
-
     auto ditype_val = type.value();
     LOG_DEBUG("  with ditype " << log::ditype_str(ditype_val));
+
+    if (llvm::isa<llvm::GlobalVariable>(load->getPointerOperand()) ||
+        llvm::isa<llvm::AllocaInst>(load->getPointerOperand()) ||
+        //        llvm::isa<llvm::Argument>(load->getPointerOperand()) ||
+        llvm::isa<llvm::GetElementPtrInst>(load->getPointerOperand())) {
+      LOG_DEBUG("Do not reset DIType based on load to global,alloca,gep")
+      return type;
+    }
 
     if (auto* ptr_to_type = llvm::dyn_cast<llvm::DIDerivedType>(ditype_val)) {
       auto base_type = ptr_to_type->getBaseType();
@@ -296,6 +282,7 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dat
 
   if (auto store_inst = llvm::dyn_cast<llvm::StoreInst>(*next_value)) {
     auto ditype_val = type.value();
+
     LOG_DEBUG("With stored to ditype " << log::ditype_str(ditype_val));
     if (auto* array_to_composite = llvm::dyn_cast<llvm::DICompositeType>(ditype_val)) {
       if (array_to_composite->getTag() == llvm::dwarf::DW_TAG_array_type) {
@@ -305,7 +292,12 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dat
     }
     // A store directly to a pointer, remove one level of "pointerness", see test heap_matrix_simple with -O2.
     if (auto* ptr_type = llvm::dyn_cast<llvm::DIDerivedType>(ditype_val)) {
-      auto base_type = ptr_type->getBaseType();
+      auto base_type = ditype_val;
+
+      if (store_inst->getPointerOperand() == path.value() && llvm::isa<llvm::AllocaInst>(path.value())) {
+        LOG_DEBUG("Store to alloca, return " << log::ditype_str(base_type))
+        return base_type;
+      }
 
       // ignore typedefs, see test vector_operator.cpp:
       if (base_type->getTag() == llvm::dwarf::DW_TAG_typedef) {
@@ -316,40 +308,27 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dat
         } while (base_type->getTag() == llvm::dwarf::DW_TAG_typedef);
       }
 
-      // FIXME: re-intoduce these asserts (fail because of test vector_operator.cpp)
-      //      assert((ptr_type->getTag() == llvm::dwarf::DW_TAG_pointer_type ||
-      //              ptr_type->getTag() == llvm::dwarf::DW_TAG_reference_type) &&
-      //             "Expected a store inst to a pointer here.");
-      //      auto base_type = ptr_type->getBaseType();
-
       // LLVM-14 etc. bitcasts may be applied to the argument, hence, we need backward dataflow!:
-      const auto store_to_arg = [&path]() {
-        auto store_target = path.value();
-        LOG_DEBUG("Store target resolver " << *store_target)
-        if (llvm::isa<llvm::Argument>(store_target)) {
-          LOG_DEBUG("isa argument")
+      const auto store_to_arg = [&]() {
+        auto s_ptr       = store_inst->getPointerOperand();
+        auto dest_is_arg = llvm::isa<llvm::Argument>(path.value());
+        if (dest_is_arg && s_ptr == path.value()) {
           return true;
         }
-        if (auto* alloca = llvm::dyn_cast<llvm::AllocaInst>(store_target)) {
-          for (auto* user : alloca->users()) {
-            if (auto* store = llvm::dyn_cast<llvm::StoreInst>(user)) {
-              if (llvm::isa<llvm::Argument>(store->getValueOperand())) {
-                LOG_DEBUG("isa a alloca -> store -> argument chain")
-                return true;
-              }
-            }
+
+        if (auto bcast = llvm::dyn_cast<llvm::BitCastInst>(s_ptr)) {
+          if (bcast->getOperand(0) == path.value() && dest_is_arg) {
+            return true;
           }
         }
-        LOG_DEBUG("not stored to argument")
-        return false;
+        LOG_DEBUG("not stored to argument") return false;
       }();
-
       if (store_to_arg) {
         // alloca vs. argument: argument has no indirection for store, hence, we can subtract a pointer-level
-        if (auto* ptr_to_ptr = llvm::dyn_cast<llvm::DIDerivedType>(base_type)) {
+        if (auto* ptr_to_ptr = llvm::dyn_cast<llvm::DIDerivedType>(ptr_type->getBaseType())) {
           if (ptr_to_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type) {
-            LOG_DEBUG("Store to a pointer type, resolving to " << log::ditype_str(base_type))
-            return base_type;
+            LOG_DEBUG("Store to a pointer type, resolving to " << log::ditype_str(ptr_to_ptr))
+            return ptr_to_ptr;
           }
         }
       }
@@ -366,10 +345,31 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dat
         return false;
       }();
       if (store_to_function_return) {
-        if (auto* ptr_to_ptr = llvm::dyn_cast<llvm::DIDerivedType>(base_type)) {
+        if (auto* ptr_to_ptr = llvm::dyn_cast<llvm::DIDerivedType>(ptr_type->getBaseType())) {
           if (ptr_to_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type) {
             LOG_DEBUG("Store to a pointer type, resolving to " << log::ditype_str(base_type))
-            return base_type;
+            return ptr_to_ptr;
+          }
+        }
+      }
+
+      const auto store_to_load = [&]() {
+        auto store_target = path.value();
+        // TODO here we need to handle possible indirection for bitcasts?
+        //        LOG_DEBUG("not stored to call")
+        if (auto load = llvm::dyn_cast<llvm::LoadInst>(store_inst->getPointerOperand())) {
+          return llvm::isa<llvm::GetElementPtrInst>(load->getPointerOperand()) ||
+                 llvm::isa<llvm::AllocaInst>(load->getPointerOperand()) ||
+                 llvm::isa<llvm::Argument>(load->getPointerOperand());
+        }
+        LOG_DEBUG("Not a store to \"load of gep,alloca,arg\"")
+        return false;
+      }();
+      if (store_to_load) {
+        if (auto* ptr_to_ptr = llvm::dyn_cast<llvm::DIDerivedType>(ptr_type->getBaseType())) {
+          if (ptr_to_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type) {
+            LOG_DEBUG("Store to a relevant load, resolving to " << log::ditype_str(ptr_to_ptr))
+            return ptr_to_ptr;
           }
         }
       }
@@ -382,33 +382,29 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dat
 std::optional<llvm::DIType*> find_type(const dataflow::ValuePath& path) {
   auto type = find_type_root(path);
 
+  if (!type) {
+    LOG_DEBUG("find_type_root failed to find a type for path " << path)
+    return {};
+  }
+
   bool has_gep{false};
 
   const auto path_end = path.path_to_value.rend();
   for (auto path_iter = path.path_to_value.rbegin(); path_iter != path_end; ++path_iter) {
-    if (!llvm::isa<llvm::GEPOperator>(*path_iter)) {
+    if (!type) {
+      break;
+    }
+    if (llvm::isa<llvm::GEPOperator>(*path_iter)) {
+      has_gep   = true;
+      auto* gep = llvm::cast<llvm::GEPOperator>(*path_iter);
+      LOG_DEBUG("Path iter gep for extraction is currently " << *gep);
+      type = gep::extract_gep_deref_type(type.value(), *gep);
+      LOG_DEBUG("Gep resetted type is " << log::ditype_str(type.value_or(nullptr)) << "\n")
       continue;
     }
-
-    has_gep = true;
-
-    auto* gep = llvm::cast<llvm::GEPOperator>(*path_iter);
-
-    LOG_DEBUG("Path iter gep for extraction is currently " << *gep);
-    type = gep::extract_gep_deref_type(type.value(), *gep);
-
-    if (type) {
-      LOG_DEBUG("Extracted type w.r.t. gep: " << log::ditype_str(*type));
-      type = reset_ditype(type.value(), path, path_iter, path_end).value_or(type.value());
-    }
-  }
-
-  if (type && !has_gep) {
-    // handle load of pointer (without gep, see heap_matrix_simple.c)
-    // FIXME: rbegin might be wrong here, need a better anchor, as the function only looks at next(rbegin()), which is
-    // usually a gep, but not with this call.
-    LOG_DEBUG("Path has no gep")
-    type = reset_ditype(type.value(), path, path.path_to_value.rbegin(), path_end).value_or(type.value());
+    LOG_DEBUG("Extracted type w.r.t. gep: " << log::ditype_str(*type));
+    type = reset_ditype(type.value(), path, path_iter, path_end).value_or(type.value());
+    LOG_DEBUG("reset_ditype result " << log::ditype_str(type.value_or(nullptr)) << "\n")
   }
 
   if (type) {

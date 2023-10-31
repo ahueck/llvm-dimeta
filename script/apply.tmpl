@@ -1,6 +1,7 @@
 #!/bin/bash
 
 target=$1
+olevel=${2:-no}
 extension="${target##*.}"
 
 if [ $extension == "c" ]; then
@@ -16,6 +17,21 @@ else
   dimeta_pass_plugin="$<TARGET_FILE:dimeta::AnalysisPass> -dimeta"
 fi
 
-# shellcheck disable=SC2068
-$compiler -S -O1 -g -emit-llvm -Xclang -disable-llvm-passes -fno-discard-value-names "$target" -o - | \
-  $opt_tool -load $dimeta_pass_plugin 2>&1 ${@:2}
+function to_llvm() {
+  $compiler -S -O1 -g -emit-llvm -Xclang -disable-llvm-passes -fno-discard-value-names "$target" -o -
+}
+
+if [[ "$olevel" == "no" ]];then
+  to_llvm | \
+    $opt_tool -load $dimeta_pass_plugin 2>&1 ${@:2}
+else
+  to_llvm | $opt_tool -O2 -S | \
+    $opt_tool -load $dimeta_pass_plugin 2>&1 ${@:2}
+fi
+
+if [[ "@DIMETA_TEST_MODE@__" == "1__" ]]; then
+  echo "Checks for file: " "$target"
+  grep -Ein "CHECK(-NEXT)?:" "$target"
+fi
+
+
