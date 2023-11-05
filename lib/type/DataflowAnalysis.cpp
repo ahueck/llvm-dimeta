@@ -105,6 +105,7 @@ llvm::SmallVector<dataflow::ValuePath, 4> type_for_heap_call(const llvm::CallBas
     ditype_paths.emplace_back(anchor_path);
   }
 
+  LOG_DEBUG("\n")
   LOG_DEBUG("Final paths to types:");
   for (const auto& path : ditype_paths) {
     LOG_DEBUG("  T: " << path);

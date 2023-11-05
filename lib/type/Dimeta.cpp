@@ -376,6 +376,25 @@ bool load_to(const llvm::LoadInst* load) {
   return false;
 }
 
+template <typename T>
+bool store_to(const llvm::StoreInst* store) {
+  const auto* store_target = store->getPointerOperand();
+  if (llvm::isa<T>(store_target)) {
+    return true;
+  }
+  if (auto bcast = llvm::dyn_cast<llvm::BitCastInst>(store_target)) {
+    if (llvm::isa<T>(bcast->getOperand(0))) {
+      return true;
+    }
+  }
+  if (auto bcast = llvm::dyn_cast<llvm::ConstantExpr>(store_target)) {
+    if (llvm::isa<T>(bcast->getOperand(0))) {
+      return true;
+    }
+  }
+  return false;
+}
+
 std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath&, llvm::DIType* type_to_reset,
                                                       const llvm::LoadInst* load) {
   auto type = type_to_reset;
@@ -407,28 +426,19 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
     }
   }
 
+  //  const auto* store_target = store_inst->getPointerOperand();
+  //  if (store_target == path.value() && llvm::isa<llvm::AllocaInst>(path.value())) {
+  //    LOG_DEBUG("Store to alloca, return " << log::ditype_str(type))
+  //    return type;
+  //  }
+
+  if (store_to<llvm::GlobalVariable>(store_inst) || store_to<llvm::AllocaInst>(store_inst)) {
+    // Relevant in "heap_lulesh_mock_char.cpp"
+    LOG_DEBUG("Store to alloca/global, return " << log::ditype_str(type))
+    return type;
+  }
+
   if (auto* ptr_type = llvm::dyn_cast<llvm::DIDerivedType>(type)) {
-    auto base_type = type;
-
-    if (store_inst->getPointerOperand() == path.value() && llvm::isa<llvm::AllocaInst>(path.value())) {
-      LOG_DEBUG("Store to alloca, return " << log::ditype_str(base_type))
-      return base_type;
-    }
-
-    auto ignore_typedefs = [](auto* type_to_iter) {
-      auto base_type = type_to_iter;
-      if (base_type->getTag() == llvm::dwarf::DW_TAG_typedef) {
-        do {
-          if (auto type = llvm::dyn_cast<llvm::DIDerivedType>(base_type)) {
-            base_type = type->getBaseType();
-          }
-        } while (base_type->getTag() == llvm::dwarf::DW_TAG_typedef);
-      }
-      return base_type;
-    };
-
-    //    base_type = ignore_typedefs(base_type);
-
     if (auto* ptr_to_ptr = llvm::dyn_cast<llvm::DIDerivedType>(ptr_type->getBaseType())) {
       if (ptr_to_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type) {
         LOG_DEBUG("Store to ptr-ptr, return " << log::ditype_str(ptr_to_ptr))

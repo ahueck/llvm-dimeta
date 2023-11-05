@@ -20,5 +20,6 @@ typedef struct foo {
 void take_field(foo* chunky2) {
   // CHECK: Extracted Type: {{.*}} = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: [[DIREF:![0-9]+]], size: 64)
   // CHECK: Final Type: [[DIREF]] = !DIBasicType(name: "double", size: 64, encoding: DW_ATE_float)
+  // CHECK-NEXT: Pointer level: 1
   chunky2->bar.foobar.baz.x = (double*)malloc(sizeof(double));
 }
