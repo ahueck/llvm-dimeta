@@ -127,26 +127,18 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
     LOG_DEBUG("Root is a call")
     const auto* called_f = call_inst->getCalledFunction();
     if (called_f != nullptr) {
-      if (auto* prev = path.start_value()) {
-        LOG_DEBUG("Looking at start value of path " << *prev)
+      if (auto* leaf_value = path.start_value()) {
+        LOG_DEBUG("Looking at start value of path: " << *leaf_value)
         // Here we look at if we store to a function that returns pointer/ref,
         // indicating return of call is the type we need:
-        if (auto* store = llvm::dyn_cast<llvm::StoreInst>(prev)) {
-          // == root_value OR bitcast for LLVM non-opaque pointer:
-          const auto bitcast_to_root = [&](const auto* operand) {
-            if (const auto bcast = llvm::dyn_cast<llvm::BitCastInst>(operand)) {
-              return bcast->getOperand(0) == root_value;
-            }
-            return false;
-          };
-          if (store->getPointerOperand() == root_value || bitcast_to_root(store->getPointerOperand())) {
-            if (auto* sub_program = called_f->getSubprogram(); sub_program != nullptr) {
-              auto types_of_subprog = sub_program->getType()->getTypeArray();
-              assert(types_of_subprog.size() > 0 && "Need the return type of the function");
-              auto* return_type = types_of_subprog[0];
-              LOG_DEBUG("Found return type " << log::ditype_str(return_type))
-              return return_type;
-            }
+        if (auto* store = llvm::dyn_cast<llvm::StoreInst>(leaf_value)) {
+          // We have a final store and root w.r.t. call, hence, assume return type is the relevant root DIType:
+          if (auto* sub_program = called_f->getSubprogram(); sub_program != nullptr) {
+            auto types_of_subprog = sub_program->getType()->getTypeArray();
+            assert(types_of_subprog.size() > 0 && "Need the return type of the function");
+            auto* return_type = types_of_subprog[0];
+            LOG_DEBUG("Found return type " << log::ditype_str(return_type))
+            return return_type;
           }
         }
       }
@@ -426,12 +418,6 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
     }
   }
 
-  //  const auto* store_target = store_inst->getPointerOperand();
-  //  if (store_target == path.value() && llvm::isa<llvm::AllocaInst>(path.value())) {
-  //    LOG_DEBUG("Store to alloca, return " << log::ditype_str(type))
-  //    return type;
-  //  }
-
   if (store_to<llvm::GlobalVariable>(store_inst) || store_to<llvm::AllocaInst>(store_inst)) {
     // Relevant in "heap_lulesh_mock_char.cpp"
     LOG_DEBUG("Store to alloca/global, return " << log::ditype_str(type))
@@ -440,13 +426,13 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
 
   if (auto* ptr_type = llvm::dyn_cast<llvm::DIDerivedType>(type)) {
     if (auto* ptr_to_ptr = llvm::dyn_cast<llvm::DIDerivedType>(ptr_type->getBaseType())) {
+      // Pointer to pointer by default remove one level for RHS assignment type w.r.t. store:
       if (ptr_to_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type) {
         LOG_DEBUG("Store to ptr-ptr, return " << log::ditype_str(ptr_to_ptr))
         return ptr_to_ptr;
       }
     }
-    LOG_DEBUG("Store to ptr, return " << log::ditype_str(ptr_type))
-    return ptr_type;
+    LOG_DEBUG("Store to ptr, return " << log::ditype_str(type))
   }
 
   return type;
