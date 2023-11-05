@@ -210,6 +210,7 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
 }
 
 namespace reset {
+
 std::optional<llvm::DIType*> reset_load_related(const dataflow::ValuePath&, llvm::DIType* type_to_reset,
                                                 const llvm::LoadInst* load) {
   auto type = type_to_reset;
@@ -217,7 +218,7 @@ std::optional<llvm::DIType*> reset_load_related(const dataflow::ValuePath&, llvm
   if (llvm::isa<llvm::GlobalVariable>(load->getPointerOperand()) ||
       llvm::isa<llvm::AllocaInst>(load->getPointerOperand()) ||
       llvm::isa<llvm::GetElementPtrInst>(load->getPointerOperand())) {
-    LOG_DEBUG("Do not reset DIType based on load to global,alloca,gep")
+    //    LOG_DEBUG("Do not reset DIType based on load to global,alloca,gep")
     return type;
   }
 
@@ -360,6 +361,86 @@ std::optional<llvm::DIType*> reset_store_related(const dataflow::ValuePath& path
 
   return type;
 }
+
+template <typename T>
+bool load_to(const llvm::LoadInst* load) {
+  auto load_target = load->getPointerOperand();
+  if (llvm::isa<T>(load_target)) {
+    return true;
+  }
+  if (auto bcast = llvm::dyn_cast<llvm::BitCastInst>(load_target)) {
+    if (llvm::isa<T>(bcast->getOperand(0))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath&, llvm::DIType* type_to_reset,
+                                                      const llvm::LoadInst* load) {
+  auto type = type_to_reset;
+
+  if (load_to<llvm::Argument>(load) || load_to<llvm::GlobalVariable>(load) || load_to<llvm::AllocaInst>(load)) {
+    LOG_DEBUG("Do not reset DIType based on load to global,alloca,arg")
+    return type;
+  }
+
+  if (auto* ptr_to_type = llvm::dyn_cast<llvm::DIDerivedType>(type)) {
+    auto base_type = ptr_to_type->getBaseType();
+    if (auto* composite = llvm::dyn_cast<llvm::DICompositeType>(base_type)) {
+      LOG_DEBUG("Have ptr to composite " << log::ditype_str(composite))
+    }
+    return base_type;
+  }
+
+  return type;
+}
+
+std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath& path, llvm::DIType* type_to_reset,
+                                                       const llvm::StoreInst* store_inst) {
+  auto type = type_to_reset;
+
+  if (auto* array_to_composite = llvm::dyn_cast<llvm::DICompositeType>(type)) {
+    if (array_to_composite->getTag() == llvm::dwarf::DW_TAG_array_type) {
+      LOG_DEBUG("Loaded from extracted type of array type " << log::ditype_str(array_to_composite->getBaseType()))
+      return array_to_composite->getBaseType();
+    }
+  }
+
+  if (auto* ptr_type = llvm::dyn_cast<llvm::DIDerivedType>(type)) {
+    auto base_type = type;
+
+    if (store_inst->getPointerOperand() == path.value() && llvm::isa<llvm::AllocaInst>(path.value())) {
+      LOG_DEBUG("Store to alloca, return " << log::ditype_str(base_type))
+      return base_type;
+    }
+
+    auto ignore_typedefs = [](auto* type_to_iter) {
+      auto base_type = type_to_iter;
+      if (base_type->getTag() == llvm::dwarf::DW_TAG_typedef) {
+        do {
+          if (auto type = llvm::dyn_cast<llvm::DIDerivedType>(base_type)) {
+            base_type = type->getBaseType();
+          }
+        } while (base_type->getTag() == llvm::dwarf::DW_TAG_typedef);
+      }
+      return base_type;
+    };
+
+    //    base_type = ignore_typedefs(base_type);
+
+    if (auto* ptr_to_ptr = llvm::dyn_cast<llvm::DIDerivedType>(ptr_type->getBaseType())) {
+      if (ptr_to_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type) {
+        LOG_DEBUG("Store to ptr-ptr, return " << log::ditype_str(ptr_to_ptr))
+        return ptr_to_ptr;
+      }
+    }
+    LOG_DEBUG("Store to ptr, return " << log::ditype_str(ptr_type))
+    return ptr_type;
+  }
+
+  return type;
+}
 }  // namespace reset
 
 template <typename Iter, typename Iter2>
@@ -379,14 +460,14 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dat
     // Re-set the DIType from the gep, if presence of:
     // - a load after a gep is likely the first element of the composite type
     // - a load also resolves to the basetype w.r.t. an array composite
-    // - a store with a ditype(array) is likely the first element of the array
     LOG_DEBUG("Reset based on load")
-    return reset::reset_load_related(path, type.value(), load);
+    return reset::reset_load_related_basic(path, type.value(), load);
   }
 
   if (const auto* store_inst = llvm::dyn_cast<llvm::StoreInst>(*next_value)) {
+    // - a store with a ditype(array) is likely the first element of the array
     LOG_DEBUG("Reset based on store")
-    return reset::reset_store_related(path, type.value(), store_inst);
+    return reset::reset_store_related_basic(path, type.value(), store_inst);
   }
 
   return type;

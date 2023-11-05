@@ -170,10 +170,11 @@ std::optional<llvm::DIType*> extract_gep_deref_type(llvm::DIType* root, const ll
   auto gep_src = inst.getSourceElementType();
   if (gep_src->isPointerTy()) {
     LOG_DEBUG("Gep to ptr " << log::ditype_str(root));
-    if (auto* type_behind_ptr = llvm::dyn_cast<llvm::DIDerivedType>(root)) {
-      assert((type_behind_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type) && "Expected a DI pointer type.");
-      return type_behind_ptr->getBaseType();
-    }
+    // The commented code is used in conjunction with load/store reset (non-basic!, e.g., reset_load_related):
+    //    if (auto* type_behind_ptr = llvm::dyn_cast<llvm::DIDerivedType>(root)) {
+    //      assert((type_behind_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type) && "Expected a DI pointer type.");
+    //      return type_behind_ptr->getBaseType();
+    //    }
     return root;
   }
 
