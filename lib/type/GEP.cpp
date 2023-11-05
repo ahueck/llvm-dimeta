@@ -49,6 +49,10 @@ struct GepIndices {
     return indices_.size();
   }
 
+  inline bool empty() const {
+    return size() == 0;
+  }
+
   inline bool skipped_first() const {
     return skipped;
   }
@@ -94,8 +98,14 @@ inline llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const GepIndices& in
   return os;
 }
 
-std::optional<llvm::DIType*> resolve_gep_index_to_type(llvm::DICompositeType* composite_type, const GepIndices& inst) {
-  if (inst.skipped_first() && inst.indices_[0] != 0) {
+std::optional<llvm::DIType*> resolve_gep_index_to_type(llvm::DICompositeType* composite_type,
+                                                       const GepIndices& gep_indices) {
+  if (gep_indices.empty()) {
+    // this triggers for composite (-array) access without constant index, see "heap_milc_struct_mock.c":
+    return composite_type;
+  }
+
+  if (gep_indices.skipped_first() && gep_indices.indices_[0] != 0) {
     // This assumes that a single (and only single) first 0 skips through to the first element with more than one
     // member: struct A { struct B { struct C { int, int } } } -> would skip to "struct C" for gep [0 1]
     LOG_DEBUG("Skip single member nested of: " << log::ditype_str(composite_type))
@@ -125,9 +135,9 @@ std::optional<llvm::DIType*> resolve_gep_index_to_type(llvm::DICompositeType* co
     LOG_DEBUG("Result of skip: " << log::ditype_str(composite_type))
   }
 
-  const auto has_next_idx = [&inst](size_t pos) { return pos + 1 < inst.size(); };
-  LOG_DEBUG("Iterate over gep: " << inst);
-  for (const auto& enum_index : llvm::enumerate(inst.indices())) {
+  const auto has_next_idx = [&gep_indices](size_t pos) { return pos + 1 < gep_indices.size(); };
+  LOG_DEBUG("Iterate over gep: " << gep_indices);
+  for (const auto& enum_index : llvm::enumerate(gep_indices.indices())) {
     const auto index  = enum_index.value();
     const auto& elems = composite_type->getElements();
     assert(elems.size() > index);
