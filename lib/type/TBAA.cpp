@@ -120,7 +120,7 @@ std::optional<llvm::DIType*> resolve_tbaa(llvm::DIType* root, const dataflow::Va
   }
   auto composite = llvm::dyn_cast<llvm::DICompositeType>(maybe_composite);
 
-  LOG_DEBUG("Found legible composite node: " << log::ditype_str(composite))
+  LOG_DEBUG("Found maybe legible composite node: " << log::ditype_str(composite))
 
   //  assert(root->getTag() == llvm::dwarf::DW_TAG_structure_type && "Root should be struct-like");
 
@@ -135,9 +135,39 @@ std::optional<llvm::DIType*> resolve_tbaa(llvm::DIType* root, const dataflow::Va
     return root;
   }
 
+  const auto num_members_tbaa_node = [](llvm::MDNode* node) {
+    const auto num = node->getNumOperands();
+    assert(num > 0 && "Operand count must be > 0");
+    return (num - 1) / 2;
+  };
+
   if (struct_name.empty()) {
-    LOG_WARNING("Anonymous structs are not supported by TBAA currently.")
-    return root;
+    // Here no name matching is possible, is TBAA node referring to current DI type? We need to verify:
+    const auto composite_fits_tbaa = [&](const llvm::DICompositeType* type) {
+      if (type->getElements().size() != num_members_tbaa_node(tbaa->base_ty)) {
+        return false;
+      }
+      auto elements = type->getElements();
+      int position  = 0;
+      // Loop simply checks if the byte offsets are the same (TODO also compare types!)
+      for (auto& operand : tbaa->base_ty->operands()) {
+        if (auto value_md = llvm::dyn_cast<llvm::ValueAsMetadata>(operand)) {
+          if (auto current_offset = llvm::dyn_cast<llvm::ConstantInt>(value_md->getValue())) {
+            auto current_member = llvm::dyn_cast<llvm::DIDerivedType>(elements[position]);
+            if (!current_offset->equalsInt(current_member->getOffsetInBits() / 8)) {
+              return false;
+            }
+          }
+        }
+        ++position;
+      }
+
+      return true;
+    };
+    if (!composite_fits_tbaa(composite)) {
+      LOG_DEBUG("TBAA of anonymous struct has different offsets to DIComposite type!")
+      return root;
+    }
   }
 
   //  assert(struct_name == tbaa->base_name() && "Root DIType should have same struct name.");
