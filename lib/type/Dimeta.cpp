@@ -391,8 +391,8 @@ std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath&
                                                       const llvm::LoadInst* load) {
   auto type = type_to_reset;
 
-  if (load_to<llvm::Argument>(load) || load_to<llvm::GlobalVariable>(load) || load_to<llvm::AllocaInst>(load)) {
-    LOG_DEBUG("Do not reset DIType based on load to global,alloca,arg")
+  if (load_to<llvm::GlobalVariable>(load) || load_to<llvm::AllocaInst>(load)) {
+    LOG_DEBUG("Do not reset DIType based on load to global,alloca")
     return type;
   }
 
@@ -432,9 +432,20 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
         return ptr_to_ptr;
       }
     }
-    LOG_DEBUG("Store to ptr, return " << log::ditype_str(type))
+    if (auto* ptr_to_composite = llvm::dyn_cast<llvm::DICompositeType>(ptr_type->getBaseType())) {
+      if (store_to<llvm::LoadInst>(store_inst)) {
+        // Triggers for "heap_lhs_obj_opt.c" (llvm 14/15)
+        auto composite_members = ptr_to_composite->getElements();
+        assert(!composite_members.empty() && "Store to composite assumed to be store to first member!");
+        auto store_di_target = llvm::dyn_cast<llvm::DIDerivedType>(composite_members[0])->getBaseType();
+        LOG_DEBUG("Store to a 'load of a composite type', assume first member as target "
+                  << log::ditype_str(store_di_target))
+        return store_di_target;
+      }
+    }
   }
 
+  LOG_DEBUG("Store resolved, return " << log::ditype_str(type))
   return type;
 }
 }  // namespace reset
