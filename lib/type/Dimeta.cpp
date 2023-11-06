@@ -492,7 +492,7 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
           LOG_DEBUG("Gep operator does not return member " << *gep_op)
         }
       }
-      
+
       if (is_ptr_to_ptr) {
         LOG_DEBUG("Store to ptr-ptr, return " << log::ditype_str(ptr_to_ptr))
         return ptr_to_ptr;
@@ -508,6 +508,15 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
                   << log::ditype_str(store_di_target))
         return store_di_target;
       }
+    }
+  }
+
+  if (auto store_to_composite = llvm::dyn_cast<llvm::DICompositeType>(type)) {
+    assert(!store_to_composite->getElements().empty() && "Composite needs member to store to");
+    auto first_member = *store_to_composite->getElements().begin();
+    if (auto derived_type_member = llvm::dyn_cast<llvm::DIDerivedType>(first_member)) {
+      LOG_DEBUG("Store direct to composite, returning first member " << log::ditype_str(first_member))
+      return derived_type_member->getBaseType();
     }
   }
 

@@ -134,6 +134,12 @@ std::optional<llvm::DIType*> resolve_tbaa(llvm::DIType* root, const dataflow::Va
     LOG_DEBUG("Return, names differ. Name of struct: " << struct_name << " vs name of TBAA " << tbaa->base_name())
     return root;
   }
+
+  if (struct_name.empty()) {
+    LOG_WARNING("Anonymous structs are not supported by TBAA currently.")
+    return root;
+  }
+
   //  assert(struct_name == tbaa->base_name() && "Root DIType should have same struct name.");
 
   // Handle "malloc" -> "store" (to struct) at offset 0 (optimized away gep):
