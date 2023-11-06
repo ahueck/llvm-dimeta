@@ -98,11 +98,10 @@ inline llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const GepIndices& in
   return os;
 }
 
-std::optional<llvm::DIType*> resolve_gep_index_to_type(llvm::DICompositeType* composite_type,
-                                                       const GepIndices& gep_indices) {
+GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, const GepIndices& gep_indices) {
   if (gep_indices.empty()) {
     // this triggers for composite (-array) access without constant index, see "heap_milc_struct_mock.c":
-    return composite_type;
+    return GepIndexToType{composite_type};
   }
 
   if (gep_indices.skipped_first() && gep_indices.indices_[0] != 0) {
@@ -146,9 +145,9 @@ std::optional<llvm::DIType*> resolve_gep_index_to_type(llvm::DICompositeType* co
 
     LOG_DEBUG(" element: " << log::ditype_str(element))
 
-    if (auto derived_type = llvm::dyn_cast<llvm::DIDerivedType>(element)) {
-      assert(derived_type->getTag() == llvm::dwarf::DW_TAG_member);
-      auto member_type = derived_type->getBaseType();
+    if (auto derived_type_member = llvm::dyn_cast<llvm::DIDerivedType>(element)) {
+      assert(derived_type_member->getTag() == llvm::dwarf::DW_TAG_member && "Expected member tag");
+      auto member_type = derived_type_member->getBaseType();
 
       if (auto composite_member_type = llvm::dyn_cast<llvm::DICompositeType>(member_type)) {
         if (composite_member_type->getTag() == llvm::dwarf::DW_TAG_class_type ||
@@ -162,19 +161,19 @@ std::optional<llvm::DIType*> resolve_gep_index_to_type(llvm::DICompositeType* co
         if (composite_member_type->getTag() == llvm::dwarf::DW_TAG_array_type) {
           if (has_next_idx(enum_index.index())) {
             // At end of gep instruction, return basetype:
-            return composite_member_type->getBaseType();
+            return GepIndexToType{composite_member_type->getBaseType(), derived_type_member};
           }
           // maybe need to recurse into tag_array_type (of non-basic type...)
         }
       }
 
-      return member_type;
+      return GepIndexToType{member_type, derived_type_member};
     }
   }
   return {};
 }
 
-std::optional<llvm::DIType*> extract_gep_deref_type(llvm::DIType* root, const llvm::GEPOperator& inst) {
+GepIndexToType extract_gep_deref_type(llvm::DIType* root, const llvm::GEPOperator& inst) {
   using namespace llvm;
 
   auto gep_src = inst.getSourceElementType();
@@ -185,17 +184,17 @@ std::optional<llvm::DIType*> extract_gep_deref_type(llvm::DIType* root, const ll
     //      assert((type_behind_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type) && "Expected a DI pointer type.");
     //      return type_behind_ptr->getBaseType();
     //    }
-    return root;
+    return GepIndexToType{root};
   }
 
   if (gep_src->isArrayTy()) {
     if (auto composite_type = llvm::dyn_cast<llvm::DICompositeType>(root)) {
       auto base_type = composite_type->getBaseType();
       LOG_DEBUG("Gep to array of DI composite, with base type " << log::ditype_str(base_type));
-      return base_type;
+      return GepIndexToType{base_type};
     }
     LOG_DEBUG("Gep to array " << log::ditype_str(root));
-    return root;
+    return GepIndexToType{root};
   }
 
   const auto find_composite = [](llvm::DIType* root) {

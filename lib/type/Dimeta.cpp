@@ -247,6 +247,8 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
 
 namespace reset {
 
+using GepToDIMemberMap = std::unordered_map<const llvm::GEPOperator*, llvm::DIDerivedType*>;
+
 std::optional<llvm::DIType*> reset_load_related(const dataflow::ValuePath&, llvm::DIType* type_to_reset,
                                                 const llvm::LoadInst* load) {
   auto type = type_to_reset;
@@ -457,7 +459,8 @@ std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath&
 }
 
 std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath& path, llvm::DIType* type_to_reset,
-                                                       const llvm::StoreInst* store_inst) {
+                                                       const llvm::StoreInst* store_inst,
+                                                       const GepToDIMemberMap& gep2member) {
   auto type = type_to_reset;
 
   if (auto* array_to_composite = llvm::dyn_cast<llvm::DICompositeType>(type)) {
@@ -480,16 +483,16 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
 
       auto gep = get_store_to<llvm::GetElementPtrInst>(store_inst);
       if (is_ptr_to_ptr && gep) {
-        // In principle this check needs to determine:
-        // IFF GEP returns a member to a struct, and if so, we should not reduce one level of pointerness
-        // IFF, however, it returns a pointer/array, keep going..
-        // TODO make the above check happen, this is temporary:
-        auto gep_op = gep.value()->getPointerOperandType();
-        if (gep_op->isStructTy()) {
-          return ptr_type;
+        if (auto gep_op = llvm::dyn_cast<llvm::GEPOperator>(gep.value())) {
+          if (auto member = gep2member.find(gep_op); member != std::end(gep2member)) {
+            //            auto member_di = member->second;
+            LOG_DEBUG("Gep returns member to struct, return ptr_type " << log::ditype_str(ptr_type))
+            return ptr_type;
+          }
+          LOG_DEBUG("Gep operator does not return member " << *gep_op)
         }
       }
-
+      
       if (is_ptr_to_ptr) {
         LOG_DEBUG("Store to ptr-ptr, return " << log::ditype_str(ptr_to_ptr))
         return ptr_to_ptr;
@@ -515,7 +518,8 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
 
 template <typename Iter, typename Iter2>
 std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dataflow::ValuePath& path,
-                                          const Iter& path_iter, const Iter2& path_end) {
+                                          const Iter& path_iter, const Iter2& path_end,
+                                          const reset::GepToDIMemberMap& gep2member) {
   std::optional<llvm::DIType*> type = type_to_reset;
   if (!type) {
     LOG_DEBUG("No type to reset!")
@@ -537,7 +541,7 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dat
   if (const auto* store_inst = llvm::dyn_cast<llvm::StoreInst>(*next_value)) {
     // - a store with a ditype(array) is likely the first element of the array
     LOG_DEBUG("Reset based on store")
-    return reset::reset_store_related_basic(path, type.value(), store_inst);
+    return reset::reset_store_related_basic(path, type.value(), store_inst, gep2member);
   }
 
   return type;
@@ -551,6 +555,8 @@ std::optional<llvm::DIType*> find_type(const dataflow::ValuePath& path) {
     return {};
   }
 
+  reset::GepToDIMemberMap gep_to_member_map;
+
   const auto path_end = path.path_to_value.rend();
   for (auto path_iter = path.path_to_value.rbegin(); path_iter != path_end; ++path_iter) {
     if (!type) {
@@ -559,12 +565,16 @@ std::optional<llvm::DIType*> find_type(const dataflow::ValuePath& path) {
     if (llvm::isa<llvm::GEPOperator>(*path_iter)) {
       auto* gep = llvm::cast<llvm::GEPOperator>(*path_iter);
       LOG_DEBUG("Path iter gep for extraction is currently " << *gep);
-      type = gep::extract_gep_deref_type(type.value(), *gep);
+      const auto gep_result = gep::extract_gep_deref_type(type.value(), *gep);
+      type                  = gep_result.type;
+      if (gep_result.member) {
+        gep_to_member_map.try_emplace(gep, gep_result.member.value());
+      }
       LOG_DEBUG("Gep resetted type is " << log::ditype_str(type.value_or(nullptr)) << "\n")
       continue;
     }
     LOG_DEBUG("Extracted type w.r.t. gep: " << log::ditype_str(*type));
-    type = reset_ditype(type.value(), path, path_iter, path_end).value_or(type.value());
+    type = reset_ditype(type.value(), path, path_iter, path_end, gep_to_member_map).value_or(type.value());
     LOG_DEBUG("reset_ditype result " << log::ditype_str(type.value_or(nullptr)) << "\n")
   }
 

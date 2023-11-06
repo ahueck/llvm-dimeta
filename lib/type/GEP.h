@@ -15,11 +15,17 @@
 namespace llvm {
 class DIType;
 class GEPOperator;
+class DIDerivedType;
 }  // namespace llvm
 
 namespace dimeta::gep {
 
-std::optional<llvm::DIType*> extract_gep_deref_type(llvm::DIType* root, const llvm::GEPOperator& inst);
+struct GepIndexToType {
+  std::optional<llvm::DIType*> type;
+  std::optional<llvm::DIDerivedType*> member{};
+};
+
+GepIndexToType extract_gep_deref_type(llvm::DIType* root, const llvm::GEPOperator& inst);
 
 }  // namespace dimeta::gep
 
