@@ -83,7 +83,8 @@ bool contains_gep(const dataflow::ValuePath& path) {
 }
 }  // namespace util
 
-std::optional<llvm::DILocalVariable*> find_local_var_for(const llvm::AllocaInst* ai) {
+namespace find {
+std::optional<llvm::DILocalVariable*> find_local_var_for(const llvm::Instruction* ai) {
   using namespace llvm;
   //  DebugInfoFinder di_finder;
   const auto find_di_var = [&](auto* ai) -> std::optional<DILocalVariable*> {
@@ -100,6 +101,69 @@ std::optional<llvm::DILocalVariable*> find_local_var_for(const llvm::AllocaInst*
   };
   return find_di_var(ai);
 }
+}  // namespace find
+
+std::optional<llvm::DILocalVariable*> find_local_var_for(const llvm::AllocaInst* ai) {
+  return find::find_local_var_for(ai);
+}
+
+namespace root {
+std::optional<llvm::DIType*> type_of_store_to_call(const dataflow::ValuePath& path, const llvm::Function* called_f,
+                                                   const llvm::CallBase* call_inst) {
+  if (auto* leaf_value = path.start_value()) {
+    LOG_DEBUG("Looking at start value of path: " << *leaf_value)
+    // Here we look at if we store to a function that returns pointer/ref,
+    // indicating return of call is the type we need:
+    if (auto* store = llvm::dyn_cast<llvm::StoreInst>(leaf_value)) {
+      // We have a final store and root w.r.t. call, hence, assume return type is the relevant root DIType:
+      if (auto* sub_program = called_f->getSubprogram(); sub_program != nullptr) {
+        auto types_of_subprog = sub_program->getType()->getTypeArray();
+        assert(types_of_subprog.size() > 0 && "Need the return type of the function");
+        auto* return_type = types_of_subprog[0];
+        LOG_DEBUG("Found return type " << log::ditype_str(return_type))
+        return return_type;
+      }
+      LOG_DEBUG("Function has no subProgram to query, trying di_local finder")
+      auto di_local = find::find_local_var_for(call_inst);
+      if (di_local) {
+        LOG_DEBUG("Found local variable " << log::ditype_str(di_local.value()))
+        return di_local.value()->getType();
+      }
+    }
+  }
+  return {};
+}
+
+std::optional<llvm::DIType*> type_of_call_argument(const dataflow::ValuePath& path, const llvm::Function* called_f,
+                                                   const llvm::CallBase* call_inst) {
+  // Argument passed to current call:
+  const auto* arg_val = path.previous_value();
+  assert(arg_val != nullptr && "Previous value should be argument to some function!");
+  // Argument number:
+  const auto* const arg_pos =
+      llvm::find_if(call_inst->args(), [&arg_val](const auto& arg_use) -> bool { return arg_use.get() == arg_val; });
+
+  if (arg_pos == std::end(call_inst->args())) {
+    LOG_DEBUG("Could not find arg position for " << *arg_val)
+    return {};
+  }
+  auto arg_num = std::distance(call_inst->arg_begin(), arg_pos);
+  LOG_DEBUG("Looking at arg pos " << arg_num)
+  // Extract debug info from function at arg_num:
+  if (auto* sub_program = called_f->getSubprogram(); sub_program != nullptr) {
+    // DI-types of a subprog. include return type at pos 0, hence + 1:
+    const auto sub_prog_arg_pos = arg_num + 1;
+    auto types_of_subprog       = sub_program->getType()->getTypeArray();
+    assert((types_of_subprog.size() > sub_prog_arg_pos) && "Type array smaller than arg num!");
+    auto* type = types_of_subprog[sub_prog_arg_pos];
+    LOG_DEBUG("Found DIType at arg pos " << log::ditype_str(type))
+    return type;
+  }
+  LOG_DEBUG("Did not find arg pos")
+  return {};
+}
+
+}  // namespace root
 
 std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
   using namespace llvm;
@@ -126,49 +190,22 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
   if (const auto* call_inst = llvm::dyn_cast<CallBase>(root_value)) {
     LOG_DEBUG("Root is a call")
     const auto* called_f = call_inst->getCalledFunction();
-    if (called_f != nullptr) {
-      if (auto* leaf_value = path.start_value()) {
-        LOG_DEBUG("Looking at start value of path: " << *leaf_value)
-        // Here we look at if we store to a function that returns pointer/ref,
-        // indicating return of call is the type we need:
-        if (auto* store = llvm::dyn_cast<llvm::StoreInst>(leaf_value)) {
-          // We have a final store and root w.r.t. call, hence, assume return type is the relevant root DIType:
-          if (auto* sub_program = called_f->getSubprogram(); sub_program != nullptr) {
-            auto types_of_subprog = sub_program->getType()->getTypeArray();
-            assert(types_of_subprog.size() > 0 && "Need the return type of the function");
-            auto* return_type = types_of_subprog[0];
-            LOG_DEBUG("Found return type " << log::ditype_str(return_type))
-            return return_type;
-          }
-        }
-      }
-
-      // Argument passed to current call:
-      const auto* arg_val = path.previous_value();
-      assert(arg_val != nullptr && "Previous value should be argument to some function!");
-      // Argument number:
-      const auto* const arg_pos = llvm::find_if(
-          call_inst->args(), [&arg_val](const auto& arg_use) -> bool { return arg_use.get() == arg_val; });
-
-      if (arg_pos == std::end(call_inst->args())) {
-        LOG_DEBUG("Could not find arg position for " << *arg_val)
-        return {};
-      }
-      auto arg_num = std::distance(call_inst->arg_begin(), arg_pos);
-      LOG_DEBUG("Looking at arg pos " << arg_num)
-      // Extract debug info from function at arg_num:
-      if (auto* sub_program = called_f->getSubprogram(); sub_program != nullptr) {
-        // DI-types of a subprog. include return type at pos 0, hence + 1:
-        const auto sub_prog_arg_pos = arg_num + 1;
-        auto types_of_subprog       = sub_program->getType()->getTypeArray();
-        assert((types_of_subprog.size() > sub_prog_arg_pos) && "Type array smaller than arg num!");
-        auto* type = types_of_subprog[sub_prog_arg_pos];
-        LOG_DEBUG("Found DIType at arg pos " << log::ditype_str(type))
-        return type;
-      }
-      LOG_DEBUG("Did not find arg pos")
+    if (called_f == nullptr) {
+      LOG_DEBUG("Called function not found for call base " << *call_inst)
+      return {};
     }
-    return {};
+
+    auto store_function_type = root::type_of_store_to_call(path, called_f, call_inst);
+    if (store_function_type) {
+      return store_function_type;
+    }
+
+    auto type_of_call_arg = root::type_of_call_argument(path, called_f, call_inst);
+    if (!type_of_call_arg) {
+      LOG_DEBUG("Did not find arg pos")
+      return {};
+    }
+    return type_of_call_arg;
   }
 
   if (const auto* global_variable = llvm::dyn_cast<llvm::GlobalVariable>(root_value)) {
@@ -427,7 +464,14 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
   if (auto* ptr_type = llvm::dyn_cast<llvm::DIDerivedType>(type)) {
     if (auto* ptr_to_ptr = llvm::dyn_cast<llvm::DIDerivedType>(ptr_type->getBaseType())) {
       // Pointer to pointer by default remove one level for RHS assignment type w.r.t. store:
-      if (ptr_to_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type) {
+      const auto is_ptr_to_ptr = ptr_to_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type;
+
+      //&& llvm::dyn_cast<llvm::GetElementPtrInst>(store_inst->getPointerOperand())->getPointerOperand()
+      //      if (is_ptr_to_ptr && store_to<llvm::GetElementPtrInst>(store_inst)) {
+      //        return ptr_type;
+      //      }
+
+      if (is_ptr_to_ptr) {
         LOG_DEBUG("Store to ptr-ptr, return " << log::ditype_str(ptr_to_ptr))
         return ptr_to_ptr;
       }
@@ -488,15 +532,12 @@ std::optional<llvm::DIType*> find_type(const dataflow::ValuePath& path) {
     return {};
   }
 
-  bool has_gep{false};
-
   const auto path_end = path.path_to_value.rend();
   for (auto path_iter = path.path_to_value.rbegin(); path_iter != path_end; ++path_iter) {
     if (!type) {
       break;
     }
     if (llvm::isa<llvm::GEPOperator>(*path_iter)) {
-      has_gep   = true;
       auto* gep = llvm::cast<llvm::GEPOperator>(*path_iter);
       LOG_DEBUG("Path iter gep for extraction is currently " << *gep);
       type = gep::extract_gep_deref_type(type.value(), *gep);
@@ -509,7 +550,11 @@ std::optional<llvm::DIType*> find_type(const dataflow::ValuePath& path) {
   }
 
   if (type) {
-    type = tbaa::resolve_tbaa(type.value(), path);
+    auto type_tbaa = tbaa::resolve_tbaa(type.value(), path);
+
+    if (type_tbaa && (type.value() != type_tbaa.value())) {
+      return type_tbaa;
+    }
   }
 
   return type;

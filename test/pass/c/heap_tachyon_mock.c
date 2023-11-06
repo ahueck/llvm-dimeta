@@ -24,6 +24,6 @@ typedef struct {
 void add_texture(parsehandle* ph, void* tex, const char* name) {
   ph->textable[ph->numtextures].tex = tex;
   // CHECK: Final Type: {{.*}} = !DIBasicType(name: "char", size: 8, encoding: DW_ATE_signed_char)
-  // CHECK: Pointer level: 1 (T*)
+  // CHECK-NEXT: Pointer level: 1 (T*)
   ph->textable[ph->numtextures].name = malloc(strlen(name) + 1);
 }
