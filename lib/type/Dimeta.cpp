@@ -123,9 +123,16 @@ std::optional<llvm::DIType*> type_of_store_to_call(const dataflow::ValuePath& pa
         LOG_DEBUG("Found return type " << log::ditype_str(return_type))
         return return_type;
       }
+
       LOG_DEBUG("Function has no subProgram to query, trying di_local finder")
       auto di_local = find::find_local_var_for(call_inst);
       if (di_local) {
+        // TODO: for now we ignore local vars with name "this", as these are auto generated
+        auto is_this_var = di_local.value()->getName() == "this";
+        if (is_this_var) {
+          LOG_DEBUG("'this' local variable as store target unsupported.")
+          return {};
+        }
         LOG_DEBUG("Found local variable " << log::ditype_str(di_local.value()))
         return di_local.value()->getType();
       }
@@ -406,22 +413,27 @@ bool load_to(const llvm::LoadInst* load) {
 }
 
 template <typename T>
-bool store_to(const llvm::StoreInst* store) {
+std::optional<const T*> get_store_to(const llvm::StoreInst* store) {
   const auto* store_target = store->getPointerOperand();
   if (llvm::isa<T>(store_target)) {
-    return true;
+    return llvm::dyn_cast<T>(store_target);
   }
   if (auto bcast = llvm::dyn_cast<llvm::BitCastInst>(store_target)) {
     if (llvm::isa<T>(bcast->getOperand(0))) {
-      return true;
+      return llvm::dyn_cast<T>(bcast->getOperand(0));
     }
   }
   if (auto bcast = llvm::dyn_cast<llvm::ConstantExpr>(store_target)) {
     if (llvm::isa<T>(bcast->getOperand(0))) {
-      return true;
+      return llvm::dyn_cast<T>(bcast->getOperand(0));
     }
   }
-  return false;
+  return {};
+}
+
+template <typename T>
+bool store_to(const llvm::StoreInst* store) {
+  return get_store_to<T>(store).has_value();
 }
 
 std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath&, llvm::DIType* type_to_reset,
@@ -466,10 +478,17 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
       // Pointer to pointer by default remove one level for RHS assignment type w.r.t. store:
       const auto is_ptr_to_ptr = ptr_to_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type;
 
-      //&& llvm::dyn_cast<llvm::GetElementPtrInst>(store_inst->getPointerOperand())->getPointerOperand()
-      //      if (is_ptr_to_ptr && store_to<llvm::GetElementPtrInst>(store_inst)) {
-      //        return ptr_type;
-      //      }
+      auto gep = get_store_to<llvm::GetElementPtrInst>(store_inst);
+      if (is_ptr_to_ptr && gep) {
+        // In principle this check needs to determine:
+        // IFF GEP returns a member to a struct, and if so, we should not reduce one level of pointerness
+        // IFF, however, it returns a pointer/array, keep going..
+        // TODO make the above check happen, this is temporary:
+        auto gep_op = gep.value()->getPointerOperandType();
+        if (gep_op->isStructTy()) {
+          return ptr_type;
+        }
+      }
 
       if (is_ptr_to_ptr) {
         LOG_DEBUG("Store to ptr-ptr, return " << log::ditype_str(ptr_to_ptr))
