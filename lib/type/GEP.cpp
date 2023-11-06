@@ -39,6 +39,7 @@ struct GepIndices {
   const llvm::GEPOperator* gep;
   llvm::SmallVector<uint64_t, 4> indices_;
   bool skipped{false};
+  bool is_byte_access{false};
   using Iter = llvm::SmallVector<uint64_t, 4>::const_iterator;
 
   inline llvm::iterator_range<Iter> indices() const {
@@ -57,13 +58,18 @@ struct GepIndices {
     return skipped;
   }
 
+  inline bool byte_access() const {
+    return is_byte_access;
+  }
+
   static GepIndices create(const llvm::GEPOperator* inst, bool skip_first = true);
 };
 
 GepIndices GepIndices::create(const llvm::GEPOperator* inst, bool skip_first) {
   GepIndices gep_ind;
-  gep_ind.gep     = inst;
-  gep_ind.skipped = skip_first;
+  gep_ind.gep            = inst;
+  gep_ind.skipped        = skip_first;
+  gep_ind.is_byte_access = gep_ind.gep->getSourceElementType()->isIntegerTy(8);
 
 #if LLVM_VERSION_MAJOR > 12
   for (const auto& index : inst->indices()) {
@@ -101,7 +107,24 @@ inline llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const GepIndices& in
 GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, const GepIndices& gep_indices) {
   if (gep_indices.empty()) {
     // this triggers for composite (-array) access without constant index, see "heap_milc_struct_mock.c":
+    LOG_DEBUG("Gep indices empty")
     return GepIndexToType{composite_type};
+  }
+
+  if (gep_indices.byte_access()) {
+    // Test heap_tachyon_mock_image.c for llvm 12:
+    // This mostly applies to llvm <= 12?
+    const auto& elems = composite_type->getElements();
+    assert(elems.size() > 0 && "Need at least one member for gep byte-based access");
+    assert(gep_indices.size() == 1 && "Byte access is only supported for one byte index value");
+    for (auto element : elems) {
+      if (auto ditype = llvm::dyn_cast<llvm::DIDerivedType>(element)) {
+        const auto offset_bytes = ditype->getOffsetInBits() / 8;
+        if (offset_bytes == gep_indices.indices_[0]) {
+          return GepIndexToType{ditype->getBaseType(), ditype};
+        }
+      }
+    }
   }
 
   if (gep_indices.skipped_first() && gep_indices.indices_[0] != 0) {
@@ -177,6 +200,7 @@ GepIndexToType extract_gep_deref_type(llvm::DIType* root, const llvm::GEPOperato
   using namespace llvm;
 
   auto gep_src = inst.getSourceElementType();
+
   if (gep_src->isPointerTy()) {
     LOG_DEBUG("Gep to ptr " << log::ditype_str(root));
     // The commented code is used in conjunction with load/store reset (non-basic!, e.g., reset_load_related):
@@ -210,7 +234,11 @@ GepIndexToType extract_gep_deref_type(llvm::DIType* root, const llvm::GEPOperato
   assert(composite_type != nullptr && "Root should be a struct-like type.");
 
   LOG_DEBUG("Gep to DI composite: " << log::ditype_str(composite_type))
-  auto accessed_ditype = resolve_gep_index_to_type(composite_type, GepIndices::create(&inst));
+  bool skip_first = !gep_src->isIntegerTy(8);
+  if (skip_first) {
+    LOG_DEBUG("Access based on i8 ptr")
+  }
+  auto accessed_ditype = resolve_gep_index_to_type(composite_type, GepIndices::create(&inst, skip_first));
 
   return accessed_ditype;
 }

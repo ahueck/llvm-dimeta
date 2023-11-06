@@ -84,7 +84,7 @@ bool contains_gep(const dataflow::ValuePath& path) {
 }  // namespace util
 
 namespace find {
-std::optional<llvm::DILocalVariable*> find_local_var_for(const llvm::Instruction* ai) {
+std::optional<llvm::DILocalVariable*> find_local_var_for(const llvm::Instruction* ai, bool bitcast_search = false) {
   using namespace llvm;
   //  DebugInfoFinder di_finder;
   const auto find_di_var = [&](auto* ai) -> std::optional<DILocalVariable*> {
@@ -99,7 +99,18 @@ std::optional<llvm::DILocalVariable*> find_local_var_for(const llvm::Instruction
     }
     return {};
   };
-  return find_di_var(ai);
+  auto result = find_di_var(ai);
+  if (!result) {
+    for (auto* user : ai->users()) {
+      if (auto bcast = llvm::dyn_cast<llvm::BitCastInst>(user)) {
+        result = find_di_var(bcast);
+        if (result) {
+          break;
+        }
+      }
+    }
+  }
+  return result;
 }
 }  // namespace find
 
