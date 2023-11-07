@@ -60,11 +60,11 @@ struct ValuePath {
   //    assert(index < path_to_value.size() && "Index out of bounds!");
   //    return path_to_value[index];
   //  }
-  const llvm::Optional<const llvm::Value*> at(int index) const {
+  const std::optional<const llvm::Value*> at(int index) const {
     if (index < path_to_value.size() && index >= 0) {
       return path_to_value[index];
     }
-    return llvm::None;
+    return {};
   }
 
   int size() const {
