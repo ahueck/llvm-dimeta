@@ -38,8 +38,6 @@
 
 namespace llvm {
 class PointerType;
-
-class PointerType;
 }  // namespace llvm
 
 using namespace llvm;
