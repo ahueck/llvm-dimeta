@@ -35,6 +35,12 @@
 
 namespace dimeta::gep {
 
+namespace util {
+inline bool is_byte_indexing(const llvm::GEPOperator* gep) {
+  return gep->getSourceElementType()->isIntegerTy(8);
+}
+}  // namespace util
+
 struct GepIndices {
   const llvm::GEPOperator* gep;
   llvm::SmallVector<uint64_t, 4> indices_;
@@ -69,7 +75,7 @@ GepIndices GepIndices::create(const llvm::GEPOperator* inst, bool skip_first) {
   GepIndices gep_ind;
   gep_ind.gep            = inst;
   gep_ind.skipped        = skip_first;
-  gep_ind.is_byte_access = gep_ind.gep->getSourceElementType()->isIntegerTy(8);
+  gep_ind.is_byte_access = util::is_byte_indexing(gep_ind.gep);
 
 #if LLVM_VERSION_MAJOR > 12
   for (const auto& index : inst->indices()) {
@@ -119,6 +125,7 @@ GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, 
     assert(gep_indices.size() == 1 && "Byte access is only supported for one byte index value");
     for (auto element : elems) {
       if (auto ditype = llvm::dyn_cast<llvm::DIDerivedType>(element)) {
+        assert(ditype->getTag() == llvm::dwarf::DW_TAG_member && "A member is expected here");
         const auto offset_bytes = ditype->getOffsetInBits() / 8;
         if (offset_bytes == gep_indices.indices_[0]) {
           return GepIndexToType{ditype->getBaseType(), ditype};
@@ -234,9 +241,10 @@ GepIndexToType extract_gep_deref_type(llvm::DIType* root, const llvm::GEPOperato
   assert(composite_type != nullptr && "Root should be a struct-like type.");
 
   LOG_DEBUG("Gep to DI composite: " << log::ditype_str(composite_type))
-  bool skip_first = !gep_src->isIntegerTy(8);
-  if (skip_first) {
-    LOG_DEBUG("Access based on i8 ptr")
+  bool skip_first{true};
+  if (util::is_byte_indexing(&inst)) {
+    LOG_DEBUG("Access based on i8 ptr, assuming byte offsetting into composite member")
+    skip_first = false;  // We do not skip over byte index values (likely != 0)
   }
   auto accessed_ditype = resolve_gep_index_to_type(composite_type, GepIndices::create(&inst, skip_first));
 
