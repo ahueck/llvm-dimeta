@@ -87,7 +87,7 @@ GepIndices GepIndices::create(const llvm::GEPOperator* inst, bool skip_first) {
       continue;
     }
     if (auto const_idx = llvm::dyn_cast<llvm::ConstantInt>(index.get())) {
-      int64_t index = const_idx->getValue().getSExtValue();
+      const int64_t index = const_idx->getValue().getSExtValue();
       gep_ind.indices_.emplace_back(index);
     }
   }
@@ -120,6 +120,7 @@ GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, 
   if (gep_indices.byte_access()) {
     // Test heap_tachyon_mock_image.c for llvm 12:
     // This mostly applies to llvm <= 12?
+    LOG_DEBUG("Gep indices are byte access: " << gep_indices)
     const auto& elems = composite_type->getElements();
     assert(elems.size() > 0 && "Need at least one member for gep byte-based access");
     assert(gep_indices.size() == 1 && "Byte access is only supported for one byte index value");
@@ -206,7 +207,7 @@ GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, 
 GepIndexToType extract_gep_deref_type(llvm::DIType* root, const llvm::GEPOperator& inst) {
   using namespace llvm;
 
-  auto gep_src = inst.getSourceElementType();
+  const auto gep_src = inst.getSourceElementType();
 
   if (gep_src->isPointerTy()) {
     LOG_DEBUG("Gep to ptr " << log::ditype_str(root));
@@ -231,13 +232,13 @@ GepIndexToType extract_gep_deref_type(llvm::DIType* root, const llvm::GEPOperato
   const auto find_composite = [](llvm::DIType* root) {
     llvm::DIType* type = root;
     while (llvm::isa<llvm::DIDerivedType>(type)) {
-      auto ditype = llvm::dyn_cast<llvm::DIDerivedType>(type);
-      type        = ditype->getBaseType();
+      const auto ditype = llvm::dyn_cast<llvm::DIDerivedType>(type);
+      type              = ditype->getBaseType();
     }
     return type;
   };
 
-  auto composite_type = llvm::dyn_cast<llvm::DICompositeType>(find_composite(root));
+  const auto composite_type = llvm::dyn_cast<llvm::DICompositeType>(find_composite(root));
   assert(composite_type != nullptr && "Root should be a struct-like type.");
 
   LOG_DEBUG("Gep to DI composite: " << log::ditype_str(composite_type))
