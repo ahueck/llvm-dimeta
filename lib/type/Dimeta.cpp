@@ -600,8 +600,7 @@ std::optional<llvm::DIType*> find_type(const dataflow::ValuePath& path) {
 
   if (type) {
     auto type_tbaa = tbaa::resolve_tbaa(type.value(), path);
-
-    if (type_tbaa && (type.value() != type_tbaa.value())) {
+    if (type_tbaa) {
       return type_tbaa;
     }
   }
