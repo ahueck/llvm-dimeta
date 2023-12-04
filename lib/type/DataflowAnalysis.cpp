@@ -38,15 +38,7 @@ class Module;
 namespace dimeta::dataflow {
 
 struct MallocAnchorMatcher {
-  const llvm::CallBase* malloc_like_call{nullptr};
   llvm::SmallVector<ValuePath, 4> anchors;
-
-  explicit MallocAnchorMatcher(const llvm::CallBase* call) : malloc_like_call{call} {
-  }
-
-  [[nodiscard]] const llvm::Module* getModule() const;
-
-  [[nodiscard]] const llvm::Function* getFunction() const;
 
   auto operator()(const ValuePath& path) -> decltype(DefUseChain::kContinue);
 };
@@ -75,7 +67,7 @@ llvm::SmallVector<dataflow::ValuePath, 4> type_for_heap_call(const llvm::CallBas
   // forward: find paths to anchor (store, ret, func call etc.) from malloc-like
   LOG_DEBUG("Find heap-call to anchor w.r.t. " << *call)
   // Anchor can be anything like function call "malloc -> .. -> foo(malloc)" or "malloc -> .. -> store" etc.
-  MallocAnchorMatcher malloc_forward_anchor_finder{call};
+  MallocAnchorMatcher malloc_forward_anchor_finder;
   value_traversal.traverse(call, malloc_forward_anchor_finder, should_search);
 
   // backward: find paths from anchor (store) to alloca/argument/global etc.
@@ -112,6 +104,20 @@ llvm::SmallVector<dataflow::ValuePath, 4> type_for_heap_call(const llvm::CallBas
   }
 
   return ditype_paths;
+}
+
+llvm::SmallVector<dataflow::ValuePath, 4> path_from_alloca(const llvm::AllocaInst* alloca) {
+  using namespace llvm;
+  using dataflow::DefUseChain;
+  using dataflow::ValuePath;
+  using namespace dataflow;
+
+  auto should_search = [&](const ValuePath&) -> bool { return true; };
+  DefUseChain value_traversal;
+
+  MallocAnchorMatcher malloc_forward_anchor_finder;
+  value_traversal.traverse(alloca, malloc_forward_anchor_finder, should_search);
+  return malloc_forward_anchor_finder.anchors;
 }
 
 auto MallocBacktrackSearch::operator()(const dataflow::ValuePath& path) -> std::optional<ValueRange> {
@@ -225,13 +231,13 @@ auto MallocTargetMatcher::operator()(const dataflow::ValuePath& path) -> decltyp
   return DefUseChain::kContinue;
 }
 
-const llvm::Module* MallocAnchorMatcher::getModule() const {
-  return getFunction()->getParent();
-}
-
-const llvm::Function* MallocAnchorMatcher::getFunction() const {
-  return malloc_like_call->getParent()->getParent();
-}
+// const llvm::Module* MallocAnchorMatcher::getModule() const {
+//   return getFunction()->getParent();
+// }
+//
+// const llvm::Function* MallocAnchorMatcher::getFunction() const {
+//   return base_inst->getParent()->getParent();
+// }
 
 auto MallocAnchorMatcher::operator()(const ValuePath& path) -> decltype(DefUseChain::kContinue) {
   using namespace llvm;

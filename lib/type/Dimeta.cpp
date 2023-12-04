@@ -202,6 +202,19 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
     if (local_di_var) {
       return local_di_var.value()->getType();
     }
+
+    // see test heap_case_inheritance.cpp (e.g., returns several objects as base class pointer):
+    // TODO: check if that ever applies to C, should probably only execute for C++ codes.
+    LOG_DEBUG("Dataflow analysis of alloca")
+    auto paths_from_alloca = dataflow::path_from_alloca(alloca);
+    for (auto& path : paths_from_alloca) {
+      LOG_DEBUG("Path from alloca " << path)
+      auto type_of_alloca = find_type_root(path);
+      if (type_of_alloca) {
+        return type_of_alloca;
+      }
+    }
+
     return {};
   }
 

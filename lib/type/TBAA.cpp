@@ -84,7 +84,11 @@ std::optional<llvm::DIType*> resolve_tbaa(llvm::DIType* root, const dataflow::Va
   LOG_DEBUG("Resolve TBAA of store '" << *store_inst << "' with ditype: " << log::ditype_str(root))
 
   auto tbaa = TBAAHandle::create(*store_inst);
-  assert(tbaa.has_value() && "Requires TBAA metadata in LLVM IR.");
+  if (!tbaa.has_value()) {
+    LOG_DEBUG("Requires TBAA metadata in LLVM IR.")
+    return root;
+  }
+  //  assert(tbaa.has_value() && "Requires TBAA metadata in LLVM IR.");
 
   // assign any ptr to any ptr, e.g., struct A** a; a[0] = malloc(struct A):
   if (tbaa->base_ty == tbaa->access_ty && tbaa->access_is_ptr()) {

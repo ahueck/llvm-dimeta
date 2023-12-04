@@ -32,6 +32,8 @@ function(configure_dimeta_lit_site_cfg input output)
   
   set(DIMETA_SCRIPT_DIR ${CMAKE_BINARY_DIR}/scripts)
 
+  pythonize_bool(DIMETA_USE_HEAPALLOCSITE DIMETA_HEAPALLOCSITE)
+
   if(${LLVM_VERSION_MAJOR} VERSION_GREATER_EQUAL "13")
     set(DIMETA_OPT_ARGS "-enable-new-pm=0")
   endif()
