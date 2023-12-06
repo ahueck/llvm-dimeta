@@ -603,7 +603,7 @@ std::optional<llvm::DIType*> find_type(const dataflow::ValuePath& path) {
       if (gep_result.member) {
         gep_to_member_map.try_emplace(gep, gep_result.member.value());
       }
-      LOG_DEBUG("Gep resetted type is " << log::ditype_str(type.value_or(nullptr)) << "\n")
+      LOG_DEBUG("Gep reset type is " << log::ditype_str(type.value_or(nullptr)) << "\n")
       continue;
     }
     LOG_DEBUG("Extracted type w.r.t. gep: " << log::ditype_str(*type));
