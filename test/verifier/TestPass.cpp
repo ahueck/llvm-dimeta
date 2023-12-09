@@ -38,8 +38,6 @@
 
 namespace llvm {
 class PointerType;
-
-class PointerType;
 }  // namespace llvm
 
 using namespace llvm;
@@ -53,7 +51,11 @@ namespace dimeta::test {
 template <typename String>
 inline std::string demangle(String&& s) {
   std::string name = std::string{s};
-  auto demangle    = llvm::itaniumDemangle(name.data(), nullptr, nullptr, nullptr);
+#if LLVM_VERSION_MAJOR == 17
+  auto demangle = llvm::itaniumDemangle(name.data());
+#else
+  auto demangle = llvm::itaniumDemangle(name.data(), nullptr, nullptr, nullptr);
+#endif
   if (demangle && !std::string(demangle).empty()) {
     return {demangle};
   }
@@ -159,7 +161,7 @@ class TestPass : public ModulePass {
       return;
     }
 
-    LOG_MSG("Function: " << f_name << ":");
+    LOG_MSG("\nFunction: " << f_name << ":");
 
     //    const auto ditype_tostring = [](auto* ditype) {
     //      llvm::DIType* type = ditype;

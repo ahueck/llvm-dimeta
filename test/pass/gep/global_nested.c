@@ -33,7 +33,7 @@ struct foo {
 // CHECK: Final Type Global: {{.*}} = distinct !DICompositeType(tag: DW_TAG_structure_type, name: "foo"
 // CHECK: Pointer level: 0
 struct foo chunky;
-// CHECK: Extracted Type Global: !11 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: [[DIREFG:![0-9]+]], size: 64)
+// CHECK: Extracted Type Global: {{.*}} = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: [[DIREFG:![0-9]+]]
 // CHECK: Final Type Global: [[DIREFG]] = distinct !DICompositeType(tag: DW_TAG_structure_type, name: "foo"
 // CHECK: Pointer level: 1
 struct foo* chunky2;
@@ -41,11 +41,13 @@ struct foo* chunky2;
 void take_field() {
   // CHECK: Extracted Type: {{.*}} = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: [[DIREF:![0-9]+]], size: 64)
   // CHECK: Final Type: [[DIREF]] = !DIBasicType(name: "char", size: 8, encoding: DW_ATE_signed_char)
+  // CHECK-NEXT: Pointer level: 1
   chunky.bar.baz.quux.field5[17] = (char*)malloc(1);
 }
 
 void take_field_ptr() {
   // CHECK: Extracted Type: {{.*}} = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: [[DIREF2:![0-9]+]], size: 64)
   // CHECK: Final Type: [[DIREF2]] = !DIBasicType(name: "char", size: 8, encoding: DW_ATE_signed_char)
+  // CHECK-NEXT: Pointer level: 1
   chunky2->bar.baz.quux.field5[0] = (char*)malloc(1);
 }

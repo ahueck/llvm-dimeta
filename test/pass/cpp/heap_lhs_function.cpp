@@ -10,6 +10,6 @@ int*& access(std::vector<int*>& ar) {
 
 void foo(std::vector<int*>& ar) {
   // CHECK: Final Type: {{.*}} = !DIBasicType(name: "int", size: 32, encoding: DW_ATE_signed)
-  // CHECK-NEXT: Pointer level: 1 (T*)
+  // CHECK-NEXT: Pointer level: 1
   access(ar) = (int*)malloc(sizeof(int));
 }

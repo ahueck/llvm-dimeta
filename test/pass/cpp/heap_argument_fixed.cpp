@@ -3,10 +3,12 @@
 
 void foo(int** p) {
   // CHECK: Final Type: {{.*}} = !DIBasicType(name: "int", size: 32, encoding: DW_ATE_signed)
+  // CHECK-NEXT: Pointer level: 1
   *p = new int[4];
 }
 
 void bar(double** o, int** p) {
   // CHECK: Final Type: {{.*}} = !DIBasicType(name: "int", size: 32, encoding: DW_ATE_signed)
+  // CHECK-NEXT: Pointer level: 1
   *p = new int[2];
 }

@@ -30,6 +30,8 @@ namespace dimeta::dataflow {
 
 llvm::SmallVector<dataflow::ValuePath, 4> type_for_heap_call(const llvm::CallBase* call);
 
+llvm::SmallVector<dataflow::ValuePath, 4> path_from_alloca(const llvm::AllocaInst* alloca);
+
 }  // namespace dimeta::dataflow
 
 #endif  // DIMETA_DATAFLOWANALYSIS_H

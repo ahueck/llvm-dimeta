@@ -6,5 +6,6 @@
 void foo(void** p, int n) {
   // CHECK: Extracted Type: [[DIREF:![0-9]+]] = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: null, size: 64)
   // CHECK: Final Type: [[DIREF]] = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: null, size: 64)
+  // CHECK-NEXT: Pointer level: 1
   *p = malloc(sizeof(int) * n);
 }

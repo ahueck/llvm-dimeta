@@ -12,6 +12,7 @@
 
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
 #include <functional>
@@ -59,11 +60,11 @@ struct ValuePath {
   //    assert(index < path_to_value.size() && "Index out of bounds!");
   //    return path_to_value[index];
   //  }
-  const llvm::Optional<const llvm::Value*> at(int index) const {
+  const std::optional<const llvm::Value*> at(int index) const {
     if (index < path_to_value.size() && index >= 0) {
       return path_to_value[index];
     }
-    return llvm::None;
+    return {};
   }
 
   int size() const {
@@ -104,7 +105,7 @@ struct ValuePath {
   }
 
   ValuePath& operator+=(const ValuePath& other_p) {
-    path_to_value.append(other_p.path_to_value);
+    path_to_value.append(std::begin(other_p.path_to_value), std::end(other_p.path_to_value));
     return *this;
   }
 };

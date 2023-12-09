@@ -12,6 +12,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/ilist_iterator.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
@@ -87,7 +88,11 @@ class TestPass : public PassInfoMixin<TestPass> {
 
 PassPluginLibraryInfo getPassPluginInfo() {
   const auto callback = [](PassBuilder& PB) {
+#if LLVM_VERSION_MAJOR < 12
+    PB.registerPipelineStartEPCallback([&](ModulePassManager& MPM) {
+#else
     PB.registerPipelineEarlySimplificationEPCallback([&](ModulePassManager& MPM, auto) {
+#endif
       MPM.addPass(dimeta::TestPass());
       return true;
     });
