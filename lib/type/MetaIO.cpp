@@ -76,17 +76,17 @@ template <>
 struct llvm::yaml::MappingTraits<std::shared_ptr<BaseClass>> {
   static void mapping(IO& io, std::shared_ptr<BaseClass>& info) {
     io.mapRequired("BaseClass", info->base);
-    if (!io.outputting()) {
-      Extent e{0};
-      io.mapOptional("Vtable", e);
-      if (e > 0) {
-        info->vtable = BaseClass::VTable{e};
-      }
-      return;
-    }
-    if (info->vtable.has_value()) {
-      io.mapOptional("Vtable", info->vtable.value());
-    }
+    //    if (!io.outputting()) {
+    //      Extent e{0};
+    //      io.mapOptional("Vtable", e);
+    //      if (e > 0) {
+    //        info->vtable = BaseClass::VTable{e};
+    //      }
+    //      return;
+    //    }
+    //    if (info->vtable.has_value()) {
+    //      io.mapOptional("Vtable", info->vtable.value());
+    //    }
   }
 };
 
@@ -136,6 +136,7 @@ struct llvm::yaml::ScalarEnumerationTraits<dimeta::FundamentalType::Encoding> {
     io.enumCase(value, "signed_int", dimeta::FundamentalType::Encoding::kSignedInt);
     io.enumCase(value, "unsigned_int", dimeta::FundamentalType::Encoding::kUnsignedInt);
     io.enumCase(value, "padding", dimeta::FundamentalType::Encoding::kPadding);
+    io.enumCase(value, "vtable_ptr", dimeta::FundamentalType::Encoding::kVtablePtr);
   }
 };
 

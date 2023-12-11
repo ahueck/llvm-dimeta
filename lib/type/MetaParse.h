@@ -32,9 +32,10 @@ inline std::shared_ptr<Member> make_member(std::string_view name, Args&&... args
 }
 
 template <typename T>
-inline std::shared_ptr<BaseClass> make_base(T&& compound, BaseClass::VTable&& vtable = {}) {
+inline std::shared_ptr<BaseClass> make_base(T&& compound) {  //, BaseClass::VTable&& vtable = {}) {
   static_assert(std::is_same_v<typename std::remove_cv<T>::type, QualifiedCompound>, "Need a qualified compound.");
-  return std::make_shared<BaseClass>(BaseClass{std::forward<T>(compound), std::forward<BaseClass::VTable>(vtable)});
+  return std::make_shared<BaseClass>(
+      BaseClass{std::forward<T>(compound)});  //, std::forward<BaseClass::VTable>(vtable)});
 }
 
 template <typename T>
@@ -138,6 +139,7 @@ class DITypeParser : public visitor::DINodeVisitor<DITypeParser> {
     Extent member_size{0};
     Extent array_size_bits{0};
     Extent vtable_size{0};
+    Extent vtable_offset{0};
     bool is_member{false};
     std::string member_name;
     std::string typedef_name;
@@ -148,6 +150,7 @@ class DITypeParser : public visitor::DINodeVisitor<DITypeParser> {
       array_size_bits = 0;
       member_offset   = 0;
       vtable_size     = 0;
+      vtable_offset   = 0;
       is_member       = false;
       typedef_name    = "";
       member_name     = "";
@@ -237,7 +240,22 @@ class DITypeParser : public visitor::DINodeVisitor<DITypeParser> {
     // FIXME: hack so vtable pointer -> pointer is not applied to next type.
     if (derived_type->getName() == "__vtbl_ptr_type") {
       assert(!composite_stack_.empty());
-      composite_stack_.back().data.vtable_size = derived_type->getSizeInBits() / 8;
+      //      composite_stack_.back().data.vtable_size   = derived_type->getSizeInBits() / 8;
+      //      composite_stack_.back().data.vtable_offset = derived_type->getOffsetInBits() / 8;
+
+      auto& containing_composite = composite_stack_.back().q_compound.type;
+      containing_composite.offsets.emplace_back(meta_.member_offset);
+      containing_composite.sizes.emplace_back(meta_.member_size);
+
+      auto fundamental =
+          FundamentalType{std::string{derived_type->getName()}, (meta_.member_size), FundamentalType::kVtablePtr};
+
+      const Qualifiers quals = helper::make_qual(meta_.tag_collector);
+      const auto array_size  = helper::make_array_size(fundamental, meta_.array_size_bits);
+
+      containing_composite.members.emplace_back(helper::make_member<QualifiedFundamental>(
+          meta_.member_name, std::move(fundamental), array_size, Qualifiers{quals.back()}, meta_.typedef_name));
+
       meta_.clear();
     }
 
@@ -260,8 +278,8 @@ class DITypeParser : public visitor::DINodeVisitor<DITypeParser> {
 
     const QualifiedCompound q_compound{compound_type, array_size, quals, meta_.typedef_name};
     meta_.has_vtable = composite_type->getVTableHolder() == composite_type;
-    if (meta_.has_vtable)
-      llvm::outs() << *composite_type << "\n";
+    //    if (meta_.has_vtable)
+    //      llvm::outs() << *composite_type << "\n";
     composite_stack_.emplace_back(MetaNode{std::move(q_compound), meta_});
 
     return true;
@@ -284,12 +302,15 @@ class DITypeParser : public visitor::DINodeVisitor<DITypeParser> {
       return;
     }
     if (current_meta.inherited) {
-      const auto base = current_meta.has_vtable ? helper::make_base(std::move(current_composite.q_compound),
-                                                                    BaseClass::VTable{current_meta.vtable_size})
-                                                : helper::make_base(std::move(current_composite.q_compound));
+      //      const auto base = current_meta.has_vtable ? helper::make_base(std::move(current_composite.q_compound),
+      //                                                                    BaseClass::VTable{current_meta.vtable_size})
+      //                                                : helper::make_base(std::move(current_composite.q_compound));
+      const auto base = helper::make_base(std::move(current_composite.q_compound));
       composite_stack_.back().q_compound.type.bases.emplace_back(std::move(base));
       return;
     }
+    //    if (current_meta.has_vtable) {
+    //    }
     assert(composite_stack_.empty());
     result_.emplace<QualifiedCompound>(std::move(current_composite.q_compound));
   }

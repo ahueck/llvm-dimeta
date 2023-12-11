@@ -60,7 +60,8 @@ struct FundamentalType {
     kSigned       = 0x8,
     kUnsigned     = 0x10,
     kBool         = 0x12,
-    kPadding      = 0x13,  // TODO: maybe make this explicit
+    kPadding      = 0x14,  // TODO: maybe make this explicit
+    kVtablePtr    = 0x16,
     kSignedChar   = kChar | kSigned,
     kUnsignedChar = kChar | kUnsigned,
     kSignedInt    = kInt | kSigned,
@@ -93,9 +94,7 @@ using QualifiedFundamental = QualType<FundamentalType>;
 using QualifiedCompound    = QualType<CompoundType>;
 
 struct BaseClass {
-  using VTable = std::optional<Extent>;
   QualifiedCompound base{};
-  VTable vtable{};
 };
 
 struct Member {
