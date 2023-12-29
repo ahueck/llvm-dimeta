@@ -6,6 +6,10 @@ set(LIB_SOURCES
   TBAA.cpp
   DataflowAnalysis.cpp
   GEP.cpp
+        #MetaDB.cpp
+        #MetaDB.h
+        #MetaParseID.h
+        #DimetaDataID.cpp
 )
 
 add_library(dimeta_Types STATIC

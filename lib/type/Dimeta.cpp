@@ -84,18 +84,27 @@ bool contains_gep(const dataflow::ValuePath& path) {
 }  // namespace util
 
 namespace find {
+
+std::optional<const llvm::DbgVariableIntrinsic*> find_intrinsic(const llvm::Instruction* ai) {
+  using namespace llvm;
+  auto& func = *ai->getFunction();
+  for (auto& inst : llvm::instructions(func)) {
+    if (auto* dbg = dyn_cast<DbgVariableIntrinsic>(&inst)) {
+      if (compat::get_alloca_for(dbg) == ai) {
+        return dbg;
+      }
+    }
+  }
+  return {};
+}
+
 std::optional<llvm::DILocalVariable*> find_local_var_for(const llvm::Instruction* ai, bool bitcast_search = false) {
   using namespace llvm;
   //  DebugInfoFinder di_finder;
   const auto find_di_var = [&](auto* ai) -> std::optional<DILocalVariable*> {
-    auto& func = *ai->getFunction();
-    for (auto& inst : llvm::instructions(func)) {
-      if (auto* dbg = dyn_cast<DbgVariableIntrinsic>(&inst)) {
-        if (compat::get_alloca_for(dbg) == ai) {
-          //          di_finder.processInstruction(*ai->getModule(), inst);
-          return dbg->getVariable();
-        }
-      }
+    auto intrinsic = find_intrinsic(ai);
+    if (intrinsic) {
+      return intrinsic.value()->getVariable();
     }
     return {};
   };
@@ -112,6 +121,20 @@ std::optional<llvm::DILocalVariable*> find_local_var_for(const llvm::Instruction
   }
   return result;
 }
+
+std::optional<llvm::DILocation*> find_location(const llvm::Instruction* inst) {
+  if (const auto& location = inst->getDebugLoc()) {
+    return location.get();
+  }
+
+  auto dbg_intrinsic = find_intrinsic(inst);
+  if (dbg_intrinsic) {
+    return dbg_intrinsic.value()->getDebugLoc().get();
+  }
+
+  return {};
+}
+
 }  // namespace find
 
 std::optional<llvm::DILocalVariable*> find_local_var_for(const llvm::AllocaInst* ai) {
@@ -694,9 +717,10 @@ std::optional<DimetaData> type_for(const llvm::CallBase* call) {
     LOG_TRACE("Type for malloc-like: " << cb_fun->getName())
     extracted_type = type_for_malloclike(call);
   }
+  auto source_loc                        = ditype::find::find_location(call);
   const auto [final_type, pointer_level] = final_ditype(extracted_type);
-  const auto meta =
-      DimetaData{DimetaData::MemLoc::Heap, {}, extracted_type, final_type, pointer_level + pointer_level_offset};
+  const auto meta                        = DimetaData{
+      DimetaData::MemLoc::Heap, {}, extracted_type, final_type, source_loc, pointer_level + pointer_level_offset};
   return meta;
 }
 
@@ -705,8 +729,10 @@ std::optional<DimetaData> type_for(const llvm::AllocaInst* ai) {
 
   if (local_di_var) {
     auto extracted_type                    = local_di_var.value()->getType();
+    auto source_loc                        = ditype::find::find_location(ai);
     const auto [final_type, pointer_level] = final_ditype(extracted_type);
-    const auto meta = DimetaData{DimetaData::MemLoc::Stack, local_di_var, extracted_type, final_type, pointer_level};
+    const auto meta =
+        DimetaData{DimetaData::MemLoc::Stack, local_di_var, extracted_type, final_type, source_loc, pointer_level};
     return meta;
   }
 
@@ -720,7 +746,7 @@ std::optional<DimetaData> type_for(const llvm::GlobalVariable* gv) {
     auto gv_expr                           = *dbg_info.begin();
     auto gv_type                           = gv_expr->getVariable()->getType();
     const auto [final_type, pointer_level] = final_ditype(gv_type);
-    return DimetaData{DimetaData::MemLoc::Global, {}, gv_type, final_type, pointer_level};
+    return DimetaData{DimetaData::MemLoc::Global, gv_expr->getVariable(), gv_type, final_type, {}, pointer_level};
   }
   return {};
 }

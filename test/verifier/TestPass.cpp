@@ -42,7 +42,7 @@ class PointerType;
 
 using namespace llvm;
 
-static cl::opt<bool> cl_dimeta_test_print_yaml("yaml", cl::init(false));
+static cl::opt<bool> cl_dimeta_test_print_yaml("yaml", cl::init(true));
 static cl::opt<bool> cl_dimeta_test_print_tree("dump-tree", cl::init(false));
 static cl::opt<bool> cl_dimeta_test_print("dump", cl::init(false));
 
@@ -88,7 +88,7 @@ const std::string rep_string(std::string input, int rep) {
 
 const auto to_string(dimeta::DimetaData& data, bool stack = false) {
   const std::string prefix = [&]() {
-    switch (data.location) {
+    switch (data.memory_location) {
       case DimetaData::MemLoc::Global:
         return " Global";
       case DimetaData::MemLoc::Stack:
@@ -97,11 +97,28 @@ const auto to_string(dimeta::DimetaData& data, bool stack = false) {
         return "";
     }
   }();
+  const auto print_loc = [](auto& rso, DimetaData& data) {
+    if (data.di_location) {
+      auto loc = data.di_location.value();
+      rso << loc->getLine() << ", " << loc->getColumn();
+      return;
+    }
+    if (data.di_variable) {
+      if (const auto gv = *std::get_if<llvm::DIGlobalVariable*>(&data.di_variable.value())) {
+        rso << gv->getLine();
+        return;
+      }
+    }
+    rso << "empty";
+  };
+
   std::string logging_message;
   llvm::raw_string_ostream rso(logging_message);
   rso << "Extracted Type" << prefix << ": " << log::ditype_str(data.entry_type.value_or(nullptr)) << "\n";
   rso << "Final Type" << prefix << ": " << log::ditype_str(data.base_type.value_or(nullptr)) << "\n";
-  rso << "Pointer level: " << data.pointer_level << " (T" << rep_string("*", data.pointer_level) << ")";
+  rso << "Pointer level: " << data.pointer_level << " (T" << rep_string("*", data.pointer_level) << ")\n";
+  rso << "Location: ";
+  print_loc(rso, data);
   return rso.str();
 };
 

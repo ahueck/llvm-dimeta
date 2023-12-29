@@ -15,22 +15,25 @@ namespace llvm {
 class AllocaInst;
 class CallBase;
 class DILocalVariable;
+class DIGlobalVariable;
 class DIType;
+class DILocation;
 class Value;
 class GlobalVariable;
 }  // namespace llvm
 
 namespace dimeta {
 
-using DimetaDIVar = std::variant<llvm::DILocalVariable*, llvm::GlobalVariable*>;
+using DimetaDIVar = std::variant<llvm::DILocalVariable*, llvm::DIGlobalVariable*>;
 
 struct DimetaData {
   enum MemLoc { Stack = 0, Heap, Global };
-  MemLoc location{Stack};
-  std::optional<DimetaDIVar> di_variable{};   // if existing the named variable w.r.t. allocation
-  std::optional<llvm::DIType*> entry_type{};  // determined to be the allocation including "pointer" DITypes
-  std::optional<llvm::DIType*> base_type{};   // The base type (int, struct X...) of the allocated memory
-  int pointer_level{0};                       // e.g., 1 -> int*, 2 -> int**, etc.
+  MemLoc memory_location{Stack};
+  std::optional<DimetaDIVar> di_variable{};        // if existing the named variable w.r.t. allocation
+  std::optional<llvm::DIType*> entry_type{};       // determined to be the allocation including "pointer" DITypes
+  std::optional<llvm::DIType*> base_type{};        // The base type (int, struct X...) of the allocated memory
+  std::optional<llvm::DILocation*> di_location{};  // Loc of call (malloc etc.)/alloca. Not set for global
+  int pointer_level{0};                            // e.g., 1 -> int*, 2 -> int**, etc.
 };
 
 std::optional<DimetaData> type_for(const llvm::AllocaInst*);
