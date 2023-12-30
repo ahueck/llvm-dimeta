@@ -14,6 +14,7 @@ void foo(int n) {
   // CHECK: Extracted Type: {{.*}} = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: [[DIREF:![0-9]+]], size: 64)
   // CHECK: Final Type: [[DIREF]] = !DIBasicType(name: "int", size: 32, encoding: DW_ATE_signed)
   // CHECK-NEXT: Pointer level: 1
+  // CHECK: Location: "{{.*}}":"foo":19
   struct Data d;
   *get_data(&d) = (int*)malloc(sizeof(int));
 }

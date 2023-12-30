@@ -8,6 +8,8 @@
 #ifndef DIMETA_DIMETA_H
 #define DIMETA_DIMETA_H
 
+#include "DimetaData.h"
+
 #include <optional>
 #include <variant>
 
@@ -41,6 +43,8 @@ std::optional<DimetaData> type_for(const llvm::AllocaInst*);
 std::optional<DimetaData> type_for(const llvm::CallBase*);
 
 std::optional<DimetaData> type_for(const llvm::GlobalVariable*);
+
+std::optional<location::SourceLocation> location_for(const DimetaData&);
 
 }  // namespace dimeta
 

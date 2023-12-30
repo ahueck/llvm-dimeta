@@ -16,9 +16,17 @@
 #include <vector>
 
 namespace dimeta {
+
 using Extent    = std::uint64_t;
 using Offset    = std::uint64_t;
 using ArraySize = std::uint64_t;
+
+enum class Qualifier {
+  kNone  = 0x0,
+  kConst = 0x1,
+  kPtr   = 0x2,
+  kRef   = 0x4,
+};
 
 struct Member;
 struct BaseClass;
@@ -26,6 +34,7 @@ using Members     = std::vector<std::shared_ptr<Member>>;
 using Bases       = std::vector<std::shared_ptr<BaseClass>>;
 using Offsets     = std::vector<Offset>;
 using MemberSizes = std::vector<Extent>;
+using Qualifiers  = std::vector<Qualifier>;
 
 struct CompoundType {
   // struct, union, class etc.
@@ -73,15 +82,6 @@ struct FundamentalType {
   Encoding encoding{Encoding::kUnknown};
 };
 
-enum class Qualifier {
-  kNone  = 0x0,
-  kConst = 0x1,
-  kPtr   = 0x2,
-  kRef   = 0x4,
-};
-
-using Qualifiers = std::vector<Qualifier>;
-
 template <typename T>
 struct QualType {
   T type{};
@@ -92,6 +92,7 @@ struct QualType {
 
 using QualifiedFundamental = QualType<FundamentalType>;
 using QualifiedCompound    = QualType<CompoundType>;
+using QualifiedType        = std::variant<std::monostate, QualifiedCompound, QualifiedFundamental>;
 
 struct BaseClass {
   QualifiedCompound base{};
@@ -99,8 +100,24 @@ struct BaseClass {
 
 struct Member {
   std::string name;
-  std::variant<std::monostate, QualifiedCompound, QualifiedFundamental> member;
+  QualifiedType member;
 };
+
+namespace location {
+
+struct SourceLocation {
+  std::string file{};
+  std::string function{};
+  unsigned line{};
+};
+
+struct LocatedType {
+  QualifiedType type;
+  SourceLocation location;
+};
+
+}  // namespace location
+
 }  // namespace dimeta
 
 #endif  // DIMETA_DIMETADATA_H

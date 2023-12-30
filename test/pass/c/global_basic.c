@@ -2,6 +2,7 @@
 
 // CHECK: Final Type Global: {{.*}} = !DIBasicType(name: "int", size: 32, encoding: DW_ATE_signed)
 // CHECK: Pointer level: 0
+// CHECK: Location: "{{.*}}":"":7
 
 int a;
 

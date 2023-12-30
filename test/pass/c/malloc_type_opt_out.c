@@ -17,6 +17,7 @@ void setVartypes(struct_grid* pgrid, int nvars, int* vartypes /* = i32 ptr */) {
   taFree(pgrid->vartypes);
   // CHECK: Extracted Type: {{.*}} = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: [[DIREF:![0-9]+]], size: 64)
   // CHECK: Final Type: [[DIREF]] = !DIBasicType(name: "int", size: 32, encoding: DW_ATE_signed)
+  // CHECK: Location: "{{.*}}":"setVartypes":21
   new_vartypes = taMalloc(int, nvars);  // llvm does not use bitcast (with -O1 and higher)
   for (int i = 0; i < nvars; i++) {
     new_vartypes[i] = vartypes[i];  // this is a memcpy (with -O1 and higher)

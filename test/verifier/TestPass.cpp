@@ -31,6 +31,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <iomanip>
 #include <iterator>
 #include <optional>
 #include <sstream>
@@ -98,16 +99,10 @@ const auto to_string(dimeta::DimetaData& data, bool stack = false) {
     }
   }();
   const auto print_loc = [](auto& rso, DimetaData& data) {
-    if (data.di_location) {
-      auto loc = data.di_location.value();
-      rso << loc->getLine() << ", " << loc->getColumn();
+    auto loc = dimeta::location_for(data);
+    if (loc) {
+      rso << "\"" << loc->file << "\":\"" << loc->function << "\":" << loc->line;
       return;
-    }
-    if (data.di_variable) {
-      if (const auto gv = *std::get_if<llvm::DIGlobalVariable*>(&data.di_variable.value())) {
-        rso << gv->getLine();
-        return;
-      }
     }
     rso << "empty";
   };

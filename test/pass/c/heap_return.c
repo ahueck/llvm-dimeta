@@ -6,5 +6,6 @@
 int* foo(int n) {
   // CHECK: Extracted Type: {{.*}} = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: [[DIREF:![0-9]+]], size: 64)
   // CHECK: Final Type: [[DIREF]] = !DIBasicType(name: "int", size: 32, encoding: DW_ATE_signed)
+  // CHECK: Location: "{{.*}}":"foo":10
   return malloc(sizeof(int) * n);
 }
