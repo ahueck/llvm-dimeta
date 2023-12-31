@@ -22,6 +22,9 @@ bool emit(llvm::raw_string_ostream& oss, const QualifiedFundamental& compound);
 bool input(llvm::StringRef yaml, QualifiedFundamental& compound);
 bool emit(llvm::raw_string_ostream& oss, const QualifiedCompound& compound);
 bool input(llvm::StringRef yaml, QualifiedCompound& compound);
+
+bool emit(llvm::raw_string_ostream& oss, const location::LocatedType& type);
+bool input(llvm::StringRef yaml, location::LocatedType& compound);
 }  // namespace io
 }  // namespace dimeta
 

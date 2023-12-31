@@ -210,6 +210,40 @@ struct llvm::yaml::MappingTraits<std::shared_ptr<Member>> {
   }
 };
 
+template <>
+struct llvm::yaml::MappingTraits<location::SourceLocation> {
+  static void mapping(IO& io, location::SourceLocation& info) {
+    io.mapRequired("File", info.file);
+    io.mapOptional("Function", info.function);
+    io.mapRequired("Line", info.line);
+  }
+};
+
+template <>
+struct llvm::yaml::MappingTraits<location::LocatedType> {
+  static void mapping(IO& io, location::LocatedType& info) {
+    bool comp_t{false};
+
+    io.mapRequired("SourceLoc", info.location);
+
+    if (io.outputting()) {
+      comp_t = bool(std::holds_alternative<QualifiedFundamental>(info.type));
+    }
+    io.mapRequired("Builtin", comp_t);
+    if (!comp_t) {
+      if (!io.outputting()) {
+        info.type.emplace<QualifiedCompound>();
+      }
+      io.mapRequired("Type", std::get<QualifiedCompound>(info.type));
+    } else {
+      if (!io.outputting()) {
+        info.type.emplace<QualifiedFundamental>();
+      }
+      io.mapRequired("Type", std::get<QualifiedFundamental>(info.type));
+    }
+  }
+};
+
 namespace dimeta::io {
 bool emit(llvm::raw_string_ostream& oss, const QualifiedFundamental& compound) {
   using namespace llvm;
@@ -250,4 +284,25 @@ bool input(llvm::StringRef yaml, QualifiedCompound& compound) {
 
   return true;
 }
+
+bool emit(llvm::raw_string_ostream& oss, const location::LocatedType& type) {
+  using namespace llvm;
+
+  yaml::Output out(oss);
+
+  out << const_cast<location::LocatedType&>(type);
+
+  return true;
+}
+
+bool input(llvm::StringRef yaml, location::LocatedType& type) {
+  using namespace llvm;
+
+  yaml::Input in(yaml);
+
+  in >> type;
+
+  return true;
+}
+
 }  // namespace dimeta::io

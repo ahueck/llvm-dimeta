@@ -212,8 +212,7 @@ class TestPass : public ModulePass {
           } else {
             LOG_ERROR("No located dimeta type for alloca")
           }
-        }
-        if (di_var) {
+
           parser::DITypeParser parser_types;
           auto local_di_var = std::get<llvm::DILocalVariable*>(di_var.value().di_variable.value());
           parser_types.traverseLocalVariable(local_di_var);
@@ -234,13 +233,16 @@ class TestPass : public ModulePass {
           }
 
           bool result{false};
-          const auto parsed_type = parser_types.getParsedType();
-          if (parsed_type.hasCompound()) {
-            auto const qual_type = parsed_type.getAs<QualifiedCompound>().value();
-            result               = serialization_roundtrip(qual_type, cl_dimeta_test_print_yaml.getValue());
-          } else if (parsed_type.hasFundamental()) {
-            auto const qual_type = parsed_type.getAs<QualifiedFundamental>().value();
-            result               = serialization_roundtrip(qual_type, cl_dimeta_test_print_yaml.getValue());
+          //          const auto parsed_type = parser_types.getParsedType();
+          //          if (parsed_type.hasCompound()) {
+          //            auto const qual_type = parsed_type.getAs<QualifiedCompound>().value();
+          //            result               = serialization_roundtrip(qual_type, cl_dimeta_test_print_yaml.getValue());
+          //          } else if (parsed_type.hasFundamental()) {
+          //            auto const qual_type = parsed_type.getAs<QualifiedFundamental>().value();
+          //            result               = serialization_roundtrip(qual_type, cl_dimeta_test_print_yaml.getValue());
+          //          }
+          if (located_type) {
+            result = serialization_roundtrip(located_type.value(), cl_dimeta_test_print_yaml.getValue());
           }
           LOG_MSG(*alloca_inst << ": Yaml Verifier: " << static_cast<int>(result));
         }
