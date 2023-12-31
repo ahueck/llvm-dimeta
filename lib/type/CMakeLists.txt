@@ -6,7 +6,7 @@ set(LIB_SOURCES
   TBAA.cpp
   DataflowAnalysis.cpp
   GEP.cpp
-  SourceLocParser.cpp
+        SourceLocType.cpp
 )
 
 add_library(dimeta_Types STATIC

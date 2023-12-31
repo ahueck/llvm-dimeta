@@ -87,33 +87,34 @@ const std::string rep_string(std::string input, int rep) {
   return os.str();
 };
 
-const auto to_string(dimeta::DimetaData& data, bool stack = false) {
+auto to_string(dimeta::DimetaData& data, bool stack = false) {
   const std::string prefix = [&]() {
     switch (data.memory_location) {
-      case DimetaData::MemLoc::Global:
+      case DimetaData::MemLoc::kGlobal:
         return " Global";
-      case DimetaData::MemLoc::Stack:
+      case DimetaData::MemLoc::kStack:
         return " Stack";
       default:
         return "";
     }
   }();
-  const auto print_loc = [](auto& rso, DimetaData& data) {
-    auto loc = dimeta::location_for(data);
-    if (loc) {
-      rso << "\"" << loc->file << "\":\"" << loc->function << "\":" << loc->line;
-      return;
-    }
-    rso << "empty";
-  };
 
   std::string logging_message;
   llvm::raw_string_ostream rso(logging_message);
   rso << "Extracted Type" << prefix << ": " << log::ditype_str(data.entry_type.value_or(nullptr)) << "\n";
   rso << "Final Type" << prefix << ": " << log::ditype_str(data.base_type.value_or(nullptr)) << "\n";
   rso << "Pointer level: " << data.pointer_level << " (T" << rep_string("*", data.pointer_level) << ")\n";
+  return rso.str();
+};
+
+auto print_loc(std::optional<location::SourceLocation> loc) {
+  std::string logging_message;
+  llvm::raw_string_ostream rso(logging_message);
   rso << "Location: ";
-  print_loc(rso, data);
+  if (loc) {
+    rso << "\"" << loc->file << "\":\"" << loc->function << "\":" << loc->line;
+  }
+  rso << "empty";
   return rso.str();
 };
 
@@ -156,6 +157,12 @@ class TestPass : public ModulePass {
       if (global_meta) {
         LOG_DEBUG("Type for global: " << global)
         LOG_DEBUG(util::to_string(global_meta.value()));
+        auto located_type = located_type_for(&global);
+        if (located_type) {
+          LOG_DEBUG(util::print_loc(located_type->location));
+        } else {
+          LOG_ERROR("No located dimeta type for global")
+        }
       }
     }
 
@@ -175,28 +182,18 @@ class TestPass : public ModulePass {
 
     LOG_MSG("\nFunction: " << f_name << ":");
 
-    //    const auto ditype_tostring = [](auto* ditype) {
-    //      llvm::DIType* type = ditype;
-    //      while (llvm::isa<llvm::DIDerivedType>(type)) {
-    //        auto ditype = llvm::dyn_cast<llvm::DIDerivedType>(type);
-    //        // void*-based derived types:
-    //        if (ditype->getBaseType() == nullptr) {
-    //          return log::ditype_str(type);
-    //        }
-    //        type = ditype->getBaseType();
-    //      }
-    //
-    //      return log::ditype_str(type);
-    //    };
-
     for (auto& inst : llvm::instructions(func)) {
       if (auto* call_inst = dyn_cast<CallBase>(&inst)) {
         auto ditype_meta = type_for(call_inst);
         if (ditype_meta) {
           LOG_DEBUG("Type for heap-like: " << *call_inst)
-          //          LOG_DEBUG("Extracted Type: " << log::ditype_str(ditype_meta.value()) << "\n");
-          //          LOG_MSG("Final Type: " << ditype_tostring(ditype_meta.value()) << "\n");
           LOG_DEBUG(util::to_string(ditype_meta.value()) << "\n");
+        }
+        auto located_type = located_type_for(call_inst);
+        if (located_type) {
+          LOG_DEBUG(util::print_loc(located_type->location));
+        } else {
+          LOG_ERROR("No located dimeta type for heap")
         }
       }
 
@@ -208,8 +205,13 @@ class TestPass : public ModulePass {
         auto di_var = type_for(alloca_inst);
         if (di_var) {
           LOG_DEBUG("Type for alloca: " << *alloca_inst)
-          //          LOG_MSG("Final Stack Type: " << ditype_tostring(di_var.value()->getType()) << "\n");
           LOG_DEBUG(util::to_string(di_var.value()) << "\n");
+          auto located_type = located_type_for(alloca_inst);
+          if (located_type) {
+            LOG_DEBUG(util::print_loc(located_type->location));
+          } else {
+            LOG_ERROR("No located dimeta type for alloca")
+          }
         }
         if (di_var) {
           parser::DITypeParser parser_types;
@@ -232,11 +234,12 @@ class TestPass : public ModulePass {
           }
 
           bool result{false};
-          if (parser_types.hasCompound()) {
-            auto const qual_type = parser_types.getAs<QualifiedCompound>().value();
+          const auto parsed_type = parser_types.getParsedType();
+          if (parsed_type.hasCompound()) {
+            auto const qual_type = parsed_type.getAs<QualifiedCompound>().value();
             result               = serialization_roundtrip(qual_type, cl_dimeta_test_print_yaml.getValue());
-          } else if (parser_types.hasFundamental()) {
-            auto const qual_type = parser_types.getAs<QualifiedFundamental>().value();
+          } else if (parsed_type.hasFundamental()) {
+            auto const qual_type = parsed_type.getAs<QualifiedFundamental>().value();
             result               = serialization_roundtrip(qual_type, cl_dimeta_test_print_yaml.getValue());
           }
           LOG_MSG(*alloca_inst << ": Yaml Verifier: " << static_cast<int>(result));

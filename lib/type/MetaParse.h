@@ -129,9 +129,29 @@ inline ArraySize make_array_size(const Type& type, Extent array_size_in_bits) {
 
 }  // namespace helper
 
+struct DimetaParseResult {
+  QualifiedType type_;
+
+  [[nodiscard]] bool hasCompound() const {
+    return std::holds_alternative<QualifiedCompound>(type_);
+  }
+
+  [[nodiscard]] bool hasFundamental() const {
+    return std::holds_alternative<QualifiedFundamental>(type_);
+  }
+
+  template <typename QualifiedType>
+  std::optional<QualifiedType> getAs() const {
+    if (std::holds_alternative<QualifiedType>(type_)) {
+      return std::get<QualifiedType>(type_);
+    }
+    return {};
+  }
+};
+
 class DITypeParser : public visitor::DINodeVisitor<DITypeParser> {
  private:
-  std::variant<std::monostate, QualifiedCompound, QualifiedFundamental> result_;
+  DimetaParseResult result_;
 
   struct Meta {
     llvm::SmallVector<unsigned, 8> tag_collector;
@@ -168,21 +188,14 @@ class DITypeParser : public visitor::DINodeVisitor<DITypeParser> {
 
   CompositeStack composite_stack_;
 
+  template <typename QualType>
+  void emplace_result(QualType type) {
+    result_.type_.emplace<QualType>(type);
+  }
+
  public:
-  [[nodiscard]] bool hasCompound() const {
-    return std::holds_alternative<QualifiedCompound>(result_);
-  }
-
-  [[nodiscard]] bool hasFundamental() const {
-    return std::holds_alternative<QualifiedFundamental>(result_);
-  }
-
-  template <typename QualifiedType>
-  std::optional<QualifiedType> getAs() const {
-    if (std::holds_alternative<QualifiedType>(result_)) {
-      return std::get<QualifiedType>(result_);
-    }
-    return {};
+  [[nodiscard]] const DimetaParseResult& getParsedType() const {
+    return result_;
   }
 
   bool visitBasicType(const llvm::DIBasicType* basic_type) {
@@ -202,7 +215,7 @@ class DITypeParser : public visitor::DINodeVisitor<DITypeParser> {
       return true;
     }
 
-    result_.emplace<QualifiedFundamental>(
+    emplace_result<QualifiedFundamental>(
         helper::make_qual_type(std::move(fundamental), array_size, quals, meta_.typedef_name));
 
     return true;
@@ -312,7 +325,7 @@ class DITypeParser : public visitor::DINodeVisitor<DITypeParser> {
     //    if (current_meta.has_vtable) {
     //    }
     assert(composite_stack_.empty());
-    result_.emplace<QualifiedCompound>(std::move(current_composite.q_compound));
+    emplace_result<QualifiedCompound>(std::move(current_composite.q_compound));
   }
 
   void leaveBasicType(const llvm::DIBasicType*) {
@@ -321,4 +334,5 @@ class DITypeParser : public visitor::DINodeVisitor<DITypeParser> {
 };
 
 }  // namespace dimeta::parser
+
 #endif  // DIMETA_METAPARSE_H

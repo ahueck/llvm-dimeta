@@ -29,8 +29,8 @@ namespace dimeta {
 using DimetaDIVar = std::variant<llvm::DILocalVariable*, llvm::DIGlobalVariable*>;
 
 struct DimetaData {
-  enum MemLoc { Stack = 0, Heap, Global };
-  MemLoc memory_location{Stack};
+  enum MemLoc { kStack = 0, kHeap, kGlobal };
+  MemLoc memory_location{kStack};
   std::optional<DimetaDIVar> di_variable{};        // if existing the named variable w.r.t. allocation
   std::optional<llvm::DIType*> entry_type{};       // determined to be the allocation including "pointer" DITypes
   std::optional<llvm::DIType*> base_type{};        // The base type (int, struct X...) of the allocated memory
@@ -45,6 +45,14 @@ std::optional<DimetaData> type_for(const llvm::CallBase*);
 std::optional<DimetaData> type_for(const llvm::GlobalVariable*);
 
 std::optional<location::SourceLocation> location_for(const DimetaData&);
+
+std::optional<location::LocatedType> located_type_for(const DimetaData&);
+
+std::optional<location::LocatedType> located_type_for(const llvm::AllocaInst*);
+
+std::optional<location::LocatedType> located_type_for(const llvm::CallBase*);
+
+std::optional<location::LocatedType> located_type_for(const llvm::GlobalVariable*);
 
 }  // namespace dimeta
 

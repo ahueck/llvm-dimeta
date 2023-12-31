@@ -719,8 +719,8 @@ std::optional<DimetaData> type_for(const llvm::CallBase* call) {
   }
   auto source_loc                        = ditype::find::find_location(call);
   const auto [final_type, pointer_level] = final_ditype(extracted_type);
-  const auto meta                        = DimetaData{
-      DimetaData::MemLoc::Heap, {}, extracted_type, final_type, source_loc, pointer_level + pointer_level_offset};
+  const auto meta = DimetaData{DimetaData::MemLoc::kHeap,           {}, extracted_type, final_type, source_loc,
+                               pointer_level + pointer_level_offset};
   return meta;
 }
 
@@ -732,7 +732,7 @@ std::optional<DimetaData> type_for(const llvm::AllocaInst* ai) {
     auto source_loc                        = ditype::find::find_location(ai);
     const auto [final_type, pointer_level] = final_ditype(extracted_type);
     const auto meta =
-        DimetaData{DimetaData::MemLoc::Stack, local_di_var, extracted_type, final_type, source_loc, pointer_level};
+        DimetaData{DimetaData::MemLoc::kStack, local_di_var, extracted_type, final_type, source_loc, pointer_level};
     return meta;
   }
 
@@ -746,7 +746,7 @@ std::optional<DimetaData> type_for(const llvm::GlobalVariable* gv) {
     auto gv_expr                           = *dbg_info.begin();
     auto gv_type                           = gv_expr->getVariable()->getType();
     const auto [final_type, pointer_level] = final_ditype(gv_type);
-    return DimetaData{DimetaData::MemLoc::Global, gv_expr->getVariable(), gv_type, final_type, {}, pointer_level};
+    return DimetaData{DimetaData::MemLoc::kGlobal, gv_expr->getVariable(), gv_type, final_type, {}, pointer_level};
   }
   return {};
 }
