@@ -6,7 +6,7 @@
 //
 
 #include "Dimeta.h"
-#include "MetaParse.h"
+#include "DimetaParse.h"
 #include "support/Logger.h"
 
 #include "llvm/IR/DebugInfoMetadata.h"
@@ -43,40 +43,34 @@ std::optional<location::LocatedType> located_type_for(const DimetaData& type_dat
     return {};
   }
 
-  parser::DITypeParser dimeta_parser;
-
   assert(type_data.entry_type.has_value() && "Parsing stack type requires entry type.");
-  dimeta_parser.traverseType(type_data.entry_type.value());
+  auto dimeta_result = parser::make_dimetadata(type_data.entry_type.value());
+  if (!dimeta_result) {
+    return {};
+  }
+  return location::LocatedType{dimeta_result->type_, loc.value()};
+}
 
-  const auto result = dimeta_parser.getParsedType();
-  return location::LocatedType{result.type_, loc.value()};
+template <typename IRNode>
+std::optional<location::LocatedType> get_located_type(const IRNode* node) {
+  auto type_data = type_for(node);
+  if (!type_data) {
+    LOG_DEBUG("Could not determine type.");
+    return {};
+  }
+  return located_type_for(type_data.value());
 }
 
 std::optional<location::LocatedType> located_type_for(const llvm::AllocaInst* ai) {
-  auto type_data = type_for(ai);
-  if (!type_data) {
-    LOG_DEBUG("Could not determine type.");
-    return {};
-  }
-  return located_type_for(type_data.value());
+  return get_located_type(ai);
 }
 
 std::optional<location::LocatedType> located_type_for(const llvm::CallBase* cb) {
-  auto type_data = type_for(cb);
-  if (!type_data) {
-    LOG_DEBUG("Could not determine type.");
-    return {};
-  }
-  return located_type_for(type_data.value());
+  return get_located_type(cb);
 }
 
 std::optional<location::LocatedType> located_type_for(const llvm::GlobalVariable* gv) {
-  auto type_data = type_for(gv);
-  if (!type_data) {
-    LOG_DEBUG("Could not determine type.");
-    return {};
-  }
-  return located_type_for(type_data.value());
+  return get_located_type(gv);
 }
 
 }  // namespace dimeta

@@ -88,11 +88,12 @@ struct QualType {
   ArraySize array_size{0};  // TODO consider class (around QualType<T>) to model arrays
   Qualifiers qual{};
   std::string typedef_name{};
+  bool recurrs{false};
 };
 
 using QualifiedFundamental = QualType<FundamentalType>;
 using QualifiedCompound    = QualType<CompoundType>;
-using QualifiedType        = std::variant<std::monostate, QualifiedCompound, QualifiedFundamental>;
+using QualifiedType        = std::variant<QualifiedCompound, QualifiedFundamental>;
 
 struct BaseClass {
   QualifiedCompound base{};

@@ -170,6 +170,7 @@ struct llvm::yaml::MappingTraits<QualifiedFundamental> {
     map_optional_not_empty(io, "Array", info.array_size);
     map_optional_not_empty(io, "Qualifiers", info.qual);
     map_optional_not_empty(io, "Typedef", info.typedef_name);
+    map_optional_not_empty(io, "Recurring", info.recurrs);
   }
 };
 
@@ -182,31 +183,36 @@ struct llvm::yaml::MappingTraits<QualifiedCompound> {
     //    io.mapOptional("Qualifiers", info.qual);
     map_optional_not_empty(io, "Qualifiers", info.qual);
     map_optional_not_empty(io, "Typedef", info.typedef_name);
+    map_optional_not_empty(io, "Recurring", info.recurrs);
   }
 };
+
+inline void map_qualified_type(IO& io, QualifiedType& type) {
+  bool holds_builtin{false};
+  if (io.outputting()) {
+    holds_builtin = bool(std::holds_alternative<QualifiedFundamental>(type));
+  }
+  io.mapRequired("Builtin", holds_builtin);
+
+  if (holds_builtin) {
+    if (!io.outputting()) {
+      type.emplace<QualifiedFundamental>();
+    }
+    io.mapRequired("Type", std::get<QualifiedFundamental>(type));
+    return;
+  }
+
+  if (!io.outputting()) {
+    type.emplace<QualifiedCompound>();
+  }
+  io.mapRequired("Type", std::get<QualifiedCompound>(type));
+}
 
 template <>
 struct llvm::yaml::MappingTraits<std::shared_ptr<Member>> {
   static void mapping(IO& io, std::shared_ptr<Member>& info) {
-    bool comp_t{false};
-
     io.mapRequired("Name", info->name);
-
-    if (io.outputting()) {
-      comp_t = bool(std::holds_alternative<QualifiedFundamental>(info->member));
-    }
-    io.mapRequired("Builtin", comp_t);
-    if (!comp_t) {
-      if (!io.outputting()) {
-        info->member.emplace<QualifiedCompound>();
-      }
-      io.mapRequired("Type", std::get<QualifiedCompound>(info->member));
-    } else {
-      if (!io.outputting()) {
-        info->member.emplace<QualifiedFundamental>();
-      }
-      io.mapRequired("Type", std::get<QualifiedFundamental>(info->member));
-    }
+    map_qualified_type(io, info->member);
   }
 };
 
@@ -222,25 +228,8 @@ struct llvm::yaml::MappingTraits<location::SourceLocation> {
 template <>
 struct llvm::yaml::MappingTraits<location::LocatedType> {
   static void mapping(IO& io, location::LocatedType& info) {
-    bool comp_t{false};
-
     io.mapRequired("SourceLoc", info.location);
-
-    if (io.outputting()) {
-      comp_t = bool(std::holds_alternative<QualifiedFundamental>(info.type));
-    }
-    io.mapRequired("Builtin", comp_t);
-    if (!comp_t) {
-      if (!io.outputting()) {
-        info.type.emplace<QualifiedCompound>();
-      }
-      io.mapRequired("Type", std::get<QualifiedCompound>(info.type));
-    } else {
-      if (!io.outputting()) {
-        info.type.emplace<QualifiedFundamental>();
-      }
-      io.mapRequired("Type", std::get<QualifiedFundamental>(info.type));
-    }
+    map_qualified_type(io, info.type);
   }
 };
 

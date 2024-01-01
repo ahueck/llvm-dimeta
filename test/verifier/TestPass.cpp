@@ -7,10 +7,11 @@
 
 #include "support/Logger.h"
 #include "type/DIVisitor.h"
+#include "type/DIVisitorUtil.h"
 #include "type/Dimeta.h"
 #include "type/DimetaData.h"
-#include "type/MetaIO.h"
-#include "type/MetaParse.h"
+#include "type/DimetaIO.h"
+#include "type/DimetaParse.h"
 
 #include "llvm-c/Types.h"
 #include "llvm/ADT/STLExtras.h"
@@ -113,8 +114,9 @@ auto print_loc(std::optional<location::SourceLocation> loc) {
   rso << "Location: ";
   if (loc) {
     rso << "\"" << loc->file << "\":\"" << loc->function << "\":" << loc->line;
+  } else {
+    rso << "empty";
   }
-  rso << "empty";
   return rso.str();
 };
 
@@ -213,9 +215,9 @@ class TestPass : public ModulePass {
             LOG_ERROR("No located dimeta type for alloca")
           }
 
-          parser::DITypeParser parser_types;
-          auto local_di_var = std::get<llvm::DILocalVariable*>(di_var.value().di_variable.value());
-          parser_types.traverseLocalVariable(local_di_var);
+          //          parser::DITypeParser parser_types;
+          //          auto local_di_var = std::get<llvm::DILocalVariable*>(di_var.value().di_variable.value());
+          //          parser_types.traverseVariable(local_di_var);
 
           if (cl_dimeta_test_print_tree) {
             auto local_di_var = std::get<llvm::DILocalVariable*>(di_var.value().di_variable.value());
@@ -227,20 +229,14 @@ class TestPass : public ModulePass {
           }
 
           if (cl_dimeta_test_print) {
-            dimeta::util::DIPrinter printer(llvm::outs(), func.getParent());
-            auto local_di_var = std::get<llvm::DILocalVariable*>(di_var.value().di_variable.value());
-            printer.traverseLocalVariable(local_di_var);
+            dimeta::visitor::util::print_dinode(std::get<llvm::DILocalVariable*>(di_var.value().di_variable.value()),
+                                                llvm::outs(), func.getParent());
+
+            //            dimeta::visitor::util::print_dinode_semantic(
+            //                std::get<llvm::DILocalVariable*>(di_var.value().di_variable.value()), llvm::outs());
           }
 
           bool result{false};
-          //          const auto parsed_type = parser_types.getParsedType();
-          //          if (parsed_type.hasCompound()) {
-          //            auto const qual_type = parsed_type.getAs<QualifiedCompound>().value();
-          //            result               = serialization_roundtrip(qual_type, cl_dimeta_test_print_yaml.getValue());
-          //          } else if (parsed_type.hasFundamental()) {
-          //            auto const qual_type = parsed_type.getAs<QualifiedFundamental>().value();
-          //            result               = serialization_roundtrip(qual_type, cl_dimeta_test_print_yaml.getValue());
-          //          }
           if (located_type) {
             result = serialization_roundtrip(located_type.value(), cl_dimeta_test_print_yaml.getValue());
           }

@@ -1,6 +1,7 @@
-// RUN: %cpp-to-llvm %s | %apply-verifier 2>&1 -yaml | %filecheck %s
+// RUN: %cpp-to-llvm %s | %apply-verifier 2>&1 -dump | %filecheck %s
 
-// XFAIL: *
+// CHECK: Typedef: {{ *}}Base_ptr
+// CHECK-NEXT: Recurring: {{ *}}true
 
 struct TreeNode {
   struct NestedNode {
