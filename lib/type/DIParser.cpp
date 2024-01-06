@@ -39,6 +39,7 @@ bool DIEventVisitor::visitDerivedType(const llvm::DIDerivedType* derived_type) {
       break;
     case DW_TAG_inheritance:
       current_.is_base_class = true;
+      current_.member_offset = derived_type->getOffsetInBits() / 8;
       break;
     default:
       current_.dwarf_tags.emplace_back(tag);

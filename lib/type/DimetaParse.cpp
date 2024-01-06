@@ -206,8 +206,11 @@ class DITypeParser final : public diparser::DIParseEvents {
     }
 
     if (current_meta.is_base_class) {
-      const auto base = helper::make_base(std::move(finalized_composite));
-      composite_stack_.back().type.bases.emplace_back(std::move(base));
+      const auto base            = helper::make_base(std::move(finalized_composite));
+      auto& containing_composite = composite_stack_.back().type;
+      containing_composite.offsets.emplace_back(current_meta.member_offset);
+      containing_composite.sizes.emplace_back(finalized_composite.type.extent);
+      containing_composite.bases.emplace_back(std::move(base));
       return;
     }
 

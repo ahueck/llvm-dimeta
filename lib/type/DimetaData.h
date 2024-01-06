@@ -30,11 +30,11 @@ enum class Qualifier {
 
 struct Member;
 struct BaseClass;
-using Members     = std::vector<std::shared_ptr<Member>>;
-using Bases       = std::vector<std::shared_ptr<BaseClass>>;
-using Offsets     = std::vector<Offset>;
-using MemberSizes = std::vector<Extent>;
-using Qualifiers  = std::vector<Qualifier>;
+using Members    = std::vector<std::shared_ptr<Member>>;
+using Bases      = std::vector<std::shared_ptr<BaseClass>>;
+using Offsets    = std::vector<Offset>;
+using Sizes      = std::vector<Extent>;
+using Qualifiers = std::vector<Qualifier>;
 
 struct CompoundType {
   // struct, union, class etc.
@@ -52,7 +52,7 @@ struct CompoundType {
   Tag type;
   Extent extent;
   Offsets offsets;
-  MemberSizes sizes;
+  Sizes sizes;
   // Mapping: Base -> Compound
   Bases bases;
   // Mapping: Member -> name, QualType<[Compound, FundamentalType, (Padding)]>
