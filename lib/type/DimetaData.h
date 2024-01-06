@@ -112,13 +112,12 @@ struct SourceLocation {
   unsigned line{};
 };
 
-struct LocatedType {
-  QualifiedType type;
-  SourceLocation location;
-};
-
 }  // namespace location
 
+struct LocatedType {
+  QualifiedType type;
+  location::SourceLocation location;
+};
 }  // namespace dimeta
 
 #endif  // DIMETA_DIMETADATA_H

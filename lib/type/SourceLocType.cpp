@@ -6,6 +6,7 @@
 //
 
 #include "Dimeta.h"
+#include "DimetaData.h"
 #include "DimetaParse.h"
 #include "support/Logger.h"
 
@@ -36,7 +37,7 @@ std::optional<location::SourceLocation> location_for(const DimetaData& data) {
   return {};
 }
 
-std::optional<location::LocatedType> located_type_for(const DimetaData& type_data) {
+std::optional<LocatedType> located_type_for(const DimetaData& type_data) {
   auto loc = location_for(type_data);
   if (!loc) {
     LOG_DEBUG("Could not determine source location.");
@@ -48,11 +49,11 @@ std::optional<location::LocatedType> located_type_for(const DimetaData& type_dat
   if (!dimeta_result) {
     return {};
   }
-  return location::LocatedType{dimeta_result->type_, loc.value()};
+  return LocatedType{dimeta_result->type_, loc.value()};
 }
 
 template <typename IRNode>
-std::optional<location::LocatedType> get_located_type(const IRNode* node) {
+std::optional<LocatedType> get_located_type(const IRNode* node) {
   auto type_data = type_for(node);
   if (!type_data) {
     LOG_DEBUG("Could not determine type.");
@@ -61,15 +62,15 @@ std::optional<location::LocatedType> get_located_type(const IRNode* node) {
   return located_type_for(type_data.value());
 }
 
-std::optional<location::LocatedType> located_type_for(const llvm::AllocaInst* ai) {
+std::optional<LocatedType> located_type_for(const llvm::AllocaInst* ai) {
   return get_located_type(ai);
 }
 
-std::optional<location::LocatedType> located_type_for(const llvm::CallBase* cb) {
+std::optional<LocatedType> located_type_for(const llvm::CallBase* cb) {
   return get_located_type(cb);
 }
 
-std::optional<location::LocatedType> located_type_for(const llvm::GlobalVariable* gv) {
+std::optional<LocatedType> located_type_for(const llvm::GlobalVariable* gv) {
   return get_located_type(gv);
 }
 

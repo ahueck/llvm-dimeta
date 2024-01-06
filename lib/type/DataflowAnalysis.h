@@ -9,13 +9,7 @@
 #define DIMETA_DATAFLOWANALYSIS_H
 
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/TinyPtrVector.h"
-#include "llvm/IR/DebugInfoMetadata.h"
-#include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/Module.h"
-#include "llvm/IR/Operator.h"
 
 namespace dimeta {
 namespace dataflow {

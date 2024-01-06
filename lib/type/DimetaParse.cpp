@@ -132,13 +132,13 @@ class DITypeParser final : public diparser::DIParseEvents {
   }
 
   template <typename QualType>
-  void emplace_result(QualType type) {
-    result_.type_.emplace<QualType>((type));
+  void emplace_result(QualType&& type) {
+    result_.type_.emplace<QualType>(std::forward<QualType>(type));
   }
 
   void make_fundamental(const diparser::state::MetaData& meta_) override {
     const auto* basic_type = llvm::dyn_cast<llvm::DIBasicType>(meta_.type);
-    assert(basic_type != nullptr && "DIBasiType should not be null at this point");
+    assert(basic_type != nullptr && "DIBasicType should not be null at this point");
 
     auto fundamental       = FundamentalType{std::string{basic_type->getName()}, (basic_type->getSizeInBits() / 8),
                                        helper::dwarf2encoding(basic_type->getEncoding())};
@@ -160,7 +160,7 @@ class DITypeParser final : public diparser::DIParseEvents {
   }
 
   void make_vtable(const diparser::state::MetaData& meta_) override {
-    assert(!composite_stack_.empty() && "Vtable member requires member on stack");
+    assert(!composite_stack_.empty() && "Vtable requires composite on stack");
     const auto* derived_type = llvm::dyn_cast<llvm::DIDerivedType>(meta_.type);
     assert(derived_type != nullptr);
 
@@ -224,8 +224,7 @@ std::optional<DimetaParseResult> make_dimetadata(const llvm::DINode* node) {
     return {};
   }
   DITypeParser parser;
-  diparser::DIEventVisitor event_visitor{parser};
-  event_visitor.traverseNode(node);
+  diparser::visit_node(node, parser);
   return parser.getParsedType();
 }
 

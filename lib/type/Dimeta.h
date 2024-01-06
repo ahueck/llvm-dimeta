@@ -46,13 +46,13 @@ std::optional<DimetaData> type_for(const llvm::GlobalVariable*);
 
 std::optional<location::SourceLocation> location_for(const DimetaData&);
 
-std::optional<location::LocatedType> located_type_for(const DimetaData&);
+std::optional<LocatedType> located_type_for(const DimetaData&);
 
-std::optional<location::LocatedType> located_type_for(const llvm::AllocaInst*);
+std::optional<LocatedType> located_type_for(const llvm::AllocaInst*);
 
-std::optional<location::LocatedType> located_type_for(const llvm::CallBase*);
+std::optional<LocatedType> located_type_for(const llvm::CallBase*);
 
-std::optional<location::LocatedType> located_type_for(const llvm::GlobalVariable*);
+std::optional<LocatedType> located_type_for(const llvm::GlobalVariable*);
 
 }  // namespace dimeta
 

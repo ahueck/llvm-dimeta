@@ -1,11 +1,14 @@
 #ifndef DIMETA_DIPARSER_H
 #define DIMETA_DIPARSER_H
 
-#include "DIVisitor.h"
-
-#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallVector.h"
 
 #include <string>
+
+namespace llvm {
+class DINode;
+class DIType;
+}  // namespace llvm
 
 namespace dimeta::diparser {
 
@@ -67,33 +70,7 @@ class DIParseEvents {
   virtual ~DIParseEvents()                                = default;
 };
 
-class DIEventVisitor : public visitor::DINodeVisitor<DIEventVisitor> {
-  // TODO visitVariable
- private:
-  state::MetaData current_;
-  state::MetaStack stack_;
-  DIParseEvents& events;
-
- public:
-  explicit DIEventVisitor(DIParseEvents& events);
-  ~DIEventVisitor();
-
-  bool visitBasicType(const llvm::DIBasicType*);
-
-  bool visitDerivedType(const llvm::DIDerivedType*);
-
-  bool visitCompositeType(const llvm::DICompositeType*);
-
-  bool visitRecurringCompositeType(const llvm::DICompositeType*);
-
-  void leaveBasicType(const llvm::DIBasicType*);
-
-  void leaveCompositeType(const llvm::DICompositeType*);
-
-  void leaveRecurringCompositeType(const llvm::DICompositeType*);
-};
-
-namespace util {}
+void visite_node(const llvm::DINode*, DIParseEvents&);
 
 }  // namespace dimeta::diparser
 

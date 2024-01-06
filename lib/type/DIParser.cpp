@@ -1,6 +1,35 @@
 #include "DIParser.h"
 
+#include "DIVisitor.h"
+#include "support/Logger.h"
+
 namespace dimeta::diparser {
+
+class DIEventVisitor : public visitor::DINodeVisitor<DIEventVisitor> {
+  // TODO visitVariable
+ private:
+  state::MetaData current_;
+  state::MetaStack stack_;
+  DIParseEvents& events;
+
+ public:
+  explicit DIEventVisitor(DIParseEvents& events);
+  ~DIEventVisitor();
+
+  bool visitBasicType(const llvm::DIBasicType*);
+
+  bool visitDerivedType(const llvm::DIDerivedType*);
+
+  bool visitCompositeType(const llvm::DICompositeType*);
+
+  bool visitRecurringCompositeType(const llvm::DICompositeType*);
+
+  void leaveBasicType(const llvm::DIBasicType*);
+
+  void leaveCompositeType(const llvm::DICompositeType*);
+
+  void leaveRecurringCompositeType(const llvm::DICompositeType*);
+};
 
 DIEventVisitor::DIEventVisitor(DIParseEvents& events) : events{events} {
 }
@@ -128,4 +157,11 @@ void DIEventVisitor::leaveRecurringCompositeType(const llvm::DICompositeType* re
   this->leaveCompositeType(recurring_composite);
 }
 
+void do_event_based_visit(const llvm::DINode* node, DIParseEvents& event_handler) {
+  DIEventVisitor event_visitor{event_handler};
+  const bool result = event_visitor.traverseNode(node);
+  if (!result) {
+    LOG_DEBUG("Did not parse properly: " << log::ditype_str(node));
+  }
+}
 }  // namespace dimeta::diparser

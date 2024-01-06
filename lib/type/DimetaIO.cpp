@@ -226,8 +226,8 @@ struct llvm::yaml::MappingTraits<location::SourceLocation> {
 };
 
 template <>
-struct llvm::yaml::MappingTraits<location::LocatedType> {
-  static void mapping(IO& io, location::LocatedType& info) {
+struct llvm::yaml::MappingTraits<LocatedType> {
+  static void mapping(IO& io, LocatedType& info) {
     io.mapRequired("SourceLoc", info.location);
     map_qualified_type(io, info.type);
   }
@@ -274,17 +274,17 @@ bool input(llvm::StringRef yaml, QualifiedCompound& compound) {
   return true;
 }
 
-bool emit(llvm::raw_string_ostream& oss, const location::LocatedType& type) {
+bool emit(llvm::raw_string_ostream& oss, const LocatedType& type) {
   using namespace llvm;
 
   yaml::Output out(oss);
 
-  out << const_cast<location::LocatedType&>(type);
+  out << const_cast<LocatedType&>(type);
 
   return true;
 }
 
-bool input(llvm::StringRef yaml, location::LocatedType& type) {
+bool input(llvm::StringRef yaml, LocatedType& type) {
   using namespace llvm;
 
   yaml::Input in(yaml);
