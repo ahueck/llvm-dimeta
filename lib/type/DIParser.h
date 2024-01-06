@@ -64,7 +64,7 @@ class DIParseEvents {
   virtual void make_vtable(const state::MetaData&)        = 0;
   virtual void make_composite(const state::MetaData&)     = 0;
   virtual void finalize_composite(const state::MetaData&) = 0;
-  ~DIParseEvents()                                        = default;
+  virtual ~DIParseEvents()                                = default;
 };
 
 class DIEventVisitor : public visitor::DINodeVisitor<DIEventVisitor> {
