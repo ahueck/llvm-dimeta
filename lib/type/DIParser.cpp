@@ -74,6 +74,15 @@ bool DIEventVisitor::visitDerivedType(const llvm::DIDerivedType* derived_type) {
       current_.dwarf_tags.emplace_back(tag);
   }
 
+  if (tag == DW_TAG_pointer_type && derived_type->getBaseType() == nullptr) {
+    // void* pointer has no basetype
+    current_.type        = const_cast<llvm::DIDerivedType*>(derived_type);
+    current_.is_void_ptr = true;
+    events.make_void_ptr(current_);
+    current_.clear();
+    return true;
+  }
+
   // FIXME: hacky (current_.clear()) so vtable pointer -> pointer is not applied to vtable type.
   if (derived_type->getName() == "__vtbl_ptr_type") {
     assert(!stack_.empty() && "Vtable requires composite on stack");
@@ -157,7 +166,7 @@ void DIEventVisitor::leaveRecurringCompositeType(const llvm::DICompositeType* re
   this->leaveCompositeType(recurring_composite);
 }
 
-void do_event_based_visit(const llvm::DINode* node, DIParseEvents& event_handler) {
+void visit_node(const llvm::DINode* node, DIParseEvents& event_handler) {
   DIEventVisitor event_visitor{event_handler};
   const bool result = event_visitor.traverseNode(node);
   if (!result) {

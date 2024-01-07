@@ -39,6 +39,7 @@ struct MetaData {
   bool is_base_class{false};
   bool has_vtable{false};
   bool is_recurring{false};
+  bool is_void_ptr{false};
 
   void clear() {
     dwarf_tags.clear();
@@ -53,6 +54,7 @@ struct MetaData {
     has_vtable      = false;
     is_recurring    = false;
     type            = nullptr;
+    is_void_ptr     = false;
     //    state           = state::Entity::Undef;
   }
 };
@@ -64,13 +66,14 @@ using MetaStack = llvm::SmallVector<MetaData, 4>;
 class DIParseEvents {
  public:
   virtual void make_fundamental(const state::MetaData&)   = 0;
+  virtual void make_void_ptr(const state::MetaData&)      = 0;
   virtual void make_vtable(const state::MetaData&)        = 0;
   virtual void make_composite(const state::MetaData&)     = 0;
   virtual void finalize_composite(const state::MetaData&) = 0;
   virtual ~DIParseEvents()                                = default;
 };
 
-void visite_node(const llvm::DINode*, DIParseEvents&);
+void visit_node(const llvm::DINode*, DIParseEvents&);
 
 }  // namespace dimeta::diparser
 

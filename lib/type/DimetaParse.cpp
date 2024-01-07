@@ -136,6 +136,30 @@ class DITypeParser final : public diparser::DIParseEvents {
     result_.type_.emplace<QualType>(std::forward<QualType>(type));
   }
 
+  void make_void_ptr(const diparser::state::MetaData& meta_) override {
+    const auto* derived_type = llvm::dyn_cast<llvm::DIDerivedType>(meta_.type);
+    assert(derived_type != nullptr);
+
+    const auto size        = meta_.is_member ? meta_.member_size : (derived_type->getSizeInBits() / 8);
+    auto fundamental       = FundamentalType{std::string{"void*"}, size, FundamentalType::kUnknown};
+    const Qualifiers quals = helper::make_qualifiers(meta_.dwarf_tags);
+    const auto array_size  = helper::make_array_size(fundamental, meta_.array_size_bits);
+
+    if (meta_.is_member) {
+      assert(!composite_stack_.empty() && "Member requires composite on stack");
+      auto& containing_composite = composite_stack_.back().type;
+      containing_composite.offsets.emplace_back(meta_.member_offset);
+      containing_composite.sizes.emplace_back(meta_.member_size);
+
+      containing_composite.members.emplace_back(helper::make_member<QualifiedFundamental>(
+          meta_.member_name, std::move(fundamental), array_size, Qualifiers{quals.back()}, meta_.typedef_name));
+      return;
+    }
+
+    emplace_result<QualifiedFundamental>(
+        helper::make_qual_type(std::move(fundamental), array_size, quals, meta_.typedef_name, false));
+  }
+
   void make_fundamental(const diparser::state::MetaData& meta_) override {
     const auto* basic_type = llvm::dyn_cast<llvm::DIBasicType>(meta_.type);
     assert(basic_type != nullptr && "DIBasicType should not be null at this point");

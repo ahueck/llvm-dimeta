@@ -28,9 +28,17 @@ std::optional<location::SourceLocation> location_for(const DimetaData& data) {
   }
 
   if (const auto gv = std::get_if<llvm::DIGlobalVariable*>(&data.di_variable.value())) {
-    const auto* global_var = *gv;
-    return location::SourceLocation{std::string{global_var->getFilename()},          //
-                                    std::string{global_var->getScope()->getName()},  //
+    const auto* global_var    = *gv;
+    const auto file           = std::string{global_var->getFilename()};
+    const auto function_scope = [](const auto global) -> std::string {
+      const auto* scope = global->getScope();
+      if (scope) {
+        return std::string{scope->getName()};
+      }
+      return "";
+    }(global_var);
+    return location::SourceLocation{file,            //
+                                    function_scope,  //
                                     global_var->getLine()};
   }
 
