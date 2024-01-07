@@ -9,6 +9,7 @@
 
 #include "DIParser.h"
 #include "DIVisitor.h"
+#include "support/Logger.h"
 
 #include "llvm/ADT/STLExtras.h"
 
@@ -119,6 +120,18 @@ inline ArraySize make_array_size(const Type& type, Extent array_size_in_bits) {
   return 0;
 }
 
+QualifiedFundamental make_qualified_fundamental(const diparser::state::MetaData& meta_, std::string_view name,
+                                                FundamentalType::Encoding encoding) {
+  const auto size        = meta_.is_member ? meta_.member_size : (meta_.type->getSizeInBits() / 8);
+  auto fundamental       = FundamentalType{std::string{name}, size, encoding};
+  const Qualifiers quals = helper::make_qualifiers(meta_.dwarf_tags);
+  const auto array_size  = helper::make_array_size(fundamental, meta_.array_size_bits);
+
+  auto qual_type_fundamental =
+      helper::make_qual_type(std::move(fundamental), array_size, quals, meta_.typedef_name, false);
+  return qual_type_fundamental;
+}
+
 }  // namespace helper
 
 class DITypeParser final : public diparser::DIParseEvents {
@@ -136,70 +149,56 @@ class DITypeParser final : public diparser::DIParseEvents {
     result_.type_.emplace<QualType>(std::forward<QualType>(type));
   }
 
-  void make_void_ptr(const diparser::state::MetaData& meta_) override {
-    const auto* derived_type = llvm::dyn_cast<llvm::DIDerivedType>(meta_.type);
-    assert(derived_type != nullptr);
+  template <typename QualType>
+  void emplace_member(QualType&& type, const diparser::state::MetaData& meta_) {
+    static_assert(std::is_same_v<QualType, QualifiedCompound> || std::is_same_v<QualType, QualifiedFundamental>,
+                  "Wrong QualType for member.");
+    assert(!composite_stack_.empty() && "Member requires composite on stack");
+    auto& containing_composite = composite_stack_.back().type;
+    containing_composite.offsets.emplace_back(meta_.member_offset);
+    containing_composite.sizes.emplace_back(meta_.member_size);
+    containing_composite.members.emplace_back(
+        helper::make_member<QualType>(meta_.member_name, std::forward<QualType>(type)));
+  }
 
-    const auto size        = meta_.is_member ? meta_.member_size : (derived_type->getSizeInBits() / 8);
-    auto fundamental       = FundamentalType{std::string{"void*"}, size, FundamentalType::kUnknown};
-    const Qualifiers quals = helper::make_qualifiers(meta_.dwarf_tags);
-    const auto array_size  = helper::make_array_size(fundamental, meta_.array_size_bits);
+  void emplace_fundamental(const diparser::state::MetaData& meta_, std::string_view name,
+                           FundamentalType::Encoding encoding = FundamentalType::kUnknown) {
+    auto qual_type_fundamental = helper::make_qualified_fundamental(meta_, name, encoding);
 
     if (meta_.is_member) {
-      assert(!composite_stack_.empty() && "Member requires composite on stack");
-      auto& containing_composite = composite_stack_.back().type;
-      containing_composite.offsets.emplace_back(meta_.member_offset);
-      containing_composite.sizes.emplace_back(meta_.member_size);
-
-      containing_composite.members.emplace_back(helper::make_member<QualifiedFundamental>(
-          meta_.member_name, std::move(fundamental), array_size, Qualifiers{quals.back()}, meta_.typedef_name));
+      emplace_member(std::move(qual_type_fundamental), meta_);
       return;
     }
 
-    emplace_result<QualifiedFundamental>(
-        helper::make_qual_type(std::move(fundamental), array_size, quals, meta_.typedef_name, false));
+    // Workaround for composite:
+    //    if (!composite_stack_.empty()) {
+    //      const auto& composite = composite_stack_.back().type;
+    //      if (composite.type == CompoundType::Tag::kEnum || composite.type == CompoundType::Tag::kEnumClass) {
+    //        emplace_member(std::move(qual_type_fundamental), meta_);
+    //        return;
+    //      }
+    //    }
+    //
+    emplace_result<QualifiedFundamental>(std::move(qual_type_fundamental));
   }
 
   void make_fundamental(const diparser::state::MetaData& meta_) override {
     const auto* basic_type = llvm::dyn_cast<llvm::DIBasicType>(meta_.type);
     assert(basic_type != nullptr && "DIBasicType should not be null at this point");
+    emplace_fundamental(meta_, basic_type->getName(), helper::dwarf2encoding(basic_type->getEncoding()));
+  }
 
-    auto fundamental       = FundamentalType{std::string{basic_type->getName()}, (basic_type->getSizeInBits() / 8),
-                                       helper::dwarf2encoding(basic_type->getEncoding())};
-    const Qualifiers quals = helper::make_qualifiers(meta_.dwarf_tags);
-    const auto array_size  = helper::make_array_size(fundamental, meta_.array_size_bits);
-
-    if (meta_.is_member) {
-      assert(!composite_stack_.empty() && "Fundamental member requires member on stack");
-      auto& containing_composite = composite_stack_.back().type;
-      containing_composite.offsets.emplace_back(meta_.member_offset);
-      containing_composite.sizes.emplace_back(meta_.member_size);
-      containing_composite.members.emplace_back(helper::make_member<QualifiedFundamental>(
-          meta_.member_name, std::move(fundamental), array_size, quals, meta_.typedef_name, false));
-      return;
-    }
-
-    emplace_result<QualifiedFundamental>(
-        helper::make_qual_type(std::move(fundamental), array_size, quals, meta_.typedef_name, false));
+  void make_void_ptr(const diparser::state::MetaData& meta_) override {
+    const auto* derived_type = llvm::dyn_cast<llvm::DIDerivedType>(meta_.type);
+    assert(derived_type != nullptr && "Type void* should be a derived type");
+    emplace_fundamental(meta_, "void*");
   }
 
   void make_vtable(const diparser::state::MetaData& meta_) override {
-    assert(!composite_stack_.empty() && "Vtable requires composite on stack");
     const auto* derived_type = llvm::dyn_cast<llvm::DIDerivedType>(meta_.type);
-    assert(derived_type != nullptr);
-
-    auto& containing_composite = composite_stack_.back().type;
-    containing_composite.offsets.emplace_back(meta_.member_offset);
-    containing_composite.sizes.emplace_back(meta_.member_size);
-
-    auto fundamental =
-        FundamentalType{std::string{derived_type->getName()}, (meta_.member_size), FundamentalType::kVtablePtr};
-
-    const Qualifiers quals = helper::make_qualifiers(meta_.dwarf_tags);
-    const auto array_size  = helper::make_array_size(fundamental, meta_.array_size_bits);
-
-    containing_composite.members.emplace_back(helper::make_member<QualifiedFundamental>(
-        meta_.member_name, std::move(fundamental), array_size, Qualifiers{quals.back()}, meta_.typedef_name));
+    assert(derived_type != nullptr && "Vtable should be a derived type");
+    assert(meta_.is_member && "Vtable should be a member of composite");
+    emplace_fundamental(meta_, derived_type->getName(), FundamentalType::Encoding::kVtablePtr);
   }
 
   void make_composite(const diparser::state::MetaData& meta_) override {
@@ -221,11 +220,7 @@ class DITypeParser final : public diparser::DIParseEvents {
     auto finalized_composite = composite_stack_.pop_back_val();
 
     if (current_meta.is_member) {
-      auto& containing_composite = composite_stack_.back().type;
-      containing_composite.offsets.emplace_back(current_meta.member_offset);
-      containing_composite.sizes.emplace_back(current_meta.member_size);
-      containing_composite.members.emplace_back(
-          helper::make_member<QualifiedCompound>(current_meta.member_name, std::move(finalized_composite)));
+      emplace_member(std::move(finalized_composite), current_meta);
       return;
     }
 
