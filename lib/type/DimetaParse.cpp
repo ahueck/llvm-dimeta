@@ -136,6 +136,7 @@ QualifiedFundamental make_qualified_fundamental(const diparser::state::MetaData&
 
 class DITypeParser final : public diparser::DIParseEvents {
   using CompoundStack = llvm::SmallVector<QualifiedCompound, 4>;
+  using EnumBase      = std::optional<QualifiedFundamental>;
   DimetaParseResult result_;
   CompoundStack composite_stack_;
 
@@ -199,6 +200,23 @@ class DITypeParser final : public diparser::DIParseEvents {
     assert(derived_type != nullptr && "Vtable should be a derived type");
     assert(meta_.is_member && "Vtable should be a member of composite");
     emplace_fundamental(meta_, derived_type->getName(), FundamentalType::Encoding::kVtablePtr);
+  }
+
+  void make_enum_member(const diparser::state::MetaData& meta_) override {
+    const auto* basic_type = llvm::dyn_cast<llvm::DIBasicType>(meta_.type);
+    assert(basic_type != nullptr && "DIBasicType should not be null for enum value");
+    assert(!composite_stack_.empty() && "Requires a composite type on stack");
+    assert((composite_stack_.back().type.type == CompoundType::Tag::kEnumClass ||
+            composite_stack_.back().type.type == CompoundType::Tag::kEnum) &&
+           "Requires a enum type on stack");
+
+    emplace_fundamental(meta_, basic_type->getName(), helper::dwarf2encoding(basic_type->getEncoding()));
+
+    auto& enum_type = composite_stack_.back().type;
+    if (enum_type.sizes.size() > 1)
+      enum_type.sizes.erase(std::next(std::begin(enum_type.sizes)), std::end(enum_type.sizes));
+    if (enum_type.offsets.size() > 1)
+      enum_type.offsets.erase(std::next(std::begin(enum_type.offsets)), std::end(enum_type.offsets));
   }
 
   void make_composite(const diparser::state::MetaData& meta_) override {

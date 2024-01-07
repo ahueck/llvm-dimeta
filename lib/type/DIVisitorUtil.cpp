@@ -44,6 +44,11 @@ class DIPrinter : public visitor::DINodeVisitor<DIPrinter> {
     return true;
   }
 
+  bool visitNode(const llvm::DINode* var) {
+    outp_ << llvm::left_justify("", width() + 3) << no_pointer_str(*var) << "\n";
+    return true;
+  }
+
   bool visitBasicType(const llvm::DIBasicType* basic_type) {
     outp_ << llvm::left_justify("", width() + 3) << no_pointer_str(*basic_type) << "\n";
     return true;

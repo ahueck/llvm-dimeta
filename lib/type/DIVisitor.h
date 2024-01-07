@@ -47,7 +47,9 @@ class DINodeVisitor {
            invoke_if<DIDerivedType>(&DINodeVisitor::traverseDerivedType, std::forward<T>(type)) ||
            invoke_if<DICompositeType>(&DINodeVisitor::traverseCompositeType, std::forward<T>(type)) ||
            invoke_if<DILocalVariable>(&DINodeVisitor::traverseVariable, std::forward<T>(type)) ||
-           invoke_if<DIGlobalVariable>(&DINodeVisitor::traverseVariable, std::forward<T>(type));
+           invoke_if<DIGlobalVariable>(&DINodeVisitor::traverseVariable, std::forward<T>(type)) ||
+           invoke_if<DIEnumerator>(&DINodeVisitor::traverseNode, std::forward<T>(type));
+    ;
   }
 
  protected:
@@ -73,14 +75,28 @@ class DINodeVisitor {
   }
 
   bool traverseNode(const llvm::DINode* node) {
-    assert((llvm::isa<llvm::DIVariable>(node) || llvm::isa<llvm::DIType>(node)) && "Can only visit variables or types");
+    //    assert(
+    //        (llvm::isa<llvm::DIVariable>(node) || llvm::isa<llvm::DIType>(node) ||
+    //        llvm::isa<llvm::DIEnumerator>(node)) && "Can only visit variables or types");
     if (const auto* type = llvm::dyn_cast<llvm::DIType>(node)) {
       return traverseType(type);
     }
     if (const auto* var = llvm::dyn_cast<llvm::DIVariable>(node)) {
       return traverseVariable(var);
     }
-    return false;
+
+    const auto exit = util::create_scope_exit([&]() { get().leaveNode(node); });
+    get().enterNode(node);
+    const bool ret = get().visitNode(node);
+    return ret;
+  }
+
+  bool visitNode(const llvm::DINode*) {
+    return true;
+  }
+  void enterNode(const llvm::DINode*) {
+  }
+  void leaveNode(const llvm::DINode*) {
   }
 
   bool traverseVariable(const llvm::DIVariable* var) {
