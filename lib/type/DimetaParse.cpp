@@ -192,7 +192,7 @@ class DITypeParser final : public diparser::DIParseEvents {
   void make_void_ptr(const diparser::state::MetaData& meta_) override {
     const auto* derived_type = llvm::dyn_cast<llvm::DIDerivedType>(meta_.type);
     assert(derived_type != nullptr && "Type void* should be a derived type");
-    emplace_fundamental(meta_, "void*");
+    emplace_fundamental(meta_, "void", FundamentalType::Encoding::kVoid);
   }
 
   void make_vtable(const diparser::state::MetaData& meta_) override {

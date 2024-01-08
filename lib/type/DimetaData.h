@@ -69,8 +69,9 @@ struct FundamentalType {
     kSigned       = 0x8,
     kUnsigned     = 0x10,
     kBool         = 0x12,
-    kPadding      = 0x14,  // TODO: maybe make this explicit
-    kVtablePtr    = 0x16,
+    kPadding      = 0x14,
+    kVoid         = 0x16,
+    kVtablePtr    = 0x18,
     kSignedChar   = kChar | kSigned,
     kUnsignedChar = kChar | kUnsigned,
     kSignedInt    = kInt | kSigned,

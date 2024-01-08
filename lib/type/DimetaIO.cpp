@@ -136,6 +136,7 @@ struct llvm::yaml::ScalarEnumerationTraits<dimeta::FundamentalType::Encoding> {
     io.enumCase(value, "signed_int", dimeta::FundamentalType::Encoding::kSignedInt);
     io.enumCase(value, "unsigned_int", dimeta::FundamentalType::Encoding::kUnsignedInt);
     io.enumCase(value, "padding", dimeta::FundamentalType::Encoding::kPadding);
+    io.enumCase(value, "void_ptr", dimeta::FundamentalType::Encoding::kVoid);
     io.enumCase(value, "vtable_ptr", dimeta::FundamentalType::Encoding::kVtablePtr);
   }
 };
