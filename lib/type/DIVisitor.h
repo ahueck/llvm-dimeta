@@ -46,7 +46,10 @@ class DINodeVisitor {
     return invoke_if<DIBasicType>(&DINodeVisitor::traverseBasicType, std::forward<T>(type)) ||
            invoke_if<DIDerivedType>(&DINodeVisitor::traverseDerivedType, std::forward<T>(type)) ||
            invoke_if<DICompositeType>(&DINodeVisitor::traverseCompositeType, std::forward<T>(type)) ||
-           invoke_if<DILocalVariable>(&DINodeVisitor::traverseLocalVariable, std::forward<T>(type));
+           invoke_if<DILocalVariable>(&DINodeVisitor::traverseVariable, std::forward<T>(type)) ||
+           invoke_if<DIGlobalVariable>(&DINodeVisitor::traverseVariable, std::forward<T>(type)) ||
+           invoke_if<DIEnumerator>(&DINodeVisitor::traverseNode, std::forward<T>(type));
+    ;
   }
 
  protected:
@@ -57,10 +60,6 @@ class DINodeVisitor {
   [[nodiscard]] inline unsigned depth() const {
     return depth_composite_ + depth_derived_ + depth_var_;
   }
-
-  //  inline bool followPointer() {
-  //    return false;
-  //  }
 
   inline bool visited_node(const llvm::DINode* node) {
     return visited_dinodes_.find(node) != std::end(visited_dinodes_);
@@ -75,11 +74,36 @@ class DINodeVisitor {
     return static_cast<const SubClass&>(*this);
   }
 
-  bool traverseLocalVariable(const llvm::DIVariable* var) {
-    const auto exit = util::create_scope_exit([&]() { get().leaveLocalVariable(var); });
-    get().enterLocalVariable(var);
+  bool traverseNode(const llvm::DINode* node) {
+    //    assert(
+    //        (llvm::isa<llvm::DIVariable>(node) || llvm::isa<llvm::DIType>(node) ||
+    //        llvm::isa<llvm::DIEnumerator>(node)) && "Can only visit variables or types");
+    if (const auto* type = llvm::dyn_cast<llvm::DIType>(node)) {
+      return traverseType(type);
+    }
+    if (const auto* var = llvm::dyn_cast<llvm::DIVariable>(node)) {
+      return traverseVariable(var);
+    }
 
-    const bool ret = get().visitLocalVariable(var);
+    const auto exit = util::create_scope_exit([&]() { get().leaveNode(node); });
+    get().enterNode(node);
+    const bool ret = get().visitNode(node);
+    return ret;
+  }
+
+  bool visitNode(const llvm::DINode*) {
+    return true;
+  }
+  void enterNode(const llvm::DINode*) {
+  }
+  void leaveNode(const llvm::DINode*) {
+  }
+
+  bool traverseVariable(const llvm::DIVariable* var) {
+    const auto exit = util::create_scope_exit([&]() { get().leaveVariable(var); });
+    get().enterVariable(var);
+
+    const bool ret = get().visitVariable(var);
     if (!ret) {
       return false;
     }
@@ -89,7 +113,7 @@ class DINodeVisitor {
     return ret_v;
   }
 
-  bool visitLocalVariable(const llvm::DIVariable*) {
+  bool visitVariable(const llvm::DIVariable*) {
     return true;
   }
 
@@ -137,14 +161,7 @@ class DINodeVisitor {
       return false;
     }
 
-    const bool is_pointer = (derived_type->getTag() == llvm::dwarf::DW_TAG_pointer_type);
     const auto* next_base = derived_type->getBaseType();
-
-    //    if (!followPointer() && is_pointer && !llvm::isa<llvm::DIDerivedType>(next_base)) {
-    //      // workaround for endless recursion (e.g., pointer points to encapsulating struct)
-    //      // see test pass/cpp/stack_struct_reprod_map_recursion.cpp
-    //      return true;
-    //    }
 
     const bool ret_v = get().traverseType(next_base);
     return ret_v;
@@ -154,9 +171,29 @@ class DINodeVisitor {
     return true;
   }
 
+  bool traverseRecurringCompositeType(const llvm::DICompositeType* composite_type) {
+    ++depth_composite_;
+    const auto exit = util::create_scope_exit([&]() {
+      get().leaveRecurringCompositeType(composite_type);
+      assert(depth_composite_ > 0);
+      --depth_composite_;
+    });
+    get().enterRecurringCompositeType(composite_type);
+
+    const bool ret = get().visitRecurringCompositeType(composite_type);
+
+    return ret;
+  }
+
+  bool visitRecurringCompositeType(const llvm::DICompositeType*) {
+    return true;
+  }
+
   bool traverseCompositeType(const llvm::DICompositeType* composite_type) {
-    if (visited_node(composite_type)) {
-      return true;
+    const bool visited_already = visited_node(composite_type);
+
+    if (visited_already) {
+      return traverseRecurringCompositeType(composite_type);
     }
 
     ++depth_composite_;
@@ -165,10 +202,11 @@ class DINodeVisitor {
       assert(depth_composite_ > 0);
       --depth_composite_;
     });
+
+    visited_dinodes_.insert(composite_type);
     get().enterCompositeType(composite_type);
 
     const bool ret = get().visitCompositeType(composite_type);
-    visited_dinodes_.insert(composite_type);
     if (!ret) {
       return false;
     }
@@ -189,9 +227,9 @@ class DINodeVisitor {
     return true;
   }
 
-  void enterLocalVariable(const llvm::DIVariable*) {
+  void enterVariable(const llvm::DIVariable*) {
   }
-  void leaveLocalVariable(const llvm::DIVariable*) {
+  void leaveVariable(const llvm::DIVariable*) {
   }
   void enterBasicType(const llvm::DIBasicType*) {
   }
@@ -205,232 +243,13 @@ class DINodeVisitor {
   }
   void leaveCompositeType(const llvm::DICompositeType*) {
   }
+  void enterRecurringCompositeType(const llvm::DICompositeType*) {
+  }
+  void leaveRecurringCompositeType(const llvm::DICompositeType*) {
+  }
 };
 
 }  // namespace visitor
-
-namespace util {
-
-inline std::string tag2string(unsigned tag) {
-  using namespace llvm::dwarf;
-  switch (tag) {
-    case DW_TAG_pointer_type:
-      return "*";
-    case DW_TAG_reference_type:
-      return "&";
-    case DW_TAG_const_type:
-      return "const";
-    case DW_TAG_structure_type:
-      return "struct";
-    case DW_TAG_class_type:
-      return "class";
-    case DW_TAG_union_type:
-      return "union";
-    case DW_TAG_array_type:
-      return "array";
-    case DW_TAG_enumeration_type:
-      return "enum";
-    default:
-      return std::string{TagString(tag)};
-  }
-}
-
-class DIPrinter : public visitor::DINodeVisitor<DIPrinter> {
- private:
-  llvm::raw_ostream& outp_;
-  std::optional<const llvm::Module*> module_;
-
-  std::string no_pointer_str(const llvm::Metadata& type) {
-    std::string view;
-    llvm::raw_string_ostream rso(view);
-    type.print(rso, module_.value_or(nullptr));
-
-    if (module_) {
-      return rso.str();
-    }
-    const llvm::StringRef ref(rso.str());
-    const auto a_pos = ref.find("=");
-    if (a_pos == llvm::StringRef::npos || (a_pos + 2) > ref.size()) {
-      return ref.str();
-    }
-
-    return std::string{ref.substr(a_pos + 2)};
-  }
-
-  [[nodiscard]] unsigned width() const {
-    return depth() == 1 ? 0 : depth();
-  }
-
- public:
-  explicit DIPrinter(llvm::raw_ostream& outp, const llvm::Module* mod = nullptr) : outp_(outp), module_(mod) {
-  }
-
-  bool visitLocalVariable(llvm::DIVariable const* var) {
-    outp_ << llvm::left_justify("", width()) << no_pointer_str(*var) << "\n";
-    return true;
-  }
-
-  bool visitBasicType(const llvm::DIBasicType* basic_type) {
-    outp_ << llvm::left_justify("", width() + 3) << no_pointer_str(*basic_type) << "\n";
-    return true;
-  }
-
-  bool visitDerivedType(const llvm::DIDerivedType* derived_type) {
-    outp_ << llvm::left_justify("", width()) << no_pointer_str(*derived_type) << "\n";
-    return true;
-  }
-
-  bool visitCompositeType(const llvm::DICompositeType* composite_type) {
-    outp_ << llvm::left_justify("", width()) << no_pointer_str(*composite_type) << "\n";
-    return true;
-  }
-};
-
-class DISemPrinter : public visitor::DINodeVisitor<DISemPrinter> {
- private:
-  llvm::raw_ostream& outp_;
-  struct Meta {
-    llvm::SmallVector<unsigned, 8> tag_collector;
-    bool is_const{false};
-    bool const_ptr{false};
-    bool const_obj{false};
-    unsigned member_offset{0};
-    unsigned array_size_bits{0};
-    bool is_member{false};
-    void clear() {
-      tag_collector.clear();
-      is_const        = false;
-      const_obj       = false;
-      const_ptr       = false;
-      array_size_bits = 0;
-      member_offset   = 0;
-      is_member       = false;
-    }
-  } meta_{};
-
-  [[nodiscard]] unsigned width() const {
-    return depth() == 1 ? 0 : depth();
-  }
-
- public:
-  DISemPrinter(llvm::raw_ostream& outp) : outp_(outp) {
-  }
-
-  bool visitLocalVariable(llvm::DIVariable const* var) {
-    outp_ << llvm::left_justify("", width()) << var->getName() << " = \n";
-    return true;
-  }
-
-  bool visitBasicType(const llvm::DIBasicType* basic_type) {
-    if (meta_.is_const && meta_.const_obj) {
-      outp_ << "const ";
-    }
-    outp_ << basic_type->getName();
-    for (const auto& tag : meta_.tag_collector) {
-      outp_ << tag2string(tag);
-    }
-    if (meta_.is_const && meta_.const_ptr) {
-      outp_ << " const";
-    }
-
-    if (meta_.array_size_bits > 0) {
-      outp_ << "[" << (meta_.array_size_bits / basic_type->getSizeInBits()) << "]";
-    }
-
-    outp_ << ":" << basic_type->getSizeInBits() / 8;
-    outp_ << ":" << meta_.member_offset / 8 << "\n";
-
-    return true;
-  }
-
-  bool visitDerivedType(const llvm::DIDerivedType* derived_type) {
-    using namespace llvm;
-    using namespace llvm::dwarf;
-
-    const auto tag = derived_type->getTag();
-    if (tag == DW_TAG_inheritance) {
-      //      return false;
-      outp_ << llvm::left_justify("", width()) << "Inherited::";
-    }
-
-    if (tag == DW_TAG_pointer_type || tag == DW_TAG_reference_type) {
-      meta_.tag_collector.emplace_back(tag);
-      if (meta_.is_const) {
-        meta_.const_ptr = true;
-      } else {
-        meta_.const_obj = true;
-      }
-    }
-    if (tag == DW_TAG_const_type) {
-      meta_.is_const = true;
-    }
-
-    if (tag == DW_TAG_member) {
-      meta_.member_offset = derived_type->getOffsetInBits();
-      meta_.is_member     = true;
-      if (derived_type->getFlags() & DINode::DIFlags::FlagArtificial) {
-        outp_ << llvm::left_justify("", width()) << "Vtable[" << derived_type->getName() << ":"
-              << (derived_type->getSizeInBits() / 8) << ":" << (derived_type->getOffsetInBits() / 8) << "]\n";
-        return true;
-      }
-      outp_ << llvm::left_justify("", width()) << derived_type->getName() << " = ";
-    }
-    return true;
-  }
-
-  bool visitCompositeType(const llvm::DICompositeType* composite_type) {
-    using namespace llvm;
-    using namespace llvm::dwarf;
-
-    const auto tag = composite_type->getTag();
-
-    if (tag == DW_TAG_array_type) {
-      meta_.array_size_bits = composite_type->getSizeInBits();
-    } else {
-      const std::string type = tag2string(tag);
-
-      if (meta_.is_const && meta_.const_obj) {
-        outp_ << "const ";
-      }
-
-      outp_ << type << " " << composite_type->getName();
-
-      for (const auto& tag : meta_.tag_collector) {
-        outp_ << tag2string(tag);
-      }
-      if (meta_.is_const && meta_.const_ptr) {
-        outp_ << " const";
-      }
-
-      if (meta_.array_size_bits > 0) {
-        outp_ << "[" << (meta_.array_size_bits / composite_type->getSizeInBits()) << "]";
-      }
-
-      outp_ << ":" << composite_type->getSizeInBits() / 8 << ":" << composite_type->getElements().size() << " {\n";
-      meta_.clear();
-    }
-    return true;
-  }
-
-  void leaveCompositeType(const llvm::DICompositeType* t) {
-    using namespace llvm::dwarf;
-    if (t->getTag() != DW_TAG_array_type) {
-      outp_ << llvm::left_justify("", width()) << "}\n";
-      //      llvm::errs() << "v:" << this->depth_var_ << "d:" << this->depth_derived_ << "c:" << this->depth_composite_
-      //                   << "w:" << width() << "\n";
-    }
-  }
-
-  void enterBasicType(const llvm::DIBasicType*) {
-    //    outp_ << llvm::left_justify("", width());
-  }
-
-  void leaveBasicType(const llvm::DIBasicType*) {
-    meta_.clear();
-  }
-};
-
-}  // namespace util
 
 }  // namespace dimeta
 

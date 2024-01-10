@@ -9,8 +9,8 @@
 // Created by ahueck on 28.02.23.
 //
 
-#ifndef DIMETA_METAIO_H
-#define DIMETA_METAIO_H
+#ifndef DIMETA_DIMETAIO_H
+#define DIMETA_DIMETAIO_H
 
 #include "DimetaData.h"
 
@@ -23,9 +23,9 @@ bool input(llvm::StringRef yaml, QualifiedFundamental& compound);
 bool emit(llvm::raw_string_ostream& oss, const QualifiedCompound& compound);
 bool input(llvm::StringRef yaml, QualifiedCompound& compound);
 
-bool emit(llvm::raw_string_ostream& oss, const location::LocatedType& type);
-bool input(llvm::StringRef yaml, location::LocatedType& compound);
+bool emit(llvm::raw_string_ostream& oss, const LocatedType& type);
+bool input(llvm::StringRef yaml, LocatedType& compound);
 }  // namespace io
 }  // namespace dimeta
 
-#endif  // DIMETA_METAIO_H
+#endif  // DIMETA_DIMETAIO_H

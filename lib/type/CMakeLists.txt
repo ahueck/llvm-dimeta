@@ -1,13 +1,15 @@
 set(LIB_SOURCES
   Dimeta.cpp
-  MetaIO.cpp
+  DimetaIO.cpp
   Dimeta.h
-  MetaParse.h
+  DimetaParse.h
   TBAA.cpp
   DataflowAnalysis.cpp
   GEP.cpp
   SourceLocType.cpp
-  MetaParse.cpp
+  DimetaParse.cpp
+  DIParser.cpp
+  DIVisitorUtil.cpp
 )
 
 add_library(dimeta_Types STATIC

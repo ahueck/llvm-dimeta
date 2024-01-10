@@ -136,6 +136,7 @@ struct llvm::yaml::ScalarEnumerationTraits<dimeta::FundamentalType::Encoding> {
     io.enumCase(value, "signed_int", dimeta::FundamentalType::Encoding::kSignedInt);
     io.enumCase(value, "unsigned_int", dimeta::FundamentalType::Encoding::kUnsignedInt);
     io.enumCase(value, "padding", dimeta::FundamentalType::Encoding::kPadding);
+    io.enumCase(value, "void_ptr", dimeta::FundamentalType::Encoding::kVoid);
     io.enumCase(value, "vtable_ptr", dimeta::FundamentalType::Encoding::kVtablePtr);
   }
 };
@@ -162,14 +163,19 @@ struct llvm::yaml::ScalarEnumerationTraits<dimeta::Qualifier> {
 
 LLVM_YAML_IS_FLOW_SEQUENCE_VECTOR(dimeta::Qualifier)
 
+template <typename QualType>
+void map_qualtype_fields(IO& io, QualType&& info) {
+  map_optional_not_empty(io, "Array", info.array_size);
+  map_optional_not_empty(io, "Qualifiers", info.qual);
+  map_optional_not_empty(io, "Typedef", info.typedef_name);
+  map_optional_not_empty(io, "Recurring", info.recurrs);
+}
+
 template <>
 struct llvm::yaml::MappingTraits<QualifiedFundamental> {
   static void mapping(IO& io, QualifiedFundamental& info) {
     io.mapRequired("Fundamental", info.type);
-    //    io.mapOptional("Array", info.array_size);
-    map_optional_not_empty(io, "Array", info.array_size);
-    map_optional_not_empty(io, "Qualifiers", info.qual);
-    map_optional_not_empty(io, "Typedef", info.typedef_name);
+    map_qualtype_fields(io, info);
   }
 };
 
@@ -177,36 +183,36 @@ template <>
 struct llvm::yaml::MappingTraits<QualifiedCompound> {
   static void mapping(IO& io, QualifiedCompound& info) {
     io.mapRequired("Compound", info.type);
-    //    io.mapOptional("Array", info.array_size);
-    map_optional_not_empty(io, "Array", info.array_size);
-    //    io.mapOptional("Qualifiers", info.qual);
-    map_optional_not_empty(io, "Qualifiers", info.qual);
-    map_optional_not_empty(io, "Typedef", info.typedef_name);
+    map_qualtype_fields(io, info);
   }
 };
+
+inline void map_qualified_type(IO& io, QualifiedType& type) {
+  bool holds_builtin{false};
+  if (io.outputting()) {
+    holds_builtin = bool(std::holds_alternative<QualifiedFundamental>(type));
+  }
+  io.mapRequired("Builtin", holds_builtin);
+
+  if (holds_builtin) {
+    if (!io.outputting()) {
+      type.emplace<QualifiedFundamental>();
+    }
+    io.mapRequired("Type", std::get<QualifiedFundamental>(type));
+    return;
+  }
+
+  if (!io.outputting()) {
+    type.emplace<QualifiedCompound>();
+  }
+  io.mapRequired("Type", std::get<QualifiedCompound>(type));
+}
 
 template <>
 struct llvm::yaml::MappingTraits<std::shared_ptr<Member>> {
   static void mapping(IO& io, std::shared_ptr<Member>& info) {
-    bool comp_t{false};
-
     io.mapRequired("Name", info->name);
-
-    if (io.outputting()) {
-      comp_t = bool(std::holds_alternative<QualifiedFundamental>(info->member));
-    }
-    io.mapRequired("Builtin", comp_t);
-    if (!comp_t) {
-      if (!io.outputting()) {
-        info->member.emplace<QualifiedCompound>();
-      }
-      io.mapRequired("Type", std::get<QualifiedCompound>(info->member));
-    } else {
-      if (!io.outputting()) {
-        info->member.emplace<QualifiedFundamental>();
-      }
-      io.mapRequired("Type", std::get<QualifiedFundamental>(info->member));
-    }
+    map_qualified_type(io, info->member);
   }
 };
 
@@ -220,27 +226,10 @@ struct llvm::yaml::MappingTraits<location::SourceLocation> {
 };
 
 template <>
-struct llvm::yaml::MappingTraits<location::LocatedType> {
-  static void mapping(IO& io, location::LocatedType& info) {
-    bool comp_t{false};
-
+struct llvm::yaml::MappingTraits<LocatedType> {
+  static void mapping(IO& io, LocatedType& info) {
     io.mapRequired("SourceLoc", info.location);
-
-    if (io.outputting()) {
-      comp_t = bool(std::holds_alternative<QualifiedFundamental>(info.type));
-    }
-    io.mapRequired("Builtin", comp_t);
-    if (!comp_t) {
-      if (!io.outputting()) {
-        info.type.emplace<QualifiedCompound>();
-      }
-      io.mapRequired("Type", std::get<QualifiedCompound>(info.type));
-    } else {
-      if (!io.outputting()) {
-        info.type.emplace<QualifiedFundamental>();
-      }
-      io.mapRequired("Type", std::get<QualifiedFundamental>(info.type));
-    }
+    map_qualified_type(io, info.type);
   }
 };
 
@@ -285,17 +274,17 @@ bool input(llvm::StringRef yaml, QualifiedCompound& compound) {
   return true;
 }
 
-bool emit(llvm::raw_string_ostream& oss, const location::LocatedType& type) {
+bool emit(llvm::raw_string_ostream& oss, const LocatedType& type) {
   using namespace llvm;
 
   yaml::Output out(oss);
 
-  out << const_cast<location::LocatedType&>(type);
+  out << const_cast<LocatedType&>(type);
 
   return true;
 }
 
-bool input(llvm::StringRef yaml, location::LocatedType& type) {
+bool input(llvm::StringRef yaml, LocatedType& type) {
   using namespace llvm;
 
   yaml::Input in(yaml);

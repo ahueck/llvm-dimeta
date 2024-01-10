@@ -30,11 +30,11 @@ enum class Qualifier {
 
 struct Member;
 struct BaseClass;
-using Members     = std::vector<std::shared_ptr<Member>>;
-using Bases       = std::vector<std::shared_ptr<BaseClass>>;
-using Offsets     = std::vector<Offset>;
-using MemberSizes = std::vector<Extent>;
-using Qualifiers  = std::vector<Qualifier>;
+using Members    = std::vector<std::shared_ptr<Member>>;
+using Bases      = std::vector<std::shared_ptr<BaseClass>>;
+using Offsets    = std::vector<Offset>;
+using Sizes      = std::vector<Extent>;
+using Qualifiers = std::vector<Qualifier>;
 
 struct CompoundType {
   // struct, union, class etc.
@@ -52,7 +52,7 @@ struct CompoundType {
   Tag type;
   Extent extent;
   Offsets offsets;
-  MemberSizes sizes;
+  Sizes sizes;
   // Mapping: Base -> Compound
   Bases bases;
   // Mapping: Member -> name, QualType<[Compound, FundamentalType, (Padding)]>
@@ -69,8 +69,9 @@ struct FundamentalType {
     kSigned       = 0x8,
     kUnsigned     = 0x10,
     kBool         = 0x12,
-    kPadding      = 0x14,  // TODO: maybe make this explicit
-    kVtablePtr    = 0x16,
+    kPadding      = 0x14,
+    kVoid         = 0x16,
+    kVtablePtr    = 0x18,
     kSignedChar   = kChar | kSigned,
     kUnsignedChar = kChar | kUnsigned,
     kSignedInt    = kInt | kSigned,
@@ -88,11 +89,12 @@ struct QualType {
   ArraySize array_size{0};  // TODO consider class (around QualType<T>) to model arrays
   Qualifiers qual{};
   std::string typedef_name{};
+  bool recurrs{false};
 };
 
 using QualifiedFundamental = QualType<FundamentalType>;
 using QualifiedCompound    = QualType<CompoundType>;
-using QualifiedType        = std::variant<std::monostate, QualifiedCompound, QualifiedFundamental>;
+using QualifiedType        = std::variant<QualifiedCompound, QualifiedFundamental>;
 
 struct BaseClass {
   QualifiedCompound base{};
@@ -111,13 +113,12 @@ struct SourceLocation {
   unsigned line{};
 };
 
-struct LocatedType {
-  QualifiedType type;
-  SourceLocation location;
-};
-
 }  // namespace location
 
+struct LocatedType {
+  QualifiedType type;
+  location::SourceLocation location;
+};
 }  // namespace dimeta
 
 #endif  // DIMETA_DIMETADATA_H

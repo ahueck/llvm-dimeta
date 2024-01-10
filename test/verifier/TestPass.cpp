@@ -7,10 +7,11 @@
 
 #include "support/Logger.h"
 #include "type/DIVisitor.h"
+#include "type/DIVisitorUtil.h"
 #include "type/Dimeta.h"
 #include "type/DimetaData.h"
-#include "type/MetaIO.h"
-#include "type/MetaParse.h"
+#include "type/DimetaIO.h"
+#include "type/DimetaParse.h"
 
 #include "llvm-c/Types.h"
 #include "llvm/ADT/STLExtras.h"
@@ -113,8 +114,9 @@ auto print_loc(std::optional<location::SourceLocation> loc) {
   rso << "Location: ";
   if (loc) {
     rso << "\"" << loc->file << "\":\"" << loc->function << "\":" << loc->line;
+  } else {
+    rso << "empty";
   }
-  rso << "empty";
   return rso.str();
 };
 
@@ -122,6 +124,7 @@ auto print_loc(std::optional<location::SourceLocation> loc) {
 
 class TestPass : public ModulePass {
  private:
+  Module* current_module{nullptr};
   template <typename Type>
   bool serialization_roundtrip(Type compound, bool print_yaml = false) {
     std::string initial_oss_string;
@@ -150,6 +153,7 @@ class TestPass : public ModulePass {
   }
 
   bool runOnModule(Module& module) override {
+    this->current_module = &module;
     log::LogContext::get().setModule(&module);
 
     for (auto& global : module.globals()) {
@@ -182,6 +186,42 @@ class TestPass : public ModulePass {
 
     LOG_MSG("\nFunction: " << f_name << ":");
 
+    const auto get_located_type = [&](auto* call_inst) -> std::optional<LocatedType> {
+      auto located_type = located_type_for(call_inst);
+      if (located_type) {
+        LOG_DEBUG(util::print_loc(located_type->location));
+        return located_type;
+      }
+      LOG_ERROR("No located dimeta type.")
+      return {};
+    };
+
+    const auto serialize_yaml = [&](auto* inst) {
+      auto located_type = get_located_type(inst);
+      bool result{false};
+      if (located_type) {
+        result = serialization_roundtrip(located_type.value(), cl_dimeta_test_print_yaml.getValue());
+      }
+      LOG_MSG(*inst << ": Yaml Verifier: " << static_cast<int>(result));
+    };
+
+    const auto print_di_tree = [&](const DimetaData& di_var) {
+      if (cl_dimeta_test_print) {
+        visitor::util::print_dinode(std::get<DILocalVariable*>(di_var.di_variable.value()), outs(), current_module);
+      }
+    };
+
+    const auto dump_di_tree = [&](const DimetaData& di_var) {
+      if (cl_dimeta_test_print_tree) {
+        auto local_di_var = std::get<DILocalVariable*>(di_var.di_variable.value());
+#if LLVM_MAJOR_VERSION < 14
+        local_di_var->print(outs(), current_module);
+#else
+        local_di_var->dumpTree(current_module);
+#endif
+      }
+    };
+
     for (auto& inst : llvm::instructions(func)) {
       if (auto* call_inst = dyn_cast<CallBase>(&inst)) {
         auto ditype_meta = type_for(call_inst);
@@ -189,12 +229,7 @@ class TestPass : public ModulePass {
           LOG_DEBUG("Type for heap-like: " << *call_inst)
           LOG_DEBUG(util::to_string(ditype_meta.value()) << "\n");
         }
-        auto located_type = located_type_for(call_inst);
-        if (located_type) {
-          LOG_DEBUG(util::print_loc(located_type->location));
-        } else {
-          LOG_ERROR("No located dimeta type for heap")
-        }
+        get_located_type(call_inst);
       }
 
       if (auto* alloca_inst = dyn_cast<AllocaInst>(&inst)) {
@@ -206,45 +241,9 @@ class TestPass : public ModulePass {
         if (di_var) {
           LOG_DEBUG("Type for alloca: " << *alloca_inst)
           LOG_DEBUG(util::to_string(di_var.value()) << "\n");
-          auto located_type = located_type_for(alloca_inst);
-          if (located_type) {
-            LOG_DEBUG(util::print_loc(located_type->location));
-          } else {
-            LOG_ERROR("No located dimeta type for alloca")
-          }
-
-          parser::DITypeParser parser_types;
-          auto local_di_var = std::get<llvm::DILocalVariable*>(di_var.value().di_variable.value());
-          parser_types.traverseLocalVariable(local_di_var);
-
-          if (cl_dimeta_test_print_tree) {
-            auto local_di_var = std::get<llvm::DILocalVariable*>(di_var.value().di_variable.value());
-#if LLVM_MAJOR_VERSION < 14
-            local_di_var->print(llvm::outs(), func.getParent());
-#else
-            local_di_var->dumpTree(func.getParent());
-#endif
-          }
-
-          if (cl_dimeta_test_print) {
-            dimeta::util::DIPrinter printer(llvm::outs(), func.getParent());
-            auto local_di_var = std::get<llvm::DILocalVariable*>(di_var.value().di_variable.value());
-            printer.traverseLocalVariable(local_di_var);
-          }
-
-          bool result{false};
-          //          const auto parsed_type = parser_types.getParsedType();
-          //          if (parsed_type.hasCompound()) {
-          //            auto const qual_type = parsed_type.getAs<QualifiedCompound>().value();
-          //            result               = serialization_roundtrip(qual_type, cl_dimeta_test_print_yaml.getValue());
-          //          } else if (parsed_type.hasFundamental()) {
-          //            auto const qual_type = parsed_type.getAs<QualifiedFundamental>().value();
-          //            result               = serialization_roundtrip(qual_type, cl_dimeta_test_print_yaml.getValue());
-          //          }
-          if (located_type) {
-            result = serialization_roundtrip(located_type.value(), cl_dimeta_test_print_yaml.getValue());
-          }
-          LOG_MSG(*alloca_inst << ": Yaml Verifier: " << static_cast<int>(result));
+          dump_di_tree(di_var.value());
+          print_di_tree(di_var.value());
+          serialize_yaml(alloca_inst);
         }
       }
     }

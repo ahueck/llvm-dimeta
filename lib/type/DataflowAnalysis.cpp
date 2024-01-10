@@ -14,11 +14,14 @@
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/InstIterator.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Casting.h"
@@ -44,22 +47,19 @@ struct MallocAnchorMatcher {
 };
 
 struct MallocTargetMatcher {
-  llvm::SmallVector<dataflow::ValuePath, 4> types_path;
+  llvm::SmallVector<ValuePath, 4> types_path;
 
-  auto operator()(const dataflow::ValuePath& path) -> decltype(dataflow::DefUseChain::kContinue);
+  auto operator()(const ValuePath& path) -> decltype(DefUseChain::kContinue);
 };
 
 struct MallocBacktrackSearch {
   using ValueRange = llvm::TinyPtrVector<const llvm::Value*>;
 
-  auto operator()(const dataflow::ValuePath& path) -> std::optional<ValueRange>;
+  auto operator()(const ValuePath& path) -> std::optional<ValueRange>;
 };
 
-llvm::SmallVector<dataflow::ValuePath, 4> type_for_heap_call(const llvm::CallBase* call) {
+llvm::SmallVector<ValuePath, 4> type_for_heap_call(const llvm::CallBase* call) {
   using namespace llvm;
-  using dataflow::DefUseChain;
-  using dataflow::ValuePath;
-  using namespace dataflow;
 
   auto should_search = [&](const ValuePath&) -> bool { return true; };
   DefUseChain value_traversal;
@@ -75,7 +75,7 @@ llvm::SmallVector<dataflow::ValuePath, 4> type_for_heap_call(const llvm::CallBas
   MallocBacktrackSearch backtrack_search_dir_fn;
 
   assert(!malloc_forward_anchor_finder.anchors.empty() && "Anchor should not be empty");
-  llvm::SmallVector<dataflow::ValuePath, 4> ditype_paths;
+  llvm::SmallVector<ValuePath, 4> ditype_paths;
 
   for (const auto& anchor_path : malloc_forward_anchor_finder.anchors) {
     LOG_DEBUG("Current anchor path " << anchor_path)
@@ -106,11 +106,8 @@ llvm::SmallVector<dataflow::ValuePath, 4> type_for_heap_call(const llvm::CallBas
   return ditype_paths;
 }
 
-llvm::SmallVector<dataflow::ValuePath, 4> path_from_alloca(const llvm::AllocaInst* alloca) {
+llvm::SmallVector<ValuePath, 4> path_from_alloca(const llvm::AllocaInst* alloca) {
   using namespace llvm;
-  using dataflow::DefUseChain;
-  using dataflow::ValuePath;
-  using namespace dataflow;
 
   auto should_search = [&](const ValuePath&) -> bool { return true; };
   DefUseChain value_traversal;
@@ -120,11 +117,9 @@ llvm::SmallVector<dataflow::ValuePath, 4> path_from_alloca(const llvm::AllocaIns
   return malloc_forward_anchor_finder.anchors;
 }
 
-auto MallocBacktrackSearch::operator()(const dataflow::ValuePath& path) -> std::optional<ValueRange> {
+auto MallocBacktrackSearch::operator()(const ValuePath& path) -> std::optional<ValueRange> {
   // Backtracks form malloc target (a store) to, e.g., argument/global/etc.
   using namespace llvm;
-  using dataflow::DefUseChain;
-  using dataflow::ValuePath;
 
   ValueRange result;
 
@@ -186,11 +181,9 @@ auto MallocBacktrackSearch::operator()(const dataflow::ValuePath& path) -> std::
   return {};
 }
 
-auto MallocTargetMatcher::operator()(const dataflow::ValuePath& path) -> decltype(dataflow::DefUseChain::kContinue) {
+auto MallocTargetMatcher::operator()(const ValuePath& path) -> decltype(DefUseChain::kContinue) {
   // This builds the path (backtrack) from store to LHS target (argument, alloca etc.)
   using namespace llvm;
-  using dataflow::DefUseChain;
-  using dataflow::ValuePath;
 
   const auto* const value = path.value();
   // Handle path to alloca -> can extract type
@@ -241,8 +234,7 @@ auto MallocTargetMatcher::operator()(const dataflow::ValuePath& path) -> decltyp
 
 auto MallocAnchorMatcher::operator()(const ValuePath& path) -> decltype(DefUseChain::kContinue) {
   using namespace llvm;
-  using dataflow::DefUseChain;
-  using dataflow::ValuePath;
+
   const auto* inst = dyn_cast<Instruction>(path.value());
   if (!inst) {
     return DefUseChain::kSkip;

@@ -13,6 +13,9 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <string>
+#include <string_view>
+
 #ifndef DIMETA_LOG_LEVEL
 /*
  * Usually set at compile time: -DDIMETA_LOG_LEVEL=<N>, N in [0, 4] for output
@@ -62,7 +65,7 @@ inline std::string ditype_str(const llvm::Metadata* type) {
   return rso.str();
 }
 
-inline void dimeta_log(const std::string& msg) {
+inline void dimeta_log(const std::string_view msg) {
   llvm::dbgs() << msg;
 }
 }  // namespace dimeta::log
