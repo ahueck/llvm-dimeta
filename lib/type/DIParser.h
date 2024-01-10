@@ -3,6 +3,7 @@
 
 #include "llvm/ADT/SmallVector.h"
 
+#include <cstdint>
 #include <string>
 
 namespace llvm {
