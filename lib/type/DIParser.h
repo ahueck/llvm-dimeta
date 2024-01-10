@@ -20,8 +20,6 @@ namespace state {
 struct MetaData {
   llvm::DIType* type;
 
-  //  Entity state;
-
   Extent member_offset{0};
   Extent member_size{0};
 
@@ -40,23 +38,6 @@ struct MetaData {
   bool has_vtable{false};
   bool is_recurring{false};
   bool is_void_ptr{false};
-
-  void clear() {
-    dwarf_tags.clear();
-    array_size_bits = 0;
-    member_offset   = 0;
-    vtable_size     = 0;
-    vtable_offset   = 0;
-    is_member       = false;
-    typedef_name    = "";
-    member_name     = "";
-    is_base_class   = false;
-    has_vtable      = false;
-    is_recurring    = false;
-    type            = nullptr;
-    is_void_ptr     = false;
-    //    state           = state::Entity::Undef;
-  }
 };
 
 using MetaStack = llvm::SmallVector<MetaData, 4>;

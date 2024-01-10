@@ -10,9 +10,12 @@ class DIEventVisitor : public visitor::DINodeVisitor<DIEventVisitor> {
  private:
   state::MetaData current_;
   state::MetaStack stack_;
-  DIParseEvents& events;
-  llvm::DIType* enum_base{nullptr};
-  bool is_enum{false};
+  DIParseEvents& events_;
+  struct EnumMeta {
+    llvm::DIType* enum_base{nullptr};
+    bool is_enum{false};
+  };
+  EnumMeta enum_data_{};
 
  public:
   explicit DIEventVisitor(DIParseEvents& events);
@@ -35,7 +38,7 @@ class DIEventVisitor : public visitor::DINodeVisitor<DIEventVisitor> {
   void leaveRecurringCompositeType(const llvm::DICompositeType*);
 };
 
-DIEventVisitor::DIEventVisitor(DIParseEvents& events) : events{events} {
+DIEventVisitor::DIEventVisitor(DIParseEvents& events) : events_{events} {
 }
 
 DIEventVisitor::~DIEventVisitor() = default;
@@ -51,14 +54,14 @@ bool DIEventVisitor::visitBasicType(const llvm::DIBasicType* basic_type) {
   // create (free-standing) fundamental (finished recursion)
   //  current_.state = fundamental_e;
 
-  if (is_enum) {
+  if (enum_data_.is_enum) {
     // pattern matches enum types
     //    events.make_enum_member()
-    enum_base = current_.type;
+    enum_data_.enum_base = current_.type;
     return true;
   }
 
-  events.make_fundamental(current_);
+  events_.make_fundamental(current_);
 
   return true;
 }
@@ -90,8 +93,8 @@ bool DIEventVisitor::visitDerivedType(const llvm::DIDerivedType* derived_type) {
     // void* pointer has no basetype
     current_.type        = const_cast<llvm::DIDerivedType*>(derived_type);
     current_.is_void_ptr = true;
-    events.make_void_ptr(current_);
-    current_.clear();
+    events_.make_void_ptr(current_);
+    current_ = state::MetaData{};
     return true;
   }
 
@@ -101,8 +104,8 @@ bool DIEventVisitor::visitDerivedType(const llvm::DIDerivedType* derived_type) {
     // Create vtbl_ptr_type member to containing compound (first on stack)
     current_.type = const_cast<llvm::DIDerivedType*>(derived_type);
     //    current_.state = state::Entity::member;
-    events.make_vtable(current_);
-    current_.clear();
+    events_.make_vtable(current_);
+    current_ = state::MetaData{};
   }
 
   return true;
@@ -110,12 +113,13 @@ bool DIEventVisitor::visitDerivedType(const llvm::DIDerivedType* derived_type) {
 
 bool DIEventVisitor::visitNode(const llvm::DINode* node) {
   if (const auto* enumerator = llvm::dyn_cast<llvm::DIEnumerator>(node)) {
+    assert(enum_data_.enum_base != nullptr && "Enumerator needs a base type.");
     current_.member_name   = enumerator->getName();
     current_.member_offset = 0;
-    current_.member_size   = enum_base->getSizeInBits() / 8;
-    current_.type          = enum_base;
+    current_.member_size   = enum_data_.enum_base->getSizeInBits() / 8;
+    current_.type          = enum_data_.enum_base;
     current_.is_member     = true;
-    events.make_enum_member(current_);
+    events_.make_enum_member(current_);
   }
   return true;
 }
@@ -130,17 +134,17 @@ bool DIEventVisitor::visitCompositeType(const llvm::DICompositeType* composite_t
   current_.type       = const_cast<llvm::DICompositeType*>(composite_type);
   current_.has_vtable = composite_type->getVTableHolder() == composite_type;
 
-  is_enum = composite_type->getTag() == llvm::dwarf::DW_TAG_enumeration_type;
+  enum_data_.is_enum = composite_type->getTag() == llvm::dwarf::DW_TAG_enumeration_type;
   //  current_.state      = state::Entity::Undef;  // determined in "leave" function
 
-  events.make_composite(current_);
+  events_.make_composite(current_);
 
   // "open" a composite type parsing (everything in the follow-up depth search gets added to that
   // current composite, such as members).
   // The so-far collected current_ metadata is used when leaving the opened composite:
   // Clear current_, as that meta info applied to the "composite_type"
   stack_.emplace_back(current_);
-  current_.clear();
+  current_ = state::MetaData{};
 
   return true;
 }
@@ -176,14 +180,13 @@ void DIEventVisitor::leaveCompositeType(const llvm::DICompositeType* composite_t
   }
 
   //  meta_for_composite.state = composite_e;
-  events.finalize_composite(meta_for_composite);
+  events_.finalize_composite(meta_for_composite);
 
-  enum_base = nullptr;
-  is_enum   = false;
+  enum_data_ = EnumMeta{};
 }
 
 void DIEventVisitor::leaveBasicType(const llvm::DIBasicType*) {
-  current_.clear();
+  current_ = state::MetaData{};
 }
 
 bool DIEventVisitor::visitRecurringCompositeType(const llvm::DICompositeType* recurring_composite) {

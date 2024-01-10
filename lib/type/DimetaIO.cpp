@@ -163,15 +163,19 @@ struct llvm::yaml::ScalarEnumerationTraits<dimeta::Qualifier> {
 
 LLVM_YAML_IS_FLOW_SEQUENCE_VECTOR(dimeta::Qualifier)
 
+template <typename QualType>
+void map_qualtype_fields(IO& io, QualType&& info) {
+  map_optional_not_empty(io, "Array", info.array_size);
+  map_optional_not_empty(io, "Qualifiers", info.qual);
+  map_optional_not_empty(io, "Typedef", info.typedef_name);
+  map_optional_not_empty(io, "Recurring", info.recurrs);
+}
+
 template <>
 struct llvm::yaml::MappingTraits<QualifiedFundamental> {
   static void mapping(IO& io, QualifiedFundamental& info) {
     io.mapRequired("Fundamental", info.type);
-    //    io.mapOptional("Array", info.array_size);
-    map_optional_not_empty(io, "Array", info.array_size);
-    map_optional_not_empty(io, "Qualifiers", info.qual);
-    map_optional_not_empty(io, "Typedef", info.typedef_name);
-    map_optional_not_empty(io, "Recurring", info.recurrs);
+    map_qualtype_fields(io, info);
   }
 };
 
@@ -179,12 +183,7 @@ template <>
 struct llvm::yaml::MappingTraits<QualifiedCompound> {
   static void mapping(IO& io, QualifiedCompound& info) {
     io.mapRequired("Compound", info.type);
-    //    io.mapOptional("Array", info.array_size);
-    map_optional_not_empty(io, "Array", info.array_size);
-    //    io.mapOptional("Qualifiers", info.qual);
-    map_optional_not_empty(io, "Qualifiers", info.qual);
-    map_optional_not_empty(io, "Typedef", info.typedef_name);
-    map_optional_not_empty(io, "Recurring", info.recurrs);
+    map_qualtype_fields(io, info);
   }
 };
 
