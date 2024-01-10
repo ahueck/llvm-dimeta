@@ -205,4 +205,5 @@ void visit_node(const llvm::DINode* node, DIParseEvents& event_handler) {
     LOG_DEBUG("Did not parse properly: " << log::ditype_str(node));
   }
 }
+
 }  // namespace dimeta::diparser
