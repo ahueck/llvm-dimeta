@@ -22,7 +22,7 @@ class ScopeExit {
   explicit ScopeExit(Fn&& exit_fn) : exit_fn_(std::forward<Fn>(exit_fn)) {
   }
 
-  ScopeExit(const ScopeExit&)            = delete;
+  ScopeExit(const ScopeExit&) = delete;
   ScopeExit& operator=(const ScopeExit&) = delete;
 
   ~ScopeExit() {

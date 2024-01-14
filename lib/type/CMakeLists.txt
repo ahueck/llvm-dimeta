@@ -51,3 +51,26 @@ set_target_properties(
   OUTPUT_NAME "dimetaTypes"
   EXPORT_NAME "Types"
 )
+
+install(FILES Dimeta.h DimetaData.h
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}
+)
+
+install(
+        TARGETS dimeta_Types
+        EXPORT ${TARGETS_EXPORT_NAME}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
+
+install(
+        EXPORT ${TARGETS_EXPORT_NAME}
+        NAMESPACE dimeta::
+        DESTINATION ${DIMETA_INSTALL_CONFIGDIR}
+)
+
+export(
+        EXPORT ${TARGETS_EXPORT_NAME}
+        FILE ${CMAKE_BINARY_DIR}/${TARGETS_EXPORT_NAME}.cmake
+        NAMESPACE dimeta::
+)

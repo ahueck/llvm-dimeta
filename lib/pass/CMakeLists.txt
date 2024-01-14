@@ -24,3 +24,25 @@ target_include_directories(dimeta_AnalysisPass
 )
 
 target_link_libraries(dimeta_AnalysisPass PRIVATE dimeta::Types)
+
+set(CONFIG_NAME dimetaAnalysisPass)
+set(TARGETS_EXPORT_NAME ${CONFIG_NAME}Targets)
+
+install(
+        TARGETS dimeta_AnalysisPass
+        EXPORT ${TARGETS_EXPORT_NAME}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
+
+install(
+        EXPORT ${TARGETS_EXPORT_NAME}
+        NAMESPACE dimeta::
+        DESTINATION ${DIMETA_INSTALL_CONFIGDIR}
+)
+
+export(
+        EXPORT ${TARGETS_EXPORT_NAME}
+        FILE ${CMAKE_BINARY_DIR}/${TARGETS_EXPORT_NAME}.cmake
+        NAMESPACE dimeta::
+)
