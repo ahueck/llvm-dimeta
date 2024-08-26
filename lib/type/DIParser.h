@@ -39,6 +39,7 @@ struct MetaData {
   bool has_vtable{false};
   bool is_recurring{false};
   bool is_void_ptr{false};
+  bool is_vector{false};
 };
 
 using MetaStack = llvm::SmallVector<MetaData, 4>;

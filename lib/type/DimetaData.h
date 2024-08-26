@@ -89,6 +89,7 @@ struct QualType {
   ArraySize array_size{0};  // TODO consider class (around QualType<T>) to model arrays
   Qualifiers qual{};
   std::string typedef_name{};
+  bool is_vector{false};
   bool recurrs{false};
 };
 

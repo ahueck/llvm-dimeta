@@ -128,6 +128,7 @@ bool DIEventVisitor::visitCompositeType(const llvm::DICompositeType* composite_t
   // See, e.g., pass/c/stack_struct_array.c:
   if (composite_type->getTag() == llvm::dwarf::DW_TAG_array_type) {
     current_.array_size_bits = composite_type->getSizeInBits();
+    current_.is_vector       = composite_type->isVector();
     return true;
   }
 

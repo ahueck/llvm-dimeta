@@ -168,6 +168,7 @@ void map_qualtype_fields(IO& io, QualType&& info) {
   map_optional_not_empty(io, "Array", info.array_size);
   map_optional_not_empty(io, "Qualifiers", info.qual);
   map_optional_not_empty(io, "Typedef", info.typedef_name);
+  map_optional_not_empty(io, "Vector", info.is_vector);
   map_optional_not_empty(io, "Recurring", info.recurrs);
 }
 
