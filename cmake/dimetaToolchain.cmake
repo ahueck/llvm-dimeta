@@ -35,6 +35,14 @@ mark_as_advanced(DIMETA_CONFIG_DIR_IS_SHARE)
 option(DIMETA_ENABLE_COVERAGE "Enable coverage targets" OFF)
 
 
+option(DIMETA_TEST_CONFIG "Set logging levels to appropriate levels for test runner to succeed" OFF)
+
+if(DIMETA_TEST_CONFIG)
+  set(DIMETA_LOG_LEVEL 3 CACHE STRING "" FORCE)
+else()
+  set(DIMETA_LOG_LEVEL 1 CACHE STRING "" FORCE)
+endif()
+
 set(warning_guard "")
 if(NOT PROJECT_IS_TOP_LEVEL)
   option(

@@ -31,6 +31,7 @@ target_compile_definitions(dimeta_Types PRIVATE $<$<BOOL:${DIMETA_USE_HEAPALLOCS
 target_compile_definitions(dimeta_Types
         PRIVATE
         LLVM_VERSION_MAJOR=${LLVM_VERSION_MAJOR}
+        DIMETA_LOG_LEVEL=${DIMETA_LOG_LEVEL}
         )
 
 dimeta_target_compile_opts(dimeta_Types)
@@ -66,7 +67,7 @@ install(
 install(
   EXPORT ${TARGETS_EXPORT_NAME}
   NAMESPACE dimeta::
-  DESTINATION ${TYPEART_INSTALL_CONFIGDIR}
+  DESTINATION ${DIMETA_INSTALL_CONFIGDIR}
 )
 
 export(
