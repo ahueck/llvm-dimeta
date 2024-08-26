@@ -122,7 +122,7 @@ inline ArraySize make_array_size(const Type& type, Extent array_size_in_bits) {
 
 QualifiedFundamental make_qualified_fundamental(const diparser::state::MetaData& meta_, std::string_view name,
                                                 FundamentalType::Encoding encoding) {
-  const auto size        = meta_.is_member ? meta_.member_size : (meta_.type->getSizeInBits() / 8);
+  const auto size        = (meta_.type->getSizeInBits() / 8);
   auto fundamental       = FundamentalType{std::string{name}, size, encoding};
   const Qualifiers quals = helper::make_qualifiers(meta_.dwarf_tags);
   const auto array_size  = helper::make_array_size(fundamental, meta_.array_size_bits);

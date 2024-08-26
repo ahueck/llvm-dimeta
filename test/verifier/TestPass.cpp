@@ -228,6 +228,9 @@ class TestPass : public ModulePass {
         if (ditype_meta) {
           LOG_DEBUG("Type for heap-like: " << *call_inst)
           LOG_DEBUG(util::to_string(ditype_meta.value()) << "\n");
+          // auto result = located_type_for(ditype_meta.value());
+          serialize_yaml(call_inst);
+          continue;
         }
         get_located_type(call_inst);
       }
