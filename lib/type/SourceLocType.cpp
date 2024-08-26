@@ -52,6 +52,11 @@ std::optional<LocatedType> located_type_for(const DimetaData& type_data) {
     return {};
   }
 
+  if (!type_data.entry_type) {
+    LOG_DEBUG("Could not determine type (missing entry type).");
+    return {};
+  }
+
   assert(type_data.entry_type.has_value() && "Parsing stack type requires entry type.");
   auto dimeta_result = parser::make_dimetadata(type_data.entry_type.value());
   if (!dimeta_result) {
