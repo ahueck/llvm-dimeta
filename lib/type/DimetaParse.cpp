@@ -112,9 +112,11 @@ inline Qualifiers make_qualifiers(const llvm::SmallVector<unsigned, 8>& tag_coll
 }
 
 template <typename Type>
-inline ArraySize make_array_size(const Type& type, Extent array_size_in_bits) {
+inline ArraySize make_array_size(const Type& type, Extent array_size_in_bits, const diparser::state::MetaData& meta_) {
   const auto array_byte_size = (array_size_in_bits / 8);
-  if (type.extent > 0) {
+  if (meta_.array_of_pointer > 0) {
+    return array_byte_size / (meta_.array_of_pointer / 8);
+  } else if (type.extent > 0) {
     return array_byte_size / type.extent;
   }
   return 0;
@@ -125,7 +127,7 @@ QualifiedFundamental make_qualified_fundamental(const diparser::state::MetaData&
   const auto size        = (meta_.type->getSizeInBits() / 8);
   auto fundamental       = FundamentalType{std::string{name}, size, encoding};
   const Qualifiers quals = helper::make_qualifiers(meta_.dwarf_tags);
-  const auto array_size  = helper::make_array_size(fundamental, meta_.array_size_bits);
+  const auto array_size  = helper::make_array_size(fundamental, meta_.array_size_bits, meta_);
 
   auto qual_type_fundamental =
       helper::make_qual_type(std::move(fundamental), array_size, quals, meta_.typedef_name, meta_.is_vector, false);
@@ -227,7 +229,7 @@ class DITypeParser final : public diparser::DIParseEvents {
         helper::make_compound(composite_type->getName(), composite_type->getIdentifier(),
                               static_cast<llvm::dwarf::Tag>(composite_type->getTag()), composite_type->getSizeInBits());
     const Qualifiers quals = helper::make_qualifiers(meta_.dwarf_tags);
-    const auto array_size  = helper::make_array_size(compound_type, meta_.array_size_bits);
+    const auto array_size  = helper::make_array_size(compound_type, meta_.array_size_bits, meta_);
 
     const QualifiedCompound q_compound{compound_type,      array_size,      quals,
                                        meta_.typedef_name, meta_.is_vector, meta_.is_recurring};

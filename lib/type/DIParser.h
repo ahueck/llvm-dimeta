@@ -25,6 +25,7 @@ struct MetaData {
   Extent member_size{0};
 
   Extent array_size_bits{0};
+  Extent array_of_pointer{0};
 
   Extent vtable_size{0};
   Extent vtable_offset{0};
@@ -33,7 +34,6 @@ struct MetaData {
   std::string typedef_name;
 
   llvm::SmallVector<unsigned, 8> dwarf_tags;
-
   bool is_member{false};
   bool is_base_class{false};
   bool has_vtable{false};

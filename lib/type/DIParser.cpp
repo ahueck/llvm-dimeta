@@ -3,6 +3,8 @@
 #include "DIVisitor.h"
 #include "support/Logger.h"
 
+#include <llvm/BinaryFormat/Dwarf.h>
+
 namespace dimeta::diparser {
 
 class DIEventVisitor : public visitor::DINodeVisitor<DIEventVisitor> {
@@ -84,6 +86,12 @@ bool DIEventVisitor::visitDerivedType(const llvm::DIDerivedType* derived_type) {
     case DW_TAG_inheritance:
       current_.is_base_class = true;
       current_.member_offset = derived_type->getOffsetInBits() / 8;
+      break;
+    case DW_TAG_pointer_type:
+      current_.dwarf_tags.emplace_back(tag);
+      if (current_.array_size_bits > 0) {
+        current_.array_of_pointer = derived_type->getSizeInBits();
+      }
       break;
     default:
       current_.dwarf_tags.emplace_back(tag);
