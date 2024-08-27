@@ -203,7 +203,12 @@ class DINodeVisitor {
       --depth_composite_;
     });
 
-    visited_dinodes_.insert(composite_type);
+    // see test "c/stack_struct_member_count.c":
+    // this avoid endless recursion of structs, but array-types are special as they can "share" references to, e.g.,
+    // basictypes
+    if (composite_type->getTag() != llvm::dwarf::DW_TAG_array_type) {
+      visited_dinodes_.insert(composite_type);
+    }
     get().enterCompositeType(composite_type);
 
     const bool ret = get().visitCompositeType(composite_type);

@@ -254,7 +254,7 @@ class DITypeParser final : public diparser::DIParseEvents {
       return;
     }
 
-    assert(composite_stack_.empty());
+    assert(composite_stack_.empty() && "Assumes top level compound here");
     emplace_result<QualifiedCompound>(std::move(finalized_composite));
   }
 };
