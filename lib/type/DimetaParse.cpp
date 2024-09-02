@@ -9,6 +9,7 @@
 
 #include "DIParser.h"
 #include "DIVisitor.h"
+#include "DimetaData.h"
 #include "support/Logger.h"
 
 #include "llvm/ADT/STLExtras.h"
@@ -69,6 +70,8 @@ inline FundamentalType::Encoding dwarf2encoding(const unsigned di_encoding) {
       return FundamentalType::Encoding::kSignedChar;
     case DW_ATE_boolean:
       return FundamentalType::Encoding::kBool;
+    case DW_ATE_UTF:
+      return FundamentalType::Encoding::kUTFChar;
     default:
       return FundamentalType::Encoding::kUnknown;
   }
@@ -188,7 +191,13 @@ class DITypeParser final : public diparser::DIParseEvents {
   void make_fundamental(const diparser::state::MetaData& meta_) override {
     const auto* basic_type = llvm::dyn_cast<llvm::DIBasicType>(meta_.type);
     assert(basic_type != nullptr && "DIBasicType should not be null at this point");
-    emplace_fundamental(meta_, basic_type->getName(), helper::dwarf2encoding(basic_type->getEncoding()));
+    const auto name = basic_type->getName();
+
+    const auto encoding = (!name.empty() && name.contains("nullptr"))
+                              ? FundamentalType::Encoding::kNullptr
+                              : helper::dwarf2encoding(basic_type->getEncoding());
+
+    emplace_fundamental(meta_, basic_type->getName(), encoding);
   }
 
   void make_void_ptr(const diparser::state::MetaData& meta_) override {
