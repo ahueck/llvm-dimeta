@@ -706,11 +706,15 @@ std::optional<DimetaData> type_for(const llvm::CallBase* call) {
   int pointer_level_offset{0};
 #ifdef DIMETA_USE_HEAPALLOCSITE
   if (is_cxx_new) {
-    LOG_TRACE("Type for new-like " << cb_fun->getName())
-    extracted_type = type_for_newlike(call);
-    // !heapallocsite gives the type after "new", i.e., new int -> int, new int*[n] -> int*.
-    // Our malloc-related algorithm would return int* and int** respectively, however, hence:
-    pointer_level_offset += 1;
+    if (call->getMetadata("heapallocsite")) {
+      LOG_TRACE("Type for new-like " << cb_fun->getName())
+      extracted_type = type_for_newlike(call);
+      // !heapallocsite gives the type after "new", i.e., new int -> int, new int*[n] -> int*.
+      // Our malloc-related algorithm would return int* and int** respectively, however, hence:
+      pointer_level_offset += 1;
+    } else {
+      LOG_DEBUG("new-like allocation does not have heapallocsite metadata.")
+    }
   }
 #endif
 
