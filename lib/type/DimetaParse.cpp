@@ -34,9 +34,10 @@ inline std::shared_ptr<BaseClass> make_base(T&& compound) {  //, BaseClass::VTab
 
 template <typename T>
 inline QualType<T> make_qual_type(T&& type, ArraySize size = 0, Qualifiers qual = {Qualifier::kNone},
-                                  std::string_view typedef_name = "", bool is_vector = false, bool recurring = false) {
+                                  std::string_view typedef_name = "", bool is_vector = false,
+                                  bool is_foward_decl = false, bool recurring = false) {
   static_assert(std::is_same_v<T, CompoundType> || std::is_same_v<T, FundamentalType>, "Wrong type.");
-  return QualType<T>{std::forward<T>(type), size, qual, typedef_name.data(), is_vector, recurring};
+  return QualType<T>{std::forward<T>(type), size, qual, typedef_name.data(), is_vector, is_foward_decl, recurring};
 }
 
 inline CompoundType::Tag dwarf2compound(const llvm::dwarf::Tag tag) {
@@ -132,8 +133,8 @@ QualifiedFundamental make_qualified_fundamental(const diparser::state::MetaData&
   const Qualifiers quals = helper::make_qualifiers(meta_.dwarf_tags);
   const auto array_size  = helper::make_array_size(fundamental, meta_.array_size_bits, meta_);
 
-  auto qual_type_fundamental =
-      helper::make_qual_type(std::move(fundamental), array_size, quals, meta_.typedef_name, meta_.is_vector, false);
+  auto qual_type_fundamental = helper::make_qual_type(std::move(fundamental), array_size, quals, meta_.typedef_name,
+                                                      meta_.is_vector, meta_.is_forward_decl, false);
   return qual_type_fundamental;
 }
 
@@ -241,7 +242,8 @@ class DITypeParser final : public diparser::DIParseEvents {
     const auto array_size  = helper::make_array_size(compound_type, meta_.array_size_bits, meta_);
 
     const QualifiedCompound q_compound{compound_type,      array_size,      quals,
-                                       meta_.typedef_name, meta_.is_vector, meta_.is_recurring};
+                                       meta_.typedef_name, meta_.is_vector, meta_.is_forward_decl,
+                                       meta_.is_recurring};
     composite_stack_.emplace_back(std::move(q_compound));
   }
 

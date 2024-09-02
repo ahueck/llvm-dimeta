@@ -92,7 +92,8 @@ struct QualType {
   Qualifiers qual{};
   std::string typedef_name{};
   bool is_vector{false};
-  bool recurrs{false};
+  bool is_forward_decl{false};
+  bool is_recurring{false};
 };
 
 using QualifiedFundamental = QualType<FundamentalType>;

@@ -140,8 +140,9 @@ bool DIEventVisitor::visitCompositeType(const llvm::DICompositeType* composite_t
     return true;
   }
 
-  current_.type       = const_cast<llvm::DICompositeType*>(composite_type);
-  current_.has_vtable = composite_type->getVTableHolder() == composite_type;
+  current_.type            = const_cast<llvm::DICompositeType*>(composite_type);
+  current_.has_vtable      = composite_type->getVTableHolder() == composite_type;
+  current_.is_forward_decl = composite_type->isForwardDecl();
 
   enum_data_.is_enum = composite_type->getTag() == llvm::dwarf::DW_TAG_enumeration_type;
   //  current_.state      = state::Entity::Undef;  // determined in "leave" function

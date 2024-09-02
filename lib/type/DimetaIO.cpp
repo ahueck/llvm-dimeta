@@ -171,7 +171,8 @@ void map_qualtype_fields(IO& io, QualType&& info) {
   map_optional_not_empty(io, "Qualifiers", info.qual);
   map_optional_not_empty(io, "Typedef", info.typedef_name);
   map_optional_not_empty(io, "Vector", info.is_vector);
-  map_optional_not_empty(io, "Recurring", info.recurrs);
+  map_optional_not_empty(io, "ForwardDecl", info.is_forward_decl);
+  map_optional_not_empty(io, "Recurring", info.is_recurring);
 }
 
 template <>
