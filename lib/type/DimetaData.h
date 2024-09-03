@@ -88,9 +88,9 @@ struct FundamentalType {
 template <typename T>
 struct QualType {
   T type{};
-  ArraySize array_size{0};  // TODO consider class (around QualType<T>) to model arrays
-  Qualifiers qual{};
-  std::string typedef_name{};
+  ArraySize array_size{0};  // TODO consider class to model arrays with subranges
+  Qualifiers qual;
+  std::string typedef_name;
   bool is_vector{false};
   bool is_forward_decl{false};
   bool is_recurring{false};
@@ -99,6 +99,12 @@ struct QualType {
 using QualifiedFundamental = QualType<FundamentalType>;
 using QualifiedCompound    = QualType<CompoundType>;
 using QualifiedType        = std::variant<QualifiedCompound, QualifiedFundamental>;
+using QualifiedTypeList    = std::vector<QualifiedType>;
+using CompileUnitTypes     = struct {
+  std::string name;
+  QualifiedTypeList types;
+};
+using CompileUnitTypeList = std::vector<CompileUnitTypes>;
 
 struct BaseClass {
   QualifiedCompound base{};
@@ -112,8 +118,8 @@ struct Member {
 namespace location {
 
 struct SourceLocation {
-  std::string file{};
-  std::string function{};
+  std::string file;
+  std::string function;
   unsigned line{};
 };
 

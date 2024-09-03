@@ -45,6 +45,7 @@ class PointerType;
 using namespace llvm;
 
 static cl::opt<bool> cl_dimeta_test_print_yaml("yaml", cl::init(true));
+static cl::opt<bool> cl_dimeta_test_print_yaml_retained("yaml-retained", cl::init(false));
 static cl::opt<bool> cl_dimeta_test_print_tree("dump-tree", cl::init(false));
 static cl::opt<bool> cl_dimeta_test_print("dump", cl::init(false));
 
@@ -168,6 +169,20 @@ class TestPass : public ModulePass {
           LOG_ERROR("No located dimeta type for global")
         }
       }
+    }
+
+    auto compile_unit_list = dimeta::compile_unit_types(&module).value_or(CompileUnitTypeList{});
+    if (cl_dimeta_test_print_yaml_retained) {
+      std::string initial_oss_string;
+      llvm::raw_string_ostream initial_oss(initial_oss_string);
+      io::emit(initial_oss, compile_unit_list);
+      llvm::outs() << initial_oss.str();
+      // for (const auto& cu : compile_unit_list) {
+      //   std::string initial_oss_string;
+      //   llvm::raw_string_ostream initial_oss(initial_oss_string);
+      //   io::emit(initial_oss, cu);
+      //   llvm::outs() << initial_oss.str();
+      // }
     }
 
     llvm::for_each(module.functions(), [&](auto& func) { return runOnFunc(func); });

@@ -22,6 +22,7 @@ class DIType;
 class DILocation;
 class Value;
 class GlobalVariable;
+class Module;
 }  // namespace llvm
 
 namespace dimeta {
@@ -53,6 +54,8 @@ std::optional<LocatedType> located_type_for(const llvm::AllocaInst*);
 std::optional<LocatedType> located_type_for(const llvm::CallBase*);
 
 std::optional<LocatedType> located_type_for(const llvm::GlobalVariable*);
+
+std::optional<CompileUnitTypeList> compile_unit_types(const llvm::Module*);
 
 }  // namespace dimeta
 
