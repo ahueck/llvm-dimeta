@@ -11,10 +11,10 @@
 namespace dimeta {
 std::optional<CompileUnitTypeList> compile_unit_types(const llvm::Module* m) {
   CompileUnitTypeList list;
-  for (auto* cu : m->debug_compile_units()) {
+  for (auto* compile_unit : m->debug_compile_units()) {
     CompileUnitTypes current_cu;
-    current_cu.name = cu->getFilename();
-    for (auto retained_type : cu->getRetainedTypes()) {
+    current_cu.name = compile_unit->getFilename();
+    for (auto* retained_type : compile_unit->getRetainedTypes()) {
       if (auto* type = llvm::dyn_cast<llvm::DIType>(retained_type)) {
         auto dimeta_result = parser::make_dimetadata(type);
         if (!dimeta_result) {
