@@ -160,6 +160,7 @@ struct llvm::yaml::ScalarEnumerationTraits<dimeta::Qualifier> {
     io.enumCase(info, "const", dimeta::Qualifier::kConst);
     io.enumCase(info, "ptr", dimeta::Qualifier::kPtr);
     io.enumCase(info, "ref", dimeta::Qualifier::kRef);
+    io.enumCase(info, "ptr_to_mem", dimeta::Qualifier::kPtrToMember);
   }
 };
 

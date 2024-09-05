@@ -21,12 +21,7 @@ using Extent    = std::uint64_t;
 using Offset    = std::uint64_t;
 using ArraySize = std::uint64_t;
 
-enum class Qualifier {
-  kNone  = 0x0,
-  kConst = 0x1,
-  kPtr   = 0x2,
-  kRef   = 0x4,
-};
+enum class Qualifier { kNone = 0x0, kConst = 0x1, kPtr = 0x2, kRef = 0x4, kPtrToMember = 0x8 };
 
 struct Member;
 struct BaseClass;

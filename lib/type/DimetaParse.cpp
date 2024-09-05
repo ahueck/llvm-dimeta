@@ -87,6 +87,8 @@ inline Qualifier dwarf2qual(unsigned tag) {
       return Qualifier::kRef;
     case DW_TAG_const_type:
       return Qualifier::kConst;
+    case DW_TAG_ptr_to_member_type:
+      return Qualifier::kPtrToMember;
     default:
       return Qualifier::kNone;
   }
