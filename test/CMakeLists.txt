@@ -98,6 +98,7 @@ set(DIMETA_SUITES
   all
   pass
   pass/gep
+  pass/pointer
 )
 
 dimeta_add_lit_target(SUITES ${DIMETA_SUITES})

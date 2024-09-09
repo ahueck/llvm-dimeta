@@ -48,7 +48,8 @@ class DINodeVisitor {
            invoke_if<DICompositeType>(&DINodeVisitor::traverseCompositeType, std::forward<T>(type)) ||
            invoke_if<DILocalVariable>(&DINodeVisitor::traverseVariable, std::forward<T>(type)) ||
            invoke_if<DIGlobalVariable>(&DINodeVisitor::traverseVariable, std::forward<T>(type)) ||
-           invoke_if<DIEnumerator>(&DINodeVisitor::traverseNode, std::forward<T>(type));
+           invoke_if<DIEnumerator>(&DINodeVisitor::traverseNode, std::forward<T>(type)) ||
+           invoke_if<DISubrange>(&DINodeVisitor::traverseNode, std::forward<T>(type));
     ;
   }
 

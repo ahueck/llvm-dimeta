@@ -15,5 +15,5 @@ void test() {
 
 // CHECK: Fundamental:     { Name: float, Extent: 4, Encoding: float }
 // CHECK-NEXT: Array:           2
-// CHECK-NEXT: Typedef:         float2
+// CHECK: Typedef:         float2
 // CHECK-NEXT: Vector:          true

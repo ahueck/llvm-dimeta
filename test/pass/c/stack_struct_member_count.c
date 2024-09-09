@@ -23,9 +23,11 @@ int main(void) {
 // CHECK-NEXT:         Type:
 // CHECK-NEXT:           Fundamental:     { Name: double, Extent: 8, Encoding: float }
 // CHECK-NEXT:           Array:           3
+// CHECK-NEXT:           Qualifiers:      [ array ]
 // CHECK-NEXT:       - Name:            c
 // CHECK-NEXT:         Builtin:         true
 // CHECK-NEXT:         Type:
 // CHECK-NEXT:           Fundamental:     { Name: double, Extent: 8, Encoding: float }
 // CHECK-NEXT:           Array:           4
+// CHECK-NEXT:           Qualifiers:      [ array ]
 // CHECK-NEXT:   Typedef:         s4

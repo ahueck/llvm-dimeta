@@ -21,15 +21,16 @@ using Extent    = std::uint64_t;
 using Offset    = std::uint64_t;
 using ArraySize = std::uint64_t;
 
-enum class Qualifier { kNone = 0x0, kConst = 0x1, kPtr = 0x2, kRef = 0x4, kPtrToMember = 0x8 };
+enum class Qualifier { kNone = 0x0, kConst = 0x1, kPtr = 0x2, kRef = 0x4, kPtrToMember = 0x8, kArray = 0x10 };
 
 struct Member;
 struct BaseClass;
-using Members    = std::vector<std::shared_ptr<Member>>;
-using Bases      = std::vector<std::shared_ptr<BaseClass>>;
-using Offsets    = std::vector<Offset>;
-using Sizes      = std::vector<Extent>;
-using Qualifiers = std::vector<Qualifier>;
+using Members       = std::vector<std::shared_ptr<Member>>;
+using Bases         = std::vector<std::shared_ptr<BaseClass>>;
+using Offsets       = std::vector<Offset>;
+using Sizes         = std::vector<Extent>;
+using Qualifiers    = std::vector<Qualifier>;
+using ArraySizeList = std::vector<ArraySize>;
 
 struct CompoundType {
   // struct, union, class etc.
@@ -83,7 +84,8 @@ struct FundamentalType {
 template <typename T>
 struct QualType {
   T type{};
-  ArraySize array_size{0};  // TODO consider class to model arrays with subranges
+  // ArraySizeList array_size{0};
+  ArraySize array_size{0};
   Qualifiers qual;
   std::string typedef_name;
   bool is_vector{false};

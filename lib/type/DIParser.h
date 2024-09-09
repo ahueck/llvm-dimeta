@@ -24,8 +24,12 @@ struct MetaData {
   Extent member_offset{0};
   Extent member_size{0};
 
-  Extent array_size_bits{0};
-  Extent array_of_pointer{0};
+  struct ArrayData {
+    Extent array_size_bits{0};
+    Extent array_of_pointer{0};
+  };
+
+  std::vector<ArrayData> arrays{};
 
   Extent vtable_size{0};
   Extent vtable_offset{0};

@@ -1,4 +1,4 @@
-// RUN: %cpp-to-llvm %s | %apply-verifier 2>&1 | %filecheck %s
+// RUN: %c-to-llvm %s | %apply-verifier 2>&1 | %filecheck %s
 
 // XFAIL: *
 

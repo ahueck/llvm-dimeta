@@ -40,6 +40,7 @@ int main(void) {
 // CHECK-NEXT:              Offsets:         [ 0, 8 ]
 //                        ...
 // CHECK:            Array:           2
+// CHECK-NEXT:       Qualifiers:      [ array ]
 // CHECK-NEXT:            Typedef:         s1
 // CHECK-NEXT:        - Name:            b
 // CHECK-NEXT:          Builtin:         true
@@ -56,6 +57,6 @@ int main(void) {
 // CHECK-NEXT:              Offsets:         [ 0, 16, 24 ]
 //                        ...
 // CHECK:            Array:           3
-// CHECK-NEXT:            Qualifiers:      [ ptr ]
+// CHECK-NEXT:       Qualifiers:      [ array, ptr ]
 // CHECK-NEXT:            Typedef:         s2
 // CHECK-NEXT:    Typedef:         s3
