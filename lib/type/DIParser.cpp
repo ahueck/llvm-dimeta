@@ -72,6 +72,8 @@ bool DIEventVisitor::visitBasicType(const llvm::DIBasicType* basic_type) {
 bool DIEventVisitor::visitDerivedType(const llvm::DIDerivedType* derived_type) {
   using namespace llvm::dwarf;
 
+  LOG_FATAL(*derived_type)
+
   const auto tag = derived_type->getTag();
   switch (tag) {
     case DW_TAG_member: {

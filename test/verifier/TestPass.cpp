@@ -47,6 +47,7 @@ using namespace llvm;
 static cl::opt<bool> cl_dimeta_test_print_yaml("yaml", cl::init(true));
 static cl::opt<bool> cl_dimeta_test_print_yaml_retained("yaml-retained", cl::init(false));
 static cl::opt<bool> cl_dimeta_test_print_tree("dump-tree", cl::init(false));
+static cl::opt<bool> cl_dimeta_test_stack_pointer("stack-pointer-skip", cl::init(false));
 static cl::opt<bool> cl_dimeta_test_print("dump", cl::init(false));
 
 namespace dimeta::test {
@@ -251,7 +252,7 @@ class TestPass : public ModulePass {
       }
 
       if (auto* alloca_inst = dyn_cast<AllocaInst>(&inst)) {
-        if (isa<llvm::PointerType>(alloca_inst->getAllocatedType())) {
+        if (cl_dimeta_test_stack_pointer && isa<llvm::PointerType>(alloca_inst->getAllocatedType())) {
           LOG_DEBUG("Skip " << *alloca_inst << "\n");
           continue;
         }

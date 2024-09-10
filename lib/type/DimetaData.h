@@ -33,7 +33,7 @@ using Qualifiers    = std::vector<Qualifier>;
 using ArraySizeList = std::vector<ArraySize>;
 
 struct CompoundType {
-  // struct, union, class etc.
+  // struct, union, class etc
   enum Tag {
     kUnknown   = 0x0,
     kStruct    = 0x1,

@@ -11,11 +11,15 @@ int main(int argc, char* argv[]) {
   return dom->getRanks();
 }
 
-// CHECK:    Compound:
+// CHECK:   Line:            7
+// CHECK-NEXT: Builtin:         false
+// CHECK-NEXT: Type:
+// CHECK-NEXT:    Compound:
 // CHECK-NEXT:      Name:            Domain
 // CHECK-NEXT:      Identifier:      _ZTS6Domain
 // CHECK-NEXT:      Type:            class
 // CHECK-NEXT:      Extent:          16
+// CHECK-NEXT:    Qualifiers:      [ ptr ]
 // CHECK-NEXT:    ForwardDecl:     true
 
 // NOFWD:  CUName:          '{{.*}}lulesh-init-mock.cpp'
