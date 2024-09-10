@@ -10,5 +10,5 @@ int foo() {
 // CHECK: Builtin:         true
 // CHECK-NEXT: Type:
 // CHECK-NEXT:   Fundamental:     { Name: int, Extent: 4, Encoding: signed_int }
-// CHECK-NEXT:   Array:           80
+// CHECK-NEXT:   Array:           [ 80 ]
 // CHECK-NEXT:   Qualifiers:      [ array, const ]

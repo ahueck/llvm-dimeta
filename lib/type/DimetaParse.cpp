@@ -14,6 +14,7 @@
 
 #include "llvm/ADT/STLExtras.h"
 
+#include <iterator>
 #include <llvm/BinaryFormat/Dwarf.h>
 #include <type_traits>
 
@@ -34,7 +35,7 @@ inline std::shared_ptr<BaseClass> make_base(T&& compound) {  //, BaseClass::VTab
 }
 
 template <typename T>
-inline QualType<T> make_qual_type(T&& type, ArraySize size = 0, Qualifiers qual = {Qualifier::kNone},
+inline QualType<T> make_qual_type(T&& type, ArraySizeList size = {}, Qualifiers qual = {Qualifier::kNone},
                                   std::string_view typedef_name = "", bool is_vector = false,
                                   bool is_foward_decl = false, bool recurring = false) {
   static_assert(std::is_same_v<T, CompoundType> || std::is_same_v<T, FundamentalType>, "Wrong type.");
@@ -120,37 +121,52 @@ inline Qualifiers make_qualifiers(const llvm::SmallVector<unsigned, 8>& tag_coll
   return quals;
 }
 
-// template <typename Type>
-// inline ArraySize make_array_size(const Type& type, Extent array_size_in_bits, const diparser::state::MetaData& meta_)
-// {
-//   const auto array_byte_size = (array_size_in_bits / 8);
-//   if (meta_.array_of_pointer > 0) {
-//     return array_byte_size / (meta_.array_of_pointer / 8);
-//   } else if (type.extent > 0) {
-//     return array_byte_size / type.extent;
-//   }
-//   return 0;
-// }
-
 template <typename Type>
 inline ArraySize make_array_size(const Type& type, const diparser::state::MetaData::ArrayData& meta_array_data) {
   const auto array_byte_size = (meta_array_data.array_size_bits / 8);
   if (meta_array_data.array_of_pointer > 0) {
     return array_byte_size / (meta_array_data.array_of_pointer / 8);
-  } else if (type.extent > 0) {
+  }
+  if (type.extent > 0) {
     return array_byte_size / type.extent;
   }
   return 0;
 }
 
+template <typename Type>
+inline ArraySizeList make_array_sizes(const Type& type,
+                                      const std::vector<diparser::state::MetaData::ArrayData>& meta_array_data) {
+  ArraySizeList list;
+  if (meta_array_data.empty()) {
+    return list;
+  }
+  for (auto it = meta_array_data.begin(); it != meta_array_data.end(); ++it) {
+    const auto& array          = *it;
+    const bool is_last_element = (it == std::prev(std::end(meta_array_data)));
+    const auto array_size_calc = [&type](const diparser::state::MetaData::ArrayData& array, bool is_last) {
+      const auto array_byte_size = (array.array_size_bits / 8);
+      if (array.array_of_pointer > 0) {
+        return array_byte_size / (array.array_of_pointer / 8);
+      }
+      if (is_last && type.extent > 0) {
+        return array_byte_size / type.extent;
+      }
+      return array_byte_size;
+    }(array, is_last_element);
+    list.emplace_back(array_size_calc);
+    LOG_FATAL("Array: " << array_size_calc);
+  }
+
+  return list;
+}
+
 QualifiedFundamental make_qualified_fundamental(const diparser::state::MetaData& meta_, std::string_view name,
                                                 FundamentalType::Encoding encoding) {
-  const auto size            = (meta_.type->getSizeInBits() / 8);
-  auto fundamental           = FundamentalType{std::string{name}, size, encoding};
-  const Qualifiers quals     = helper::make_qualifiers(meta_.dwarf_tags);
-  const auto array_size      = !meta_.arrays.empty()
-                                   ? helper::make_array_size(fundamental, meta_.arrays.back())
-                                   : 0;  // helper::make_array_size(fundamental, meta_.array_size_bits, meta_);
+  const auto size        = (meta_.type->getSizeInBits() / 8);
+  auto fundamental       = FundamentalType{std::string{name}, size, encoding};
+  const Qualifiers quals = helper::make_qualifiers(meta_.dwarf_tags);
+  // const auto array_size      = !meta_.arrays.empty() ? helper::make_array_size(fundamental, meta_.arrays.back()) : 0;
+  const auto array_size      = make_array_sizes(fundamental, meta_.arrays);
   const auto typedef_name    = meta_.typedef_names.empty() ? std::string{} : *meta_.typedef_names.begin();
   auto qual_type_fundamental = helper::make_qual_type(std::move(fundamental), array_size, quals, typedef_name,
                                                       meta_.is_vector, meta_.is_forward_decl, false);
@@ -258,7 +274,7 @@ class DITypeParser final : public diparser::DIParseEvents {
         helper::make_compound(composite_type->getName(), composite_type->getIdentifier(),
                               static_cast<llvm::dwarf::Tag>(composite_type->getTag()), composite_type->getSizeInBits());
     const Qualifiers quals  = helper::make_qualifiers(meta_.dwarf_tags);
-    const auto array_size   = !meta_.arrays.empty() ? helper::make_array_size(compound_type, meta_.arrays.back()) : 0;
+    const auto array_size   = helper::make_array_sizes(compound_type, meta_.arrays);
     const auto typedef_name = meta_.typedef_names.empty() ? std::string{} : *meta_.typedef_names.begin();
     const QualifiedCompound q_compound{compound_type,         array_size,        quals, typedef_name, meta_.is_vector,
                                        meta_.is_forward_decl, meta_.is_recurring};

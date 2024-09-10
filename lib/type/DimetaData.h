@@ -84,8 +84,8 @@ struct FundamentalType {
 template <typename T>
 struct QualType {
   T type{};
-  // ArraySizeList array_size{0};
-  ArraySize array_size{0};
+  ArraySizeList array_size;
+  // ArraySize array_size{0};
   Qualifiers qual;
   std::string typedef_name;
   bool is_vector{false};
