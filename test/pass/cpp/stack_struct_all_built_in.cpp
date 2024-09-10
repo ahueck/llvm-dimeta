@@ -124,42 +124,42 @@ void foo() {
 // CHECK-NEXT:     Builtin:         true
 // CHECK-NEXT:     Type:
 // CHECK-NEXT:       Fundamental:     { Name: signed char, Extent: 1, Encoding: signed_char }
-// CHECK-NEXT:       Typedef:         __int8_t
+// CHECK-NEXT:       Typedef:         int8_t
 // CHECK-NEXT:   - Name:            uint8_var
 // CHECK-NEXT:     Builtin:         true
 // CHECK-NEXT:     Type:
 // CHECK-NEXT:       Fundamental:     { Name: unsigned char, Extent: 1, Encoding: unsigned_char }
-// CHECK-NEXT:       Typedef:         __uint8_t
+// CHECK-NEXT:       Typedef:         uint8_t
 // CHECK-NEXT:   - Name:            int16_var
 // CHECK-NEXT:     Builtin:         true
 // CHECK-NEXT:     Type:
 // CHECK-NEXT:       Fundamental:     { Name: short, Extent: 2, Encoding: signed_int }
-// CHECK-NEXT:       Typedef:         __int16_t
+// CHECK-NEXT:       Typedef:         int16_t
 // CHECK-NEXT:   - Name:            uint16_var
 // CHECK-NEXT:     Builtin:         true
 // CHECK-NEXT:     Type:
 // CHECK-NEXT:       Fundamental:     { Name: unsigned short, Extent: 2, Encoding: unsigned_int }
-// CHECK-NEXT:       Typedef:         __uint16_t
+// CHECK-NEXT:       Typedef:         uint16_t
 // CHECK-NEXT:   - Name:            int32_var
 // CHECK-NEXT:     Builtin:         true
 // CHECK-NEXT:     Type:
 // CHECK-NEXT:       Fundamental:     { Name: int, Extent: 4, Encoding: signed_int }
-// CHECK-NEXT:       Typedef:         __int32_t
+// CHECK-NEXT:       Typedef:         int32_t
 // CHECK-NEXT:   - Name:            uint32_var
 // CHECK-NEXT:     Builtin:         true
 // CHECK-NEXT:     Type:
 // CHECK-NEXT:       Fundamental:     { Name: unsigned int, Extent: 4, Encoding: unsigned_int }
-// CHECK-NEXT:       Typedef:         __uint32_t
+// CHECK-NEXT:       Typedef:         uint32_t
 // CHECK-NEXT:   - Name:            int64_var
 // CHECK-NEXT:     Builtin:         true
 // CHECK-NEXT:     Type:
 // CHECK-NEXT:       Fundamental:     { Name: long, Extent: 8, Encoding: signed_int }
-// CHECK-NEXT:       Typedef:         __int64_t
+// CHECK-NEXT:       Typedef:         int64_t
 // CHECK-NEXT:   - Name:            uint64_var
 // CHECK-NEXT:     Builtin:         true
 // CHECK-NEXT:     Type:
 // CHECK-NEXT:       Fundamental:     { Name: unsigned long, Extent: 8, Encoding: unsigned_int }
-// CHECK-NEXT:       Typedef:         __uint64_t
+// CHECK-NEXT:       Typedef:         uint64_t
 // CHECK-NEXT:   - Name:            float_var
 // CHECK-NEXT:     Builtin:         true
 // CHECK-NEXT:     Type:

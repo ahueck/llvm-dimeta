@@ -145,14 +145,14 @@ inline ArraySize make_array_size(const Type& type, const diparser::state::MetaDa
 
 QualifiedFundamental make_qualified_fundamental(const diparser::state::MetaData& meta_, std::string_view name,
                                                 FundamentalType::Encoding encoding) {
-  const auto size        = (meta_.type->getSizeInBits() / 8);
-  auto fundamental       = FundamentalType{std::string{name}, size, encoding};
-  const Qualifiers quals = helper::make_qualifiers(meta_.dwarf_tags);
-  const auto array_size  = !meta_.arrays.empty()
-                               ? helper::make_array_size(fundamental, meta_.arrays.back())
-                               : 0;  // helper::make_array_size(fundamental, meta_.array_size_bits, meta_);
-
-  auto qual_type_fundamental = helper::make_qual_type(std::move(fundamental), array_size, quals, meta_.typedef_name,
+  const auto size            = (meta_.type->getSizeInBits() / 8);
+  auto fundamental           = FundamentalType{std::string{name}, size, encoding};
+  const Qualifiers quals     = helper::make_qualifiers(meta_.dwarf_tags);
+  const auto array_size      = !meta_.arrays.empty()
+                                   ? helper::make_array_size(fundamental, meta_.arrays.back())
+                                   : 0;  // helper::make_array_size(fundamental, meta_.array_size_bits, meta_);
+  const auto typedef_name    = meta_.typedef_names.empty() ? std::string{} : *meta_.typedef_names.begin();
+  auto qual_type_fundamental = helper::make_qual_type(std::move(fundamental), array_size, quals, typedef_name,
                                                       meta_.is_vector, meta_.is_forward_decl, false);
   return qual_type_fundamental;
 }
@@ -257,12 +257,11 @@ class DITypeParser final : public diparser::DIParseEvents {
     auto compound_type =
         helper::make_compound(composite_type->getName(), composite_type->getIdentifier(),
                               static_cast<llvm::dwarf::Tag>(composite_type->getTag()), composite_type->getSizeInBits());
-    const Qualifiers quals = helper::make_qualifiers(meta_.dwarf_tags);
-    const auto array_size  = !meta_.arrays.empty() ? helper::make_array_size(compound_type, meta_.arrays.back()) : 0;
-
-    const QualifiedCompound q_compound{compound_type,      array_size,      quals,
-                                       meta_.typedef_name, meta_.is_vector, meta_.is_forward_decl,
-                                       meta_.is_recurring};
+    const Qualifiers quals  = helper::make_qualifiers(meta_.dwarf_tags);
+    const auto array_size   = !meta_.arrays.empty() ? helper::make_array_size(compound_type, meta_.arrays.back()) : 0;
+    const auto typedef_name = meta_.typedef_names.empty() ? std::string{} : *meta_.typedef_names.begin();
+    const QualifiedCompound q_compound{compound_type,         array_size,        quals, typedef_name, meta_.is_vector,
+                                       meta_.is_forward_decl, meta_.is_recurring};
     composite_stack_.emplace_back(std::move(q_compound));
   }
 

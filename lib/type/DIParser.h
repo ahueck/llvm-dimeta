@@ -35,7 +35,7 @@ struct MetaData {
   Extent vtable_offset{0};
 
   std::string member_name;
-  std::string typedef_name;
+  std::vector<std::string> typedef_names;
 
   llvm::SmallVector<unsigned, 8> dwarf_tags;
   bool is_member{false};

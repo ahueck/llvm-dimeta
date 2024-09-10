@@ -82,7 +82,7 @@ bool DIEventVisitor::visitDerivedType(const llvm::DIDerivedType* derived_type) {
       break;
     }
     case DW_TAG_typedef:
-      current_.typedef_name = derived_type->getName();
+      current_.typedef_names.emplace_back(derived_type->getName());
       break;
     case DW_TAG_inheritance:
       current_.is_base_class = true;
