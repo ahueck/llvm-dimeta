@@ -72,8 +72,6 @@ bool DIEventVisitor::visitBasicType(const llvm::DIBasicType* basic_type) {
 bool DIEventVisitor::visitDerivedType(const llvm::DIDerivedType* derived_type) {
   using namespace llvm::dwarf;
 
-  LOG_FATAL(*derived_type)
-
   const auto tag = derived_type->getTag();
   switch (tag) {
     case DW_TAG_member: {
@@ -92,12 +90,10 @@ bool DIEventVisitor::visitDerivedType(const llvm::DIDerivedType* derived_type) {
       break;
     case DW_TAG_pointer_type:
       current_.dwarf_tags.emplace_back(tag);
+      // array of pointers:
       if (!current_.arrays.empty()) {
         current_.arrays.back().array_of_pointer = derived_type->getSizeInBits();
       }
-      // if (current_.array_size_bits > 0) {
-      //   current_.array_of_pointer = derived_type->getSizeInBits();
-      // }
       break;
     default:
       current_.dwarf_tags.emplace_back(tag);
@@ -135,6 +131,7 @@ bool DIEventVisitor::visitNode(const llvm::DINode* node) {
     current_.is_member     = true;
     events_.make_enum_member(current_);
   } else {
+    // TODO handle !DISubrange for arrays here
     LOG_DEBUG(*node)
   }
   return true;
