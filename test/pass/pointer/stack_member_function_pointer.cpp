@@ -16,5 +16,6 @@ void foo() {
 // !15 = !DISubroutineType(types: !16)
 // !16 = !{null, !17}
 // !17 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !18, size: 64, flags: DIFlagArtificial |
-// DIFlagObjectPointer) !18 = distinct !DICompositeType(tag: DW_TAG_class_type, name: "Domain", file: !8, line: 5, size:
+// DIFlagObjectPointer)
+//! 18 = distinct !DICompositeType(tag: DW_TAG_class_type, name: "Domain", file: !8, line: 5, size:
 // 8, flags: DIFlagFwdDecl, identifier: "_ZTS6Domain")

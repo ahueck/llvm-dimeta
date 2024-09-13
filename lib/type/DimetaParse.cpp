@@ -14,6 +14,10 @@
 
 #include "llvm/ADT/STLExtras.h"
 
+#include <iterator>
+#include <llvm/BinaryFormat/Dwarf.h>
+#include <llvm/IR/DebugInfoMetadata.h>
+#include <tuple>
 #include <type_traits>
 
 namespace dimeta::parser {
@@ -30,14 +34,6 @@ inline std::shared_ptr<BaseClass> make_base(T&& compound) {  //, BaseClass::VTab
   static_assert(std::is_same_v<typename std::remove_cv<T>::type, QualifiedCompound>, "Need a qualified compound.");
   return std::make_shared<BaseClass>(
       BaseClass{std::forward<T>(compound)});  //, std::forward<BaseClass::VTable>(vtable)});
-}
-
-template <typename T>
-inline QualType<T> make_qual_type(T&& type, ArraySize size = 0, Qualifiers qual = {Qualifier::kNone},
-                                  std::string_view typedef_name = "", bool is_vector = false,
-                                  bool is_foward_decl = false, bool recurring = false) {
-  static_assert(std::is_same_v<T, CompoundType> || std::is_same_v<T, FundamentalType>, "Wrong type.");
-  return QualType<T>{std::forward<T>(type), size, qual, typedef_name.data(), is_vector, is_foward_decl, recurring};
 }
 
 inline CompoundType::Tag dwarf2compound(const llvm::dwarf::Tag tag) {
@@ -89,16 +85,12 @@ inline Qualifier dwarf2qual(unsigned tag) {
       return Qualifier::kConst;
     case DW_TAG_ptr_to_member_type:
       return Qualifier::kPtrToMember;
+    case DW_TAG_array_type:
+      return Qualifier::kArray;
     default:
       return Qualifier::kNone;
   }
 };
-
-inline CompoundType make_compound(llvm::StringRef compound_name, llvm::StringRef compound_identifier,
-                                  llvm::dwarf::Tag tag, Extent size_in_bits) {
-  return CompoundType{std::string{compound_name}, std::string{compound_identifier}, dwarf2compound(tag),
-                      size_in_bits / 8};
-}
 
 inline Qualifiers make_qualifiers(const llvm::SmallVector<unsigned, 8>& tag_collector) {
   llvm::SmallVector<unsigned, 8> dwarf_quals;
@@ -118,33 +110,72 @@ inline Qualifiers make_qualifiers(const llvm::SmallVector<unsigned, 8>& tag_coll
 }
 
 template <typename Type>
-inline ArraySize make_array_size(const Type& type, Extent array_size_in_bits, const diparser::state::MetaData& meta_) {
-  const auto array_byte_size = (array_size_in_bits / 8);
-  if (meta_.array_of_pointer > 0) {
-    return array_byte_size / (meta_.array_of_pointer / 8);
-  } else if (type.extent > 0) {
-    return array_byte_size / type.extent;
+inline ArraySizeList make_array_sizes(const Type& type,
+                                      const std::vector<diparser::state::MetaData::ArrayData>& meta_array_data) {
+  ArraySizeList list;
+  if (meta_array_data.empty()) {
+    return list;
   }
-  return 0;
+  const auto array_size_calc = [&type](const diparser::state::MetaData::ArrayData& array, bool is_last) {
+    const auto array_byte_size = (array.array_size_bits / 8);
+    // is an array of pointers:
+    if (array.array_of_pointer > 0) {
+      return array_byte_size / (array.array_of_pointer / 8);
+    }
+    // is an array of the "type":
+    if (is_last && type.extent > 0) {
+      return array_byte_size / type.extent;
+    }
+    return array_byte_size;
+  };
+  for (auto it = meta_array_data.begin(); it != meta_array_data.end(); ++it) {
+    const auto& array          = *it;
+    const bool is_last_element = (it == std::prev(std::end(meta_array_data)));
+    const auto size            = array_size_calc(array, is_last_element);
+    list.emplace_back(size);
+    // LOG_FATAL("Array: " << size);
+  }
+
+  return list;
+}
+
+template <typename T>
+inline QualType<T> make_qual_type(const T& type, const diparser::state::MetaData& meta_) {
+  static_assert(std::is_same_v<T, CompoundType> || std::is_same_v<T, FundamentalType>, "Wrong type.");
+
+  const Qualifiers quals  = helper::make_qualifiers(meta_.dwarf_tags);
+  const auto array_size   = helper::make_array_sizes(type, meta_.arrays);
+  const auto typedef_name = meta_.typedef_names.empty() ? std::string{} : *meta_.typedef_names.begin();
+
+  return QualType<T>{type, array_size, quals, typedef_name, meta_.is_vector, meta_.is_forward_decl, meta_.is_recurring};
+}
+
+inline CompoundType make_compound(const llvm::DICompositeType* composite_type) {
+  auto compound =
+      [](llvm::StringRef compound_name, llvm::StringRef compound_identifier, llvm::dwarf::Tag tag,
+         Extent size_in_bits) {
+        return CompoundType{std::string{compound_name}, std::string{compound_identifier}, dwarf2compound(tag),
+                            size_in_bits / 8};
+      }(composite_type->getName(), composite_type->getIdentifier(),
+        static_cast<llvm::dwarf::Tag>(composite_type->getTag()), composite_type->getSizeInBits());
+  return compound;
+}
+
+inline QualifiedCompound make_qualified_compound(const diparser::state::MetaData& meta_) {
+  return make_qual_type<CompoundType>(make_compound(llvm::dyn_cast<llvm::DICompositeType>(meta_.type)), meta_);
 }
 
 QualifiedFundamental make_qualified_fundamental(const diparser::state::MetaData& meta_, std::string_view name,
                                                 FundamentalType::Encoding encoding) {
-  const auto size        = (meta_.type->getSizeInBits() / 8);
-  auto fundamental       = FundamentalType{std::string{name}, size, encoding};
-  const Qualifiers quals = helper::make_qualifiers(meta_.dwarf_tags);
-  const auto array_size  = helper::make_array_size(fundamental, meta_.array_size_bits, meta_);
-
-  auto qual_type_fundamental = helper::make_qual_type(std::move(fundamental), array_size, quals, meta_.typedef_name,
-                                                      meta_.is_vector, meta_.is_forward_decl, false);
-  return qual_type_fundamental;
+  const auto size  = (meta_.type->getSizeInBits() / 8);
+  auto fundamental = FundamentalType{std::string{name}, size, encoding};
+  return make_qual_type<FundamentalType>(fundamental, meta_);
 }
 
 }  // namespace helper
 
 class DITypeParser final : public diparser::DIParseEvents {
   using CompoundStack = llvm::SmallVector<QualifiedCompound, 4>;
-  using EnumBase      = std::optional<QualifiedFundamental>;
   DimetaParseResult result_;
   CompoundStack composite_stack_;
 
@@ -179,15 +210,6 @@ class DITypeParser final : public diparser::DIParseEvents {
       return;
     }
 
-    // Workaround for composite:
-    //    if (!composite_stack_.empty()) {
-    //      const auto& composite = composite_stack_.back().type;
-    //      if (composite.type == CompoundType::Tag::kEnum || composite.type == CompoundType::Tag::kEnumClass) {
-    //        emplace_member(std::move(qual_type_fundamental), meta_);
-    //        return;
-    //      }
-    //    }
-    //
     emplace_result<QualifiedFundamental>(std::move(qual_type_fundamental));
   }
 
@@ -227,25 +249,22 @@ class DITypeParser final : public diparser::DIParseEvents {
     emplace_fundamental(meta_, basic_type->getName(), helper::dwarf2encoding(basic_type->getEncoding()));
 
     auto& enum_type = composite_stack_.back().type;
-    if (enum_type.sizes.size() > 1)
+    if (enum_type.sizes.size() > 1) {
+      // emplace_fundamental adds enum value as "member" with offset in enum compound, but we want it to be "1" member
+      // only:
       enum_type.sizes.erase(std::next(std::begin(enum_type.sizes)), std::end(enum_type.sizes));
-    if (enum_type.offsets.size() > 1)
+    }
+    if (enum_type.offsets.size() > 1) {
+      // emplace_fundamental adds enum value as "member" with offset in enum compound, but we want it to be "1" member
+      // only:
       enum_type.offsets.erase(std::next(std::begin(enum_type.offsets)), std::end(enum_type.offsets));
+    }
   }
 
   void make_composite(const diparser::state::MetaData& meta_) override {
-    auto* composite_type = llvm::dyn_cast<llvm::DICompositeType>(meta_.type);
-    assert(composite_type != nullptr);
+    assert(llvm::dyn_cast<llvm::DICompositeType>(meta_.type) != nullptr);
 
-    auto compound_type =
-        helper::make_compound(composite_type->getName(), composite_type->getIdentifier(),
-                              static_cast<llvm::dwarf::Tag>(composite_type->getTag()), composite_type->getSizeInBits());
-    const Qualifiers quals = helper::make_qualifiers(meta_.dwarf_tags);
-    const auto array_size  = helper::make_array_size(compound_type, meta_.array_size_bits, meta_);
-
-    const QualifiedCompound q_compound{compound_type,      array_size,      quals,
-                                       meta_.typedef_name, meta_.is_vector, meta_.is_forward_decl,
-                                       meta_.is_recurring};
+    const QualifiedCompound q_compound = helper::make_qualified_compound(meta_);
     composite_stack_.emplace_back(std::move(q_compound));
   }
 

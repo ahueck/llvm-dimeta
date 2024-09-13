@@ -7,13 +7,13 @@ void test2() {
 }
 
 // CHECK: Fundamental:     { Name: float, Extent: 4, Encoding: float }
-// CHECK-NEXT: Array:           2
+// CHECK-NEXT: Array:           [ 2 ]
 
 void test() {
   float2 vf = (float2){1.0f, 2.0f};
 }
 
 // CHECK: Fundamental:     { Name: float, Extent: 4, Encoding: float }
-// CHECK-NEXT: Array:           2
-// CHECK-NEXT: Typedef:         float2
+// CHECK-NEXT: Array:           [ 2 ]
+// CHECK: Typedef:         float2
 // CHECK-NEXT: Vector:          true

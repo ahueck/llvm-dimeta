@@ -8,5 +8,5 @@ void foo(int n) {
 
 // CHECK:   Line:            6
 // CHECK: Fundamental:{{ *}}{ Name: int, Extent: 4, Encoding: signed_int }
-// CHECK-NEXT: Array:{{ *}}3
-// CHECK-NEXT: Qualifiers:{{ *}}[ ptr ]
+// CHECK-NEXT: Array:{{ *}}[ 3 ]
+// CHECK-NEXT: Qualifiers:{{ *}}[ ptr, array ]

@@ -34,7 +34,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: codespell-project/actions-codespell@master
+      - uses: codespell-project/actions-codespell@v2
 
   lit-suite:
     runs-on: ubuntu-22.04

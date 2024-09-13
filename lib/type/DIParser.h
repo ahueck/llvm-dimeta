@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace llvm {
 class DINode;
@@ -24,14 +25,18 @@ struct MetaData {
   Extent member_offset{0};
   Extent member_size{0};
 
-  Extent array_size_bits{0};
-  Extent array_of_pointer{0};
+  struct ArrayData {
+    Extent array_size_bits{0};
+    Extent array_of_pointer{0};
+  };
+
+  std::vector<ArrayData> arrays;
 
   Extent vtable_size{0};
   Extent vtable_offset{0};
 
   std::string member_name;
-  std::string typedef_name;
+  std::vector<std::string> typedef_names;
 
   llvm::SmallVector<unsigned, 8> dwarf_tags;
   bool is_member{false};

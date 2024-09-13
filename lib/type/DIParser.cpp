@@ -1,6 +1,7 @@
 #include "DIParser.h"
 
 #include "DIVisitor.h"
+#include "DimetaData.h"
 #include "support/Logger.h"
 
 #include <llvm/BinaryFormat/Dwarf.h>
@@ -81,7 +82,7 @@ bool DIEventVisitor::visitDerivedType(const llvm::DIDerivedType* derived_type) {
       break;
     }
     case DW_TAG_typedef:
-      current_.typedef_name = derived_type->getName();
+      current_.typedef_names.emplace_back(derived_type->getName());
       break;
     case DW_TAG_inheritance:
       current_.is_base_class = true;
@@ -89,8 +90,9 @@ bool DIEventVisitor::visitDerivedType(const llvm::DIDerivedType* derived_type) {
       break;
     case DW_TAG_pointer_type:
       current_.dwarf_tags.emplace_back(tag);
-      if (current_.array_size_bits > 0) {
-        current_.array_of_pointer = derived_type->getSizeInBits();
+      // array of pointers:
+      if (!current_.arrays.empty()) {
+        current_.arrays.back().array_of_pointer = derived_type->getSizeInBits();
       }
       break;
     default:
@@ -128,6 +130,9 @@ bool DIEventVisitor::visitNode(const llvm::DINode* node) {
     current_.type          = enum_data_.enum_base;
     current_.is_member     = true;
     events_.make_enum_member(current_);
+  } else {
+    // TODO handle !DISubrange for arrays here
+    LOG_DEBUG(*node)
   }
   return true;
 }
@@ -135,8 +140,10 @@ bool DIEventVisitor::visitNode(const llvm::DINode* node) {
 bool DIEventVisitor::visitCompositeType(const llvm::DICompositeType* composite_type) {
   // See, e.g., pass/c/stack_struct_array.c:
   if (composite_type->getTag() == llvm::dwarf::DW_TAG_array_type) {
-    current_.array_size_bits = composite_type->getSizeInBits();
-    current_.is_vector       = composite_type->isVector();
+    current_.dwarf_tags.emplace_back(llvm::dwarf::DW_TAG_array_type);
+    current_.arrays.emplace_back(state::MetaData::ArrayData{composite_type->getSizeInBits(), Extent{0}});
+    // current_.array_size_bits =composite_type->getSizeInBits();
+    current_.is_vector = composite_type->isVector();
     return true;
   }
 

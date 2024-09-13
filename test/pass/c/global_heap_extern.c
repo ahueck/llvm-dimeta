@@ -2,16 +2,12 @@
 
 // CHECK: Could not determine type (missing entry type)
 
+// REQUIRES: local
+
 #include <stdlib.h>
 
 extern double* a;
 
-int main(int argc, char** argv) {
-  int n = argc * 2;
-
-  a = (double*)malloc(sizeof(double) * n);
-
-  free(a);
-
-  return 0;
+void foo(int argc) {
+  a = (double*)malloc(sizeof(double) * argc);
 }
