@@ -247,7 +247,7 @@ struct llvm::yaml::MappingTraits<LocatedType> {
 };
 
 template <>
-struct SequenceTraits<QualifiedTypeList> {
+struct llvm::yaml::SequenceTraits<QualifiedTypeList> {
   static size_t size(IO& io, QualifiedTypeList& seq) {
     return seq.size();
   }
