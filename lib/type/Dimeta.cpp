@@ -756,4 +756,5 @@ std::optional<DimetaData> type_for(const llvm::GlobalVariable* gv) {
   return {};
 }
 
+
 }  // namespace dimeta

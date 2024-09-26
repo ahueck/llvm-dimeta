@@ -55,7 +55,7 @@ std::optional<LocatedType> located_type_for(const llvm::CallBase*);
 
 std::optional<LocatedType> located_type_for(const llvm::GlobalVariable*);
 
-std::optional<CompileUnitTypeList> compile_unit_types(const llvm::Module*);
+std::optional<CompileUnitTypeList> compile_unit_types(const llvm::Module* module);
 
 }  // namespace dimeta
 

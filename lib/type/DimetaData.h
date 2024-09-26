@@ -97,7 +97,7 @@ using QualifiedFundamental = QualType<FundamentalType>;
 using QualifiedCompound    = QualType<CompoundType>;
 using QualifiedType        = std::variant<QualifiedCompound, QualifiedFundamental>;
 using QualifiedTypeList    = std::vector<QualifiedType>;
-using CompileUnitTypes     = struct {
+struct CompileUnitTypes {
       std::string name;
       QualifiedTypeList types;
 };

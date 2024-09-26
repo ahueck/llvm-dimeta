@@ -8,7 +8,6 @@
 #include "DimetaData.h"
 #include "Util.h"
 
-#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/YAMLParser.h"
 #include "llvm/Support/YAMLTraits.h"

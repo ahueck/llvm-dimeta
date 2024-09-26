@@ -9,9 +9,10 @@
 #include <llvm/Support/Casting.h>
 
 namespace dimeta {
-std::optional<CompileUnitTypeList> compile_unit_types(const llvm::Module* m) {
+
+std::optional<CompileUnitTypeList> compile_unit_types(const llvm::Module* module) {
   CompileUnitTypeList list;
-  for (auto* compile_unit : m->debug_compile_units()) {
+  for (auto* compile_unit : module->debug_compile_units()) {
     CompileUnitTypes current_cu;
     current_cu.name = compile_unit->getFilename();
     for (auto* retained_type : compile_unit->getRetainedTypes()) {
@@ -27,4 +28,5 @@ std::optional<CompileUnitTypeList> compile_unit_types(const llvm::Module* m) {
   }
   return (list.empty() ? std::optional<CompileUnitTypeList>{} : list);
 }
+
 }  // namespace dimeta

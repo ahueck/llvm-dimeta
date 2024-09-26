@@ -2,6 +2,7 @@ set(LIB_SOURCES
   Dimeta.cpp
   DimetaIO.cpp
   Dimeta.h
+  DimetaIO.h
   DimetaParse.h
   TBAA.cpp
   DataflowAnalysis.cpp
