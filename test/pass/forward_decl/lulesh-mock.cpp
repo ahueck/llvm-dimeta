@@ -10,7 +10,7 @@ int main(int argc, char* argv[]) {
 
   return dom->getRanks();
 }
-
+// FIXME: Clang-12, unlike 14, generates full definition in dbg data:
 // CHECK:   Line:            7
 // CHECK-NEXT: Builtin:         false
 // CHECK-NEXT: Type:

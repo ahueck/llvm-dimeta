@@ -107,19 +107,19 @@ void foo() {
 // CHECK-NEXT:   - Name:            long_var
 // CHECK-NEXT:     Builtin:         true
 // CHECK-NEXT:     Type:
-// CHECK-NEXT:       Fundamental:     { Name: long, Extent: 8, Encoding: signed_int }
+// CHECK-NEXT:       Fundamental:     { Name: long{{( int)?}}, Extent: 8, Encoding: signed_int }
 // CHECK-NEXT:   - Name:            unsigned_long_var
 // CHECK-NEXT:     Builtin:         true
 // CHECK-NEXT:     Type:
-// CHECK-NEXT:       Fundamental:     { Name: unsigned long, Extent: 8, Encoding: unsigned_int }
+// CHECK-NEXT:       Fundamental:     { Name: {{(long unsigned int)|(unsigned long)}}, Extent: 8, Encoding: unsigned_int }
 // CHECK-NEXT:   - Name:            long_long_var
 // CHECK-NEXT:     Builtin:         true
 // CHECK-NEXT:     Type:
-// CHECK-NEXT:       Fundamental:     { Name: long long, Extent: 8, Encoding: signed_int }
+// CHECK-NEXT:       Fundamental:     { Name: long long{{( int)?}}, Extent: 8, Encoding: signed_int }
 // CHECK-NEXT:   - Name:            unsigned_long_long_var
 // CHECK-NEXT:     Builtin:         true
 // CHECK-NEXT:     Type:
-// CHECK-NEXT:       Fundamental:     { Name: unsigned long long, Extent: 8, Encoding: unsigned_int }
+// CHECK-NEXT:       Fundamental:     { Name: {{(long long unsigned int)|(unsigned long long)}}, Extent: 8, Encoding: unsigned_int }
 // CHECK-NEXT:   - Name:            int8_var
 // CHECK-NEXT:     Builtin:         true
 // CHECK-NEXT:     Type:
@@ -153,12 +153,12 @@ void foo() {
 // CHECK-NEXT:   - Name:            int64_var
 // CHECK-NEXT:     Builtin:         true
 // CHECK-NEXT:     Type:
-// CHECK-NEXT:       Fundamental:     { Name: long, Extent: 8, Encoding: signed_int }
+// CHECK-NEXT:       Fundamental:     { Name: long{{( int)?}}, Extent: 8, Encoding: signed_int }
 // CHECK-NEXT:       Typedef:         int64_t
 // CHECK-NEXT:   - Name:            uint64_var
 // CHECK-NEXT:     Builtin:         true
 // CHECK-NEXT:     Type:
-// CHECK-NEXT:       Fundamental:     { Name: unsigned long, Extent: 8, Encoding: unsigned_int }
+// CHECK-NEXT:       Fundamental:     { Name: {{(long unsigned int)|(unsigned long)}}, Extent: 8, Encoding: unsigned_int }
 // CHECK-NEXT:       Typedef:         uint64_t
 // CHECK-NEXT:   - Name:            float_var
 // CHECK-NEXT:     Builtin:         true
@@ -180,12 +180,12 @@ void foo() {
 // CHECK-NEXT:   - Name:            size_var
 // CHECK-NEXT:     Builtin:         true
 // CHECK-NEXT:     Type:
-// CHECK-NEXT:       Fundamental:     { Name: unsigned long, Extent: 8, Encoding: unsigned_int }
+// CHECK-NEXT:       Fundamental:     { Name: {{(long unsigned int)|(unsigned long)}}, Extent: 8, Encoding: unsigned_int }
 // CHECK-NEXT:       Typedef:         size_t
 // CHECK-NEXT:   - Name:            ptr_diff_var
 // CHECK-NEXT:     Builtin:         true
 // CHECK-NEXT:     Type:
-// CHECK-NEXT:       Fundamental:     { Name: long, Extent: 8, Encoding: signed_int }
+// CHECK-NEXT:       Fundamental:     { Name: long{{( int)?}}, Extent: 8, Encoding: signed_int }
 // CHECK-NEXT:       Typedef:         ptrdiff_t
 // CHECK-NEXT:   - Name:            max_align_var
 // CHECK-NEXT:     Builtin:         false
@@ -201,7 +201,7 @@ void foo() {
 // CHECK-NEXT:           - Name:            __clang_max_align_nonce1
 // CHECK-NEXT:             Builtin:         true
 // CHECK-NEXT:             Type:
-// CHECK-NEXT:               Fundamental:     { Name: long long, Extent: 8, Encoding: signed_int }
+// CHECK-NEXT:               Fundamental:     { Name: long long{{( int)?}}, Extent: 8, Encoding: signed_int }
 // CHECK-NEXT:           - Name:            __clang_max_align_nonce2
 // CHECK-NEXT:             Builtin:         true
 // CHECK-NEXT:             Type:

@@ -9,5 +9,5 @@ int foo() {
 
 // CHECK: Builtin:         true
 // CHECK-NEXT: Type:
-// CHECK-NEXT:   Fundamental:     { Name: long, Extent: 8, Encoding: signed_int }
+// CHECK-NEXT:   Fundamental:     { Name: long{{( int)?}}, Extent: 8, Encoding: signed_int }
 // CHECK-NEXT:   Qualifiers:      [ const ]

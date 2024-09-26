@@ -17,6 +17,7 @@
 #include <iterator>
 #include <llvm/BinaryFormat/Dwarf.h>
 #include <llvm/IR/DebugInfoMetadata.h>
+#include <numeric>  // for std::accumulate
 #include <tuple>
 #include <type_traits>
 
@@ -128,10 +129,16 @@ inline ArraySizeList make_array_sizes(const Type& type,
     }
     return array_byte_size;
   };
+  const auto array_size_calc_sub = [&type](const diparser::state::MetaData::ArrayData& array, bool is_last) {
+    // LOG_FATAL(array.subranges.size());
+    ArraySize sum =
+        std::accumulate(array.subranges.begin(), array.subranges.end(), ArraySize{1}, std::multiplies<ArraySize>());
+    return sum;
+  };
   for (auto it = meta_array_data.begin(); it != meta_array_data.end(); ++it) {
     const auto& array          = *it;
     const bool is_last_element = (it == std::prev(std::end(meta_array_data)));
-    const auto size            = array_size_calc(array, is_last_element);
+    const auto size            = array_size_calc_sub(array, is_last_element);
     list.emplace_back(size);
     // LOG_FATAL("Array: " << size);
   }

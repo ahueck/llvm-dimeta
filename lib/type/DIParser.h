@@ -28,6 +28,7 @@ struct MetaData {
   struct ArrayData {
     Extent array_size_bits{0};
     Extent array_of_pointer{0};
+    std::vector<Extent> subranges;
   };
 
   std::vector<ArrayData> arrays;

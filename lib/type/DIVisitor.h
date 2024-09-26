@@ -207,7 +207,8 @@ class DINodeVisitor {
     // see test "c/stack_struct_member_count.c":
     // this avoid endless recursion of structs, but array-types are special as they can "share" references to, e.g.,
     // basictypes
-    if (composite_type->getTag() != llvm::dwarf::DW_TAG_array_type) {
+    const bool is_not_array = composite_type->getTag() != llvm::dwarf::DW_TAG_array_type;
+    if (is_not_array) {
       visited_dinodes_.insert(composite_type);
     }
     get().enterCompositeType(composite_type);
@@ -217,13 +218,23 @@ class DINodeVisitor {
       return false;
     }
 
+    if (!is_not_array) {
+      // Parse subranges of arrays first, before determining type of array
+      for (auto* eleme : composite_type->getElements()) {
+        invoke_if_any(eleme);
+      }
+    }
+
     const bool ret_b = get().traverseType(composite_type->getBaseType());
     if (!ret_b) {
       return false;
     }
 
-    for (auto* eleme : composite_type->getElements()) {
-      invoke_if_any(eleme);
+    if (is_not_array) {
+      // For enum: Pass enum members last, traverseType determines the enum member types first
+      for (auto* eleme : composite_type->getElements()) {
+        invoke_if_any(eleme);
+      }
     }
 
     return true;
