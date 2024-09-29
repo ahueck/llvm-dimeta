@@ -1,6 +1,8 @@
 // RUN: %cpp-to-llvm %s | %apply-verifier | %filecheck %s
 // RUN: %cpp-to-llvm %S/lulesh-init-mock.cpp | %apply-verifier --yaml-retained | %filecheck %s --check-prefix=NOFWD
 
+// REQUIRES: !legacyllvm
+
 #include "lulesh-mock.h"
 
 int main(int argc, char* argv[]) {

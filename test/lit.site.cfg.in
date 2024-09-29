@@ -21,6 +21,8 @@ config.dimeta_test_pass = "$<TARGET_FILE_NAME:dimeta::TestPass>"
 
 config.heapallocsite = @DIMETA_HEAPALLOCSITE@
 
+config.llvm_version = @LLVM_VERSION_MAJOR@
+
 # Let the main config do the real work.
 config.loaded_site_config = True
 lit_config.load_config(config, "@DIMETA_PROJECT_DIR@/test/lit.cfg")
