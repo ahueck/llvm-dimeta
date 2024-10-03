@@ -135,6 +135,7 @@ inline ArraySizeList make_array_sizes(const Type& type,
         std::accumulate(array.subranges.begin(), array.subranges.end(), ArraySize{1}, std::multiplies<ArraySize>());
     return sum;
   };
+
   for (auto it = meta_array_data.begin(); it != meta_array_data.end(); ++it) {
     const auto& array          = *it;
     const bool is_last_element = (it == std::prev(std::end(meta_array_data)));
