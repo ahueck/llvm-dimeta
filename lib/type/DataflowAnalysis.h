@@ -11,11 +11,10 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Instructions.h"
 
-namespace dimeta {
-namespace dataflow {
+namespace dimeta::dataflow {
 struct ValuePath;
-}  // namespace dataflow
-}  // namespace dimeta
+}  // namespace dimeta::dataflow
+
 namespace llvm {
 class CallBase;
 }  // namespace llvm

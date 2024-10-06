@@ -18,9 +18,7 @@
 #include <functional>
 #include <optional>
 
-namespace dimeta {
-
-namespace visitor {
+namespace dimeta::visitor {
 
 template <typename SubClass>
 class DINodeVisitor {
@@ -266,8 +264,6 @@ class DINodeVisitor {
   }
 };
 
-}  // namespace visitor
-
-}  // namespace dimeta
+}  // namespace dimeta::visitor
 
 #endif  // DIMETA_DIVISITOR_H
