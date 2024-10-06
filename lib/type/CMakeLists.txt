@@ -11,9 +11,9 @@ set(LIB_SOURCES
   DimetaParse.cpp
   DIParser.cpp
   DIVisitorUtil.cpp
-  ModuleCUTypes.cpp
   DIFinder.cpp
   DIRootType.cpp
+  DITypeExtractor.cpp
 )
 
 add_library(dimeta_Types STATIC
