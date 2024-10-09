@@ -79,14 +79,14 @@ llvm::SmallVector<ValuePath, 4> type_for_heap_call(const llvm::CallBase* call) {
 
   for (const auto& anchor_path : malloc_forward_anchor_finder.anchors) {
     LOG_DEBUG("Current anchor path " << anchor_path)
-    if (auto* store_inst = dyn_cast<StoreInst>(anchor_path.value())) {
+    if (auto* store_inst = dyn_cast_or_null<StoreInst>(anchor_path.value().value_or(nullptr))) {
       if (store_inst->getPointerOperand() == call) {
         // see test heap_lulesh_domain_mock.cpp with opt -O3
         continue;
       }
       LOG_DEBUG("Backtracking from anchor " << *anchor_path.value())
       //      dbgs() << "Traverse " << anchor_path.value() << "\n";
-      value_traversal.traverse_custom(anchor_path.value(), malloc_anchor_backtrack, should_search,
+      value_traversal.traverse_custom(anchor_path.value().value(), malloc_anchor_backtrack, should_search,
                                       backtrack_search_dir_fn);
       for (const auto& backtrack_path : malloc_anchor_backtrack.types_path) {
         LOG_DEBUG("Found backtrack path " << backtrack_path)
@@ -123,7 +123,7 @@ auto MallocBacktrackSearch::operator()(const ValuePath& path) -> std::optional<V
 
   ValueRange result;
 
-  if (auto const_expr = llvm::dyn_cast<llvm::ConstantExpr>(path.value())) {
+  if (auto const_expr = llvm::dyn_cast_or_null<llvm::ConstantExpr>(path.value().value_or(nullptr))) {
     if (const_expr->getOpcode() == Instruction::GetElementPtr) {
       if (auto op = llvm::dyn_cast<llvm::GEPOperator>(const_expr)) {
         result.push_back(op->getPointerOperand());
@@ -140,7 +140,7 @@ auto MallocBacktrackSearch::operator()(const ValuePath& path) -> std::optional<V
     LOG_ERROR("Unsupported ConstantExpr for path generation " << *const_expr)
   }
 
-  const auto* inst = dyn_cast<Instruction>(path.value());
+  const auto* inst = dyn_cast_or_null<Instruction>(path.value().value_or(nullptr));
   if (inst == nullptr) {
     return {};
   }
@@ -185,7 +185,15 @@ auto MallocTargetMatcher::operator()(const ValuePath& path) -> decltype(DefUseCh
   // This builds the path (backtrack) from store to LHS target (argument, alloca etc.)
   using namespace llvm;
 
-  const auto* const value = path.value();
+  const auto current_value = path.value();
+
+  if(!current_value) {
+    LOG_DEBUG("Current value is null, skipping")
+    return DefUseChain::kSkip;
+  }
+
+  const auto* value = current_value.value();
+
   // Handle path to alloca -> can extract type
   if (const auto* inst = dyn_cast<Instruction>(value)) {
     if (isa<IntrinsicInst>(inst)) {
@@ -197,7 +205,7 @@ auto MallocTargetMatcher::operator()(const ValuePath& path) -> decltype(DefUseCh
     }
   }
 
-  if (isa<llvm::Argument>(value)) {
+  if (llvm::isa<llvm::Argument>(value)) {
     types_path.emplace_back(path);
     return DefUseChain::kSkip;
   }
@@ -235,12 +243,17 @@ auto MallocTargetMatcher::operator()(const ValuePath& path) -> decltype(DefUseCh
 auto MallocAnchorMatcher::operator()(const ValuePath& path) -> decltype(DefUseChain::kContinue) {
   using namespace llvm;
 
-  const auto* inst = dyn_cast<Instruction>(path.value());
+  const auto current_value = path.value();
+  if (!current_value) {
+    return DefUseChain::kSkip;
+  }
+
+  const auto* inst = dyn_cast<Instruction>(current_value.value());
   if (!inst) {
     return DefUseChain::kSkip;
   }
 
-  if (isa<IntrinsicInst>(inst)) {
+  if (llvm::isa<IntrinsicInst>(inst)) {
     return DefUseChain::kSkip;
   }
 

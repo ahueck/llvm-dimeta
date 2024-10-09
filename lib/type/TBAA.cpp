@@ -75,7 +75,12 @@ inline bool tbaa_operand_is_ptr(llvm::MDNode* type_node) {
 
 std::optional<llvm::DIType*> resolve_tbaa(llvm::DIType* root, const dataflow::ValuePath& path) {
   using namespace tbaa;
-  auto store_inst = llvm::dyn_cast<llvm::StoreInst>(path.start_value());
+  const auto start_node = path.start_value();
+  if (!start_node) {
+    return root;
+  }
+  
+  auto store_inst = llvm::dyn_cast<llvm::StoreInst>(start_node.value());
   if (!store_inst) {
     return root;
   }

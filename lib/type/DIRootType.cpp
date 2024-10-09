@@ -38,7 +38,7 @@ namespace helper {
 
 std::optional<llvm::DIType*> type_of_store_to_call(const dataflow::ValuePath& path, const llvm::Function* called_f,
                                                    const llvm::CallBase* call_inst) {
-  if (auto* leaf_value = path.start_value()) {
+  if (auto* leaf_value = path.start_value().value_or(nullptr); leaf_value != nullptr) {
     LOG_DEBUG("Looking at start value of path: " << *leaf_value)
     // Here we look at if we store to a function that returns pointer/ref,
     // indicating return of call is the type we need:
@@ -72,7 +72,7 @@ std::optional<llvm::DIType*> type_of_store_to_call(const dataflow::ValuePath& pa
 std::optional<llvm::DIType*> type_of_call_argument(const dataflow::ValuePath& path, const llvm::Function* called_f,
                                                    const llvm::CallBase* call_inst) {
   // Argument passed to current call:
-  const auto* arg_val = path.previous_value();
+  const auto* arg_val = path.previous_value().value_or(nullptr);
   assert(arg_val != nullptr && "Previous value should be argument to some function!");
   // Argument number:
   const auto* const arg_pos =
@@ -102,7 +102,10 @@ std::optional<llvm::DIType*> type_of_call_argument(const dataflow::ValuePath& pa
 
 std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
   using namespace llvm;
-  const auto* root_value = path.value();
+  const auto* root_value = path.value().value_or(nullptr);
+  if (!root_value) {
+    return {};
+  }
   LOG_DEBUG("Root value is " << *root_value)
 
   if (const auto* ret = dyn_cast<ReturnInst>(root_value)) {
