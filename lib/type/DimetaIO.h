@@ -1,12 +1,8 @@
-//  Dimeta library
-//  Copyright (c) 2022-2023 Alexander Hück
+//  llvm-dimeta library
+//  Copyright (c) 2022-2024 llvm-dimeta authors
 //  Distributed under the BSD 3-Clause license.
 //  (See accompanying file LICENSE)
 //  SPDX-License-Identifier: BSD-3-Clause
-//
-
-//
-// Created by ahueck on 28.02.23.
 //
 
 #ifndef DIMETA_DIMETAIO_H

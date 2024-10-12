@@ -1,4 +1,4 @@
-//  Dimeta library
+//  llvm-dimeta library
 //  Copyright (c) 2022-2024 Alexander Hück
 //  Distributed under the BSD 3-Clause license.
 //  (See accompanying file LICENSE)

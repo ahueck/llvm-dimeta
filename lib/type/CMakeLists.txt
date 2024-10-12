@@ -14,7 +14,7 @@ set(LIB_SOURCES
   DIFinder.cpp
   DIRootType.cpp
   DITypeExtractor.cpp
-)
+))
 
 add_library(dimeta_Types STATIC
   "${LIB_SOURCES}"

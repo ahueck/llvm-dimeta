@@ -1,4 +1,11 @@
 
+//  llvm-dimeta library
+//  Copyright (c) 2022-2024 llvm-dimeta authors
+//  Distributed under the BSD 3-Clause license.
+//  (See accompanying file LICENSE)
+//  SPDX-License-Identifier: BSD-3-Clause
+//
+
 #include "DIFinder.h"
 #include "DIRootType.h"
 #include "DataflowAnalysis.h"

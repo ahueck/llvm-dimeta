@@ -1,5 +1,5 @@
-//  Dimeta library
-//  Copyright (c) 2022-2023 Alexander Hück
+//  llvm-dimeta library
+//  Copyright (c) 2022-2024 llvm-dimeta authors
 //  Distributed under the BSD 3-Clause license.
 //  (See accompanying file LICENSE)
 //  SPDX-License-Identifier: BSD-3-Clause
@@ -20,8 +20,6 @@ class Instruction;
 }  // namespace llvm
 
 namespace dimeta::difinder {
-
-std::optional<const llvm::DbgVariableIntrinsic*> find_intrinsic(const llvm::Instruction* ai);
 
 std::optional<llvm::DILocalVariable*> find_local_variable(const llvm::Instruction* ai, bool bitcast_search = false);
 
