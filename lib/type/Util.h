@@ -69,6 +69,7 @@ struct OptionalBackInsertIterator {
  protected:
   Container* container_;
 };
+
 }  // namespace detail
 
 template <typename Container>
