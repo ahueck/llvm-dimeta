@@ -41,6 +41,14 @@ function dimeta_test_parse_cmd_line_fn() {
       fi
       shift
     ;;
+    -instcombine)
+      if [ "@NEW_PM_REQUIRED@" ==  "1" ]; then
+        dimeta_test_pass_wrapper_more_args+=" -passes=instcombine"    
+      else
+        dimeta_test_pass_wrapper_more_args+=" $1"    
+      fi
+      shift
+    ;;
     *) # preserve other arguments
       dimeta_test_pass_wrapper_more_args+=" $1"
       shift 1

@@ -124,6 +124,7 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
   }
 
   if (auto* ptr_type = llvm::dyn_cast<llvm::DIDerivedType>(type)) {
+    LOG_DEBUG(*ptr_type)
     if (auto* ptr_to_ptr = llvm::dyn_cast<llvm::DIDerivedType>(ptr_type->getBaseType())) {
       // Pointer to pointer by default remove one level for RHS assignment type w.r.t. store:
       const auto is_ptr_to_ptr = ptr_to_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type;
@@ -198,6 +199,8 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dat
     LOG_DEBUG("Reset based on store")
     return reset::reset_store_related_basic(path, type.value(), store_inst, gep2member);
   }
+
+  LOG_DEBUG(">> skipping");
 
   return type;
 }

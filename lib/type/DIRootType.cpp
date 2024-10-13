@@ -10,6 +10,8 @@
 #include "DIFinder.h"
 #include "DataflowAnalysis.h"
 #include "DefUseAnalysis.h"
+#include "Dimeta.h"
+#include "MemoryOps.h"
 #include "Util.h"
 #include "support/Logger.h"
 
@@ -151,6 +153,19 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
     if (called_f == nullptr) {
       LOG_DEBUG("Called function not found for call base " << *call_inst)
       return {};
+    }
+
+    dimeta::memory::MemOps ops;
+    if (ops.allocKind(called_f->getName())) {
+      LOG_DEBUG("Root is malloc-like call")
+      // TODO ask for type of newlike call here!
+      auto extracted_type = type_for(call_inst);
+      if (!extracted_type) {
+        LOG_DEBUG("Failed to collect DI data for " << called_f->getName())
+        return {};
+      }
+
+      return extracted_type->entry_type;
     }
 
     auto store_function_type = helper::type_of_store_to_call(path, called_f, call_inst);

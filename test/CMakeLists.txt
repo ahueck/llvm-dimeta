@@ -80,7 +80,9 @@ function(dimeta_add_lit_target)
     endif()
 
     if(NOT EXISTS ${SUITE_PATH})
-      message(WARNING "Could not find suitable lit test target at ${SUITE_PATH}")
+      if(NOT ${SUITE_PATH} MATCHES "staging")
+        message(WARNING "Could not find suitable lit test target at ${SUITE_PATH}")
+      endif()
       continue()
     endif()
 
@@ -101,6 +103,7 @@ set(DIMETA_SUITES
   pass
   pass/gep
   pass/pointer
+  pass/staging
 )
 
 dimeta_add_lit_target(SUITES ${DIMETA_SUITES})
