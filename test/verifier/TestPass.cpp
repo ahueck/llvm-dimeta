@@ -190,7 +190,7 @@ class TestPass : public llvm::PassInfoMixin<TestPass> {
     }
 
     auto compile_unit_list = dimeta::compile_unit_types(&module).value_or(CompileUnitTypeList{});
-    if (util::variable_is_toggled(cl_dimeta_test_print_yaml_retained, "DIMETA_TEST_STACK_YAML_RETAINED")) {
+    if (util::variable_is_toggled(cl_dimeta_test_print_yaml_retained, "DIMETA_TEST_YAML_RETAINED")) {
       std::string initial_oss_string;
       llvm::raw_string_ostream initial_oss(initial_oss_string);
       io::emit(initial_oss, compile_unit_list);
