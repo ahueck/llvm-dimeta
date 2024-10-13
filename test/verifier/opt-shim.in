@@ -1,0 +1,58 @@
+function dimeta_test_parse_cmd_line_fn() {
+  while (("$#")); do
+    case "$1" in
+    -yaml)
+      if [ "@NEW_PM_REQUIRED@" ==  "1" ]; then
+        export DIMETA_TEST_YAML="1"
+      else
+        dimeta_test_pass_wrapper_more_args+=" $1"    
+      fi
+      shift
+    ;;
+    -yaml-retained)
+      if [ "@NEW_PM_REQUIRED@" ==  "1" ]; then
+        export DIMETA_TEST_YAML_RETAINED="1"
+      else
+        dimeta_test_pass_wrapper_more_args+=" $1"    
+      fi
+      shift
+    ;;
+    -dump-tree)
+      if [ "@NEW_PM_REQUIRED@" ==  "1" ]; then
+        export DIMETA_TEST_DUMP_TREE="1"
+      else
+        dimeta_test_pass_wrapper_more_args+=" $1"    
+      fi
+      shift
+    ;;
+    -stack-pointer-skip)
+      if [ "@NEW_PM_REQUIRED@" ==  "1" ]; then
+        export DIMETA_TEST_STACK_POINTER_SKIP="1"
+      else
+        dimeta_test_pass_wrapper_more_args+=" $1"    
+      fi
+      shift
+    ;;
+    -dump)
+      if [ "@NEW_PM_REQUIRED@" ==  "1" ]; then
+        export DIMETA_TEST_DUMP="1"
+      else
+        dimeta_test_pass_wrapper_more_args+=" $1"    
+      fi
+      shift
+    ;;
+    *) # preserve other arguments
+      dimeta_test_pass_wrapper_more_args+=" $1"
+      shift 1
+      ;;
+    esac
+  done
+}
+
+function dimeta_test_main_opt_fn() {
+    readonly dimeta_opt_tool="@DIMETA_OPT_EXEC@"
+    dimeta_test_parse_cmd_line_fn "$@"
+    $dimeta_opt_tool ${dimeta_test_pass_wrapper_more_args}
+}
+
+dimeta_test_main_opt_fn "$@"

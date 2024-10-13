@@ -5,7 +5,7 @@ import sys
 # LLVM toolchain:
 config.clang_cpp = "@DIMETA_CLANGCXX_EXEC@"
 config.clang = "@DIMETA_CLANG_EXEC@"
-config.opt = "@DIMETA_OPT_EXEC@"
+config.opt = "@DIMETA_OPT_SHIM@"
 config.opt_args = "@DIMETA_OPT_ARGS@"
 config.llc = "@DIMETA_LLC_EXEC@"
 config.filecheck = "@DIMETA_FILECHECK_EXEC@"

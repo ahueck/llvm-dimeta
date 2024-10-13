@@ -35,8 +35,10 @@ function(configure_dimeta_lit_site_cfg input output)
   pythonize_bool(DIMETA_USE_HEAPALLOCSITE DIMETA_HEAPALLOCSITE)
 
   if(${LLVM_VERSION_MAJOR} VERSION_GREATER_EQUAL "13")
-    set(DIMETA_OPT_ARGS "-enable-new-pm=0")
+    #set(DIMETA_OPT_ARGS "-enable-new-pm=0")
   endif()
+
+  set(DIMETA_OPT_SHIM ${CMAKE_BINARY_DIR}/test/verifier/opt-shim.sh)
 
   dimeta_target_generate_file(${input} ${output})
 endfunction()

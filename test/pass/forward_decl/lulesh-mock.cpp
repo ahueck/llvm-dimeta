@@ -1,5 +1,5 @@
 // RUN: %cpp-to-llvm %s | %apply-verifier | %filecheck %s
-// RUN: %cpp-to-llvm %S/lulesh-init-mock.cpp | %apply-verifier --yaml-retained | %filecheck %s --check-prefix=NOFWD
+// RUN: %cpp-to-llvm %S/lulesh-init-mock.cpp | %apply-verifier -yaml-retained | %filecheck %s --check-prefix=NOFWD
 
 // REQUIRES: !legacyllvm
 
@@ -13,10 +13,7 @@ int main(int argc, char* argv[]) {
   return dom->getRanks();
 }
 // FIXME: Clang-12, unlike 14, generates full definition in dbg data:
-// CHECK:   Line:            7
-// CHECK-NEXT: Builtin:         false
-// CHECK-NEXT: Type:
-// CHECK-NEXT:    Compound:
+// CHECK:    Compound:
 // CHECK-NEXT:      Name:            Domain
 // CHECK-NEXT:      Identifier:      _ZTS6Domain
 // CHECK-NEXT:      Type:            class

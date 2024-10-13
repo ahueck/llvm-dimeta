@@ -230,10 +230,17 @@ GepIndexToType extract_gep_deref_type(llvm::DIType* root, const llvm::GEPOperato
   }
 
   const auto find_composite = [](llvm::DIType* root) {
+    assert(root != nullptr && "Root type should be non-null");
     llvm::DIType* type = root;
     while (llvm::isa<llvm::DIDerivedType>(type)) {
+      LOG_FATAL(*type)
       const auto ditype = llvm::dyn_cast<llvm::DIDerivedType>(type);
-      type              = ditype->getBaseType();
+      auto next_type    = ditype->getBaseType();
+      if (next_type != nullptr) {
+        type = next_type;
+      } else {
+        break;
+      }
     }
     return type;
   };
