@@ -160,6 +160,10 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
   }
 
   if (auto store_to_composite = llvm::dyn_cast<llvm::DICompositeType>(type)) {
+    if(store_to_composite->getElements().empty() || store_to_composite->isForwardDecl()){
+      LOG_ERROR("Composite needs member to store to, is forward declared: " << (store_to_composite->isForwardDecl()))
+      return type;
+    }
     assert(!store_to_composite->getElements().empty() && "Composite needs member to store to");
     auto first_member = *store_to_composite->getElements().begin();
     if (auto derived_type_member = llvm::dyn_cast<llvm::DIDerivedType>(first_member)) {

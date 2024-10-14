@@ -194,8 +194,16 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
 
   if (const auto* argument = llvm::dyn_cast<llvm::Argument>(root_value)) {
     if (auto* subprogram = argument->getParent()->getSubprogram(); subprogram != nullptr) {
-      const auto arg_pos    = argument->getArgNo() + 1;
       const auto type_array = subprogram->getType()->getTypeArray();
+      const auto arg_pos    = [&](const auto arg_num) {
+        if (argument->hasStructRetAttr()) {
+          return arg_num; // see test cpp/heap_lhs_function_opt_nofwd.cpp
+        }
+        return arg_num + 1;
+      }(argument->getArgNo());
+
+      LOG_FATAL(*subprogram << " " << *argument)
+      LOG_FATAL("Arg data: " << argument->getArgNo() << " Type num operands: " << type_array->getNumOperands())
       assert(arg_pos < type_array.size() && "Arg position greater than DI type array of subprogram!");
       return type_array[arg_pos];
     }
