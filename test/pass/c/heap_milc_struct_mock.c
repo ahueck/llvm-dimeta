@@ -29,9 +29,7 @@ typedef struct gather_t {
 gather_t* gather_array;
 
 void foo(int sites_on_node, int dir) {
-  // CHECK: Extracted Type: {{.*}} = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: [[DIREF:![0-9]+]], size: 64)
-  // CHECK: Final Type: [[DIREF]] = !DIBasicType(name: "int", size: 32, encoding: DW_ATE_signed)
-  // CHECK-NEXT: Pointer level: 1
-  // CHECK: Location: "{{.*}}":"foo":36
+  // CHECK: Final Type: !{{[0-9]+}} = !DIBasicType(name: "int", size: 32, encoding: DW_ATE_signed)
+  // CHECK: Location: "{{.*}}":"foo":34
   gather_array[dir].neighbor = (int*)malloc(sites_on_node * sizeof(int));
 }

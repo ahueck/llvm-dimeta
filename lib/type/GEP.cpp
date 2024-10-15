@@ -7,6 +7,7 @@
 
 #include "GEP.h"
 
+#include "DIVisitorUtil.h"
 #include "support/Logger.h"
 
 #include "llvm/ADT/APInt.h"
@@ -135,25 +136,26 @@ GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, 
     }
   }
 
+  const auto find_non_derived_type = [](llvm::DIType* root) {
+    llvm::DIType* type = root;
+    while (type && llvm::isa<llvm::DIDerivedType>(type)) {
+      auto ditype = llvm::dyn_cast<llvm::DIDerivedType>(type);
+      type        = ditype->getBaseType();
+    }
+    return type;
+  };
+
   if (gep_indices.skipped_first() && gep_indices.indices_[0] != 0) {
     // This assumes that a single (and only single) first 0 skips through to the first element with more than one
     // member: struct A { struct B { struct C { int, int } } } -> would skip to "struct C" for gep [0 1]
     LOG_DEBUG("Skip single member nested of: " << log::ditype_str(composite_type))
-    const auto find_composite = [](llvm::DIType* root) {
-      llvm::DIType* type = root;
-      while (type && llvm::isa<llvm::DIDerivedType>(type)) {
-        auto ditype = llvm::dyn_cast<llvm::DIDerivedType>(type);
-        type        = ditype->getBaseType();
-      }
-      return type;
-    };
 
     const auto next_di_member = [&](llvm::DICompositeType* base) -> std::optional<llvm::DIType*> {
       if (base->getElements().empty()) {
         return {};
       }
       auto node = *base->getElements().begin();
-      return find_composite(llvm::dyn_cast<llvm::DIType>(node));
+      return find_non_derived_type(llvm::dyn_cast<llvm::DIType>(node));
     };
     while (composite_type->getElements().size() == 1) {
       auto next_di = next_di_member(composite_type);
@@ -164,6 +166,8 @@ GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, 
     }
     LOG_DEBUG("Result of skip: " << log::ditype_str(composite_type))
   }
+
+  // visitor::util::print_dinode(composite_type, llvm::outs());
 
   const auto has_next_idx = [&gep_indices](size_t pos) { return pos + 1 < gep_indices.size(); };
   LOG_DEBUG("Iterate over gep: " << gep_indices);
@@ -177,8 +181,17 @@ GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, 
     LOG_DEBUG(" element: " << log::ditype_str(element))
 
     if (auto derived_type_member = llvm::dyn_cast<llvm::DIDerivedType>(element)) {
-      assert(derived_type_member->getTag() == llvm::dwarf::DW_TAG_member && "Expected member tag");
-      auto member_type = derived_type_member->getBaseType();
+      auto member_type = [&find_non_derived_type](auto type) -> llvm::DIType* {
+        // auto derived = llvm::dyn_cast<llvm::DIDerivedType>(type);
+        // if (derived && derived->getTag() == llvm::dwarf::DW_TAG_inheritance) {
+        //   return derived->getBaseType();
+        // }
+
+        return find_non_derived_type(type);
+        // return type;
+      }(derived_type_member->getBaseType());
+
+      LOG_DEBUG("Looking at " << log::ditype_str(member_type))
 
       if (auto composite_member_type = llvm::dyn_cast<llvm::DICompositeType>(member_type)) {
         if (composite_member_type->getTag() == llvm::dwarf::DW_TAG_class_type ||
@@ -233,7 +246,6 @@ GepIndexToType extract_gep_deref_type(llvm::DIType* root, const llvm::GEPOperato
     assert(root != nullptr && "Root type should be non-null");
     llvm::DIType* type = root;
     while (llvm::isa<llvm::DIDerivedType>(type)) {
-      LOG_FATAL(*type)
       const auto ditype = llvm::dyn_cast<llvm::DIDerivedType>(type);
       auto next_type    = ditype->getBaseType();
       if (next_type != nullptr) {
@@ -247,6 +259,11 @@ GepIndexToType extract_gep_deref_type(llvm::DIType* root, const llvm::GEPOperato
 
   const auto composite_type = llvm::dyn_cast<llvm::DICompositeType>(find_composite(root));
   assert(composite_type != nullptr && "Root should be a struct-like type.");
+
+  if (composite_type->isForwardDecl()) {
+    LOG_DEBUG("Forward declared composite type cannot be resolved " << log::ditype_str(composite_type))
+    return GepIndexToType{};
+  }
 
   LOG_DEBUG("Gep to DI composite: " << log::ditype_str(composite_type))
   bool skip_first{true};

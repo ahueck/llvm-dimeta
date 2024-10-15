@@ -157,6 +157,7 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
 
     dimeta::memory::MemOps ops;
     if (ops.allocKind(called_f->getName())) {
+      // see test c/heap_tachyon_mock_images.c
       LOG_DEBUG("Root is malloc-like call")
       // TODO ask for type of newlike call here!
       auto extracted_type = type_for(call_inst);
