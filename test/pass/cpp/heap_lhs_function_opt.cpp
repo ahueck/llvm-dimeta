@@ -1,9 +1,12 @@
 // RUN: %cpp-to-llvm %s | %opt -O1 -S | %apply-verifier 2>&1 | %filecheck %s
 
 // REQUIRES: !18 && !14
+// For the above compilers, the vector is only forward declared.
 
 #include <cstdlib>
 #include <vector>
+
+std::vector<int*> ar;
 
 int*& access(std::vector<int*>& ar) {
   return ar[1];

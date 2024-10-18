@@ -40,6 +40,14 @@ namespace util {
 inline bool is_byte_indexing(const llvm::GEPOperator* gep) {
   return gep->getSourceElementType()->isIntegerTy(8);
 }
+
+inline bool is_first_non_zero_indexing(const llvm::GEPOperator* gep) {
+  if (auto const_idx = llvm::dyn_cast<llvm::ConstantInt>((*gep->idx_begin()).get())) {
+    const int64_t index = const_idx->getValue().getSExtValue();
+    return index > 0;
+  }
+  return false;
+}
 }  // namespace util
 
 struct GepIndices {
@@ -83,6 +91,7 @@ GepIndices GepIndices::create(const llvm::GEPOperator* inst, bool skip_first) {
 #else
   for (const auto& index : llvm::make_range(inst->idx_begin(), inst->idx_end())) {
 #endif
+    LOG_DEBUG("Iter " << skip_first << " with " << *index.get())
     if (skip_first) {
       skip_first = false;
       continue;
@@ -177,6 +186,22 @@ GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, 
     assert(elems.size() > index);
 
     auto element = elems[index];
+    if (!llvm::isa<llvm::DIDerivedType>(element)) {
+      LOG_DEBUG("Index shows to non-derived type: " << *element)
+      // TODO, if only one index, and this triggers, go first element all the way down?
+      // maybe also check for class type (not structs etc.)
+    }
+
+    // if (index == 0 && elems.size() > 1) {
+    //   // std::exit(1);
+    //   LOG_DEBUG("Check zero-size pattern")
+    //   auto next_element             = elems[index + 1];
+    //   auto derived_type_member      = llvm::dyn_cast<llvm::DIDerivedType>(element);
+    //   auto next_derived_type_member = llvm::dyn_cast<llvm::DIDerivedType>(next_element);
+    //   if (derived_type_member->getOffsetInBits() == next_derived_type_member->getOffsetInBits()) {
+    //     LOG_DEBUG(*derived_type_member << " same offset as " << *next_derived_type_member)
+    //   }
+    // }
 
     LOG_DEBUG(" element: " << log::ditype_str(element))
 
@@ -229,7 +254,9 @@ GepIndexToType extract_gep_deref_type(llvm::DIType* root, const llvm::GEPOperato
     //      assert((type_behind_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type) && "Expected a DI pointer type.");
     //      return type_behind_ptr->getBaseType();
     //    }
-    return GepIndexToType{root};
+    if (!llvm::isa<llvm::DICompositeType>(root)) {
+      return GepIndexToType{root};
+    }
   }
 
   if (gep_src->isArrayTy()) {
@@ -262,15 +289,17 @@ GepIndexToType extract_gep_deref_type(llvm::DIType* root, const llvm::GEPOperato
 
   if (composite_type->isForwardDecl()) {
     LOG_DEBUG("Forward declared composite type cannot be resolved " << log::ditype_str(composite_type))
+    // TODO make some error code for such a case
     return GepIndexToType{};
   }
 
   LOG_DEBUG("Gep to DI composite: " << log::ditype_str(composite_type))
-  bool skip_first{true};
+  bool skip_first{!util::is_first_non_zero_indexing(&inst)};
   if (util::is_byte_indexing(&inst)) {
     LOG_DEBUG("Access based on i8 ptr, assuming byte offsetting into composite member")
     skip_first = false;  // We do not skip over byte index values (likely != 0)
   }
+
   auto accessed_ditype = resolve_gep_index_to_type(composite_type, GepIndices::create(&inst, skip_first));
 
   return accessed_ditype;
