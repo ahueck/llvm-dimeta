@@ -175,6 +175,15 @@ class TestPass : public llvm::PassInfoMixin<TestPass> {
     this->current_module = &module;
     log::LogContext::get().setModule(&module);
 
+    const auto serialize_yaml = [&](const auto& located_type) {
+      bool result{false};
+      if (located_type) {
+        result = serialization_roundtrip(located_type.value(),
+                                         util::variable_is_toggled(cl_dimeta_test_print_yaml, "DIMETA_TEST_YAML"));
+      }
+      LOG_MSG("Yaml Verifier Global: " << static_cast<int>(result));
+    };
+
     for (auto& global : module.globals()) {
       auto global_meta = type_for(&global);
       if (global_meta) {
@@ -183,6 +192,7 @@ class TestPass : public llvm::PassInfoMixin<TestPass> {
         auto located_type = located_type_for(&global);
         if (located_type) {
           LOG_DEBUG(util::print_loc(located_type->location));
+          serialize_yaml(located_type);
         } else {
           LOG_ERROR("No located dimeta type for global")
         }
@@ -213,13 +223,6 @@ class TestPass : public llvm::PassInfoMixin<TestPass> {
     }
     const auto f_name     = try_demangle(func);
     const auto f_name_ref = llvm::StringRef(f_name);
-#if LLVM_VERSION_MAJOR >= 18
-    if (f_name_ref.starts_with("std::") || f_name_ref.starts_with("__")) {
-#else
-    if (f_name_ref.startswith("std::") || f_name_ref.startswith("__")) {
-#endif
-      return;
-    }
 
     LOG_MSG("\nFunction: " << f_name << ":");
 

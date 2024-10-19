@@ -160,6 +160,8 @@ std::optional<DimetaData> type_for(const llvm::AllocaInst* ai) {
     return meta;
   }
 
+  LOG_DEBUG("No local_variable for " << *ai)
+
   return {};
 }
 

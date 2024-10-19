@@ -187,21 +187,26 @@ GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, 
 
     auto element = elems[index];
     if (!llvm::isa<llvm::DIDerivedType>(element)) {
-      LOG_DEBUG("Index shows to non-derived type: " << *element)
+      LOG_DEBUG("Index shows to non-derived type: " << log::ditype_str(element))
       // TODO, if only one index, and this triggers, go first element all the way down?
       // maybe also check for class type (not structs etc.)
     }
 
-    // if (index == 0 && elems.size() > 1) {
-    //   // std::exit(1);
-    //   LOG_DEBUG("Check zero-size pattern")
-    //   auto next_element             = elems[index + 1];
-    //   auto derived_type_member      = llvm::dyn_cast<llvm::DIDerivedType>(element);
-    //   auto next_derived_type_member = llvm::dyn_cast<llvm::DIDerivedType>(next_element);
-    //   if (derived_type_member->getOffsetInBits() == next_derived_type_member->getOffsetInBits()) {
-    //     LOG_DEBUG(*derived_type_member << " same offset as " << *next_derived_type_member)
-    //   }
-    // }
+    if (index == 0 && elems.size() > 1) {
+      // std::exit(1);
+      LOG_DEBUG("Check zero-size pattern")
+      auto next_element             = elems[index + 1];
+      auto derived_type_member      = llvm::dyn_cast<llvm::DIDerivedType>(element);
+      auto next_derived_type_member = llvm::dyn_cast<llvm::DIDerivedType>(next_element);
+      if (derived_type_member != nullptr && next_derived_type_member != nullptr) {
+        LOG_DEBUG("Non-null elements")
+        if (derived_type_member->getOffsetInBits() == next_derived_type_member->getOffsetInBits()) {
+          LOG_DEBUG("Same offset detected: " << log::ditype_str(derived_type_member) << " and "
+                                             << log::ditype_str(next_derived_type_member))
+          element = next_element;
+        }
+      }
+    }
 
     LOG_DEBUG(" element: " << log::ditype_str(element))
 
@@ -254,9 +259,9 @@ GepIndexToType extract_gep_deref_type(llvm::DIType* root, const llvm::GEPOperato
     //      assert((type_behind_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type) && "Expected a DI pointer type.");
     //      return type_behind_ptr->getBaseType();
     //    }
-    if (!llvm::isa<llvm::DICompositeType>(root)) {
-      return GepIndexToType{root};
-    }
+    // if (!llvm::isa<llvm::DICompositeType>(root)) {
+    return GepIndexToType{root};
+    // }
   }
 
   if (gep_src->isArrayTy()) {

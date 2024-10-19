@@ -85,7 +85,7 @@ bool store_to(const llvm::StoreInst* store) {
   return get_store_to<T>(store).has_value();
 }
 
-std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath&, llvm::DIType* type_to_reset,
+std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath& path, llvm::DIType* type_to_reset,
                                                       const llvm::LoadInst* load) {
   auto type = type_to_reset;
 
@@ -98,6 +98,10 @@ std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath&
     auto base_type = ptr_to_type->getBaseType();
     if (auto* composite = llvm::dyn_cast<llvm::DICompositeType>(base_type)) {
       LOG_DEBUG("Have ptr to composite " << log::ditype_str(composite))
+      auto type_tbaa = tbaa::resolve_tbaa(base_type, *load);
+      if(type_tbaa){
+        return type_tbaa;
+      }
     }
     return base_type;
   }
@@ -124,7 +128,7 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
   }
 
   if (auto* ptr_type = llvm::dyn_cast<llvm::DIDerivedType>(type)) {
-    LOG_DEBUG(*ptr_type)
+    // LOG_DEBUG(*ptr_type)
     if (auto* ptr_to_ptr = llvm::dyn_cast<llvm::DIDerivedType>(ptr_type->getBaseType())) {
       // Pointer to pointer by default remove one level for RHS assignment type w.r.t. store:
       const auto is_ptr_to_ptr = ptr_to_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type;
