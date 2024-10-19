@@ -120,6 +120,20 @@ inline llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const GepIndices& in
   return os;
 }
 
+llvm::DINode* select_non_zero_element(llvm::DINode* element, llvm::DINode* next_element) {
+  auto derived_type_member      = llvm::dyn_cast<llvm::DIDerivedType>(element);
+  auto next_derived_type_member = llvm::dyn_cast<llvm::DIDerivedType>(next_element);
+  if (derived_type_member != nullptr && next_derived_type_member != nullptr) {
+    LOG_DEBUG("Non-null elements")
+    if (derived_type_member->getOffsetInBits() == next_derived_type_member->getOffsetInBits()) {
+      LOG_DEBUG("Same offset detected: " << log::ditype_str(derived_type_member) << " and "
+                                         << log::ditype_str(next_derived_type_member))
+      return next_element;
+    }
+  }
+  return element;
+}
+
 GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, const GepIndices& gep_indices) {
   if (gep_indices.empty()) {
     // this triggers for composite (-array) access without constant index, see "heap_milc_struct_mock.c":
@@ -160,15 +174,40 @@ GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, 
     LOG_DEBUG("Skip single member nested of: " << log::ditype_str(composite_type))
 
     const auto next_di_member = [&](llvm::DICompositeType* base) -> std::optional<llvm::DIType*> {
-      if (base->getElements().empty()) {
+      auto elems = base->getElements();
+      if (elems.empty()) {
         return {};
       }
-      auto node = *base->getElements().begin();
-      return find_non_derived_type(llvm::dyn_cast<llvm::DIType>(node));
+      auto element = *base->getElements().begin();
+      if (elems.size() > 1) {
+        auto next_element = *(std::next(base->getElements().begin()));
+        element           = select_non_zero_element(element, next_element);
+      }
+
+      return find_non_derived_type(llvm::dyn_cast<llvm::DIType>(element));
     };
-    while (composite_type->getElements().size() == 1) {
+
+    const auto iterate_next = [](auto* composite_type) {
+      auto elem_count = llvm::count_if(composite_type->getElements(),
+                                       [](const auto& elem) { return !llvm::isa<llvm::DISubprogram>(elem); });
+
+      if (elem_count > 1) {
+        auto element = *composite_type->getElements().begin();
+        auto next_element = *(std::next(composite_type->getElements().begin()));
+        element           = select_non_zero_element(element, next_element);
+        return element == next_element;
+      }
+
+      return elem_count == 1;
+    };
+
+    while (iterate_next(composite_type)) {
       auto next_di = next_di_member(composite_type);
+      LOG_DEBUG(log::ditype_str(next_di.value()))
       if (!next_di) {
+        break;
+      }
+      if (!llvm::isa<llvm::DICompositeType>(next_di.value())) {
         break;
       }
       composite_type = llvm::dyn_cast<llvm::DICompositeType>(next_di.value());
@@ -193,19 +232,9 @@ GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, 
     }
 
     if (index == 0 && elems.size() > 1) {
-      // std::exit(1);
       LOG_DEBUG("Check zero-size pattern")
-      auto next_element             = elems[index + 1];
-      auto derived_type_member      = llvm::dyn_cast<llvm::DIDerivedType>(element);
-      auto next_derived_type_member = llvm::dyn_cast<llvm::DIDerivedType>(next_element);
-      if (derived_type_member != nullptr && next_derived_type_member != nullptr) {
-        LOG_DEBUG("Non-null elements")
-        if (derived_type_member->getOffsetInBits() == next_derived_type_member->getOffsetInBits()) {
-          LOG_DEBUG("Same offset detected: " << log::ditype_str(derived_type_member) << " and "
-                                             << log::ditype_str(next_derived_type_member))
-          element = next_element;
-        }
-      }
+      auto next_element = elems[index + 1];
+      element           = select_non_zero_element(element, next_element);
     }
 
     LOG_DEBUG(" element: " << log::ditype_str(element))

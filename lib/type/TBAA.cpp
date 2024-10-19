@@ -258,7 +258,7 @@ std::optional<llvm::DIType*> tbaa_resolver(llvm::DIType* root, const TBAAHandle&
       
       while (auto val = llvm::dyn_cast<llvm::DIDerivedType>(try_next_di.value())) {
         if (val->getTag() == llvm::dwarf::DW_TAG_typedef) {
-          LOG_DEBUG("Reset to " << *val->getBaseType());
+          LOG_DEBUG("Reset to " << log::ditype_str(val->getBaseType()));
           try_next_di = val->getBaseType();
         } else {
           break;

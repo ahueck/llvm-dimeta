@@ -1,12 +1,9 @@
 // RUN: %cpp-to-llvm %s | %opt -O1 -S | %apply-verifier 2>&1 | %filecheck %s
 
-//  !18 && !14
-// For the above compilers, the vector is only forward declared.
-
 #include <cstdlib>
 #include <vector>
 
-std::vector<int*> ar;
+std::vector<int*> ar; // without, clang 14 & 18 do a fwd declare of debug data for vectors
 
 int*& access(std::vector<int*>& ar) {
   return ar[77];
