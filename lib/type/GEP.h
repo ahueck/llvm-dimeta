@@ -25,8 +25,9 @@ struct GepIndexToType {
   std::optional<llvm::DIDerivedType*> member{};
 };
 
-GepIndexToType extract_gep_deref_type(llvm::DIType* root, const llvm::GEPOperator& inst);
+GepIndexToType extract_gep_dereferenced_type(llvm::DIType* root, const llvm::GEPOperator& inst);
 
 }  // namespace dimeta::gep
 
 #endif  // DIMETA_GEP_H
+;

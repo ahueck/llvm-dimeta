@@ -9,6 +9,7 @@
 #define DIMETA_TBAA_H
 
 // #include <llvm/IR/Instructions.h>
+#include <llvm/IR/Instruction.h>
 #include <optional>
 
 namespace llvm {
@@ -16,14 +17,9 @@ class DIType;
 class LoadInst;
 }  // namespace llvm
 
-namespace dimeta::dataflow {
-class ValuePath;
-}
-
 namespace dimeta::tbaa {
 
-std::optional<llvm::DIType*> resolve_tbaa(llvm::DIType* root, const dataflow::ValuePath& path);
-std::optional<llvm::DIType*> resolve_tbaa(llvm::DIType* root, const llvm::LoadInst& load_inst);
+std::optional<llvm::DIType*> resolve_tbaa(llvm::DIType* root, const llvm::Instruction& inst);
 
 }  // namespace dimeta::tbaa
 

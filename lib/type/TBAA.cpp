@@ -15,14 +15,13 @@
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include <assert.h>
-#include <llvm/IR/Instruction.h>
-#include <llvm/IR/Instructions.h>
-#include <llvm/Support/raw_ostream.h>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -255,7 +254,7 @@ std::optional<llvm::DIType*> tbaa_resolver(llvm::DIType* root, const TBAAHandle&
     LOG_DEBUG("  >> New TBAA: " << log::ditype_str(next_tbaa))
     if (endpoint_reached) {
       LOG_DEBUG("  >> Endpoint " << log::ditype_str(try_next_di.value()))
-      
+
       while (auto val = llvm::dyn_cast<llvm::DIDerivedType>(try_next_di.value())) {
         if (val->getTag() == llvm::dwarf::DW_TAG_typedef) {
           LOG_DEBUG("Reset to " << log::ditype_str(val->getBaseType()));
@@ -277,10 +276,10 @@ std::optional<llvm::DIType*> tbaa_resolver(llvm::DIType* root, const TBAAHandle&
   return next_ditype;
 }
 
-std::optional<llvm::DIType*> resolve_tbaa(llvm::DIType* root, const llvm::LoadInst& load_inst) {
-  LOG_DEBUG("Resolve TBAA of load '" << load_inst << "' with ditype: " << log::ditype_str(root))
+std::optional<llvm::DIType*> resolve_tbaa(llvm::DIType* root, const llvm::Instruction& instruction) {
+  LOG_DEBUG("Resolve TBAA of instruction '" << instruction << "' with ditype: " << log::ditype_str(root))
 
-  auto tbaa = TBAAHandle::create(load_inst);
+  auto tbaa = TBAAHandle::create(instruction);
   if (!tbaa.has_value()) {
     LOG_DEBUG("Requires TBAA metadata in LLVM IR.")
     return root;
@@ -299,29 +298,8 @@ std::optional<llvm::DIType*> resolve_tbaa(llvm::DIType* root, const dataflow::Va
   if (!start_node) {
     return root;
   }
-
-  auto store_inst = llvm::dyn_cast<llvm::StoreInst>(start_node.value());
-  if (!store_inst) {
-    return root;
-  }
-  assert(store_inst != nullptr && "Last value in path should be a store instruction.");
-
-  LOG_DEBUG("Resolve TBAA of store '" << *store_inst << "' with ditype: " << log::ditype_str(root))
-
-  auto tbaa = TBAAHandle::create(*store_inst);
-  if (!tbaa.has_value()) {
-    LOG_DEBUG("Requires TBAA metadata in LLVM IR.")
-    return root;
-  }
-  //  assert(tbaa.has_value() && "Requires TBAA metadata in LLVM IR.");
-
-  // assign any ptr to any ptr, e.g., struct A** a; a[0] = malloc(struct A):
-  if (tbaa->base_ty == tbaa->access_ty && tbaa->access_is_ptr()) {
-    LOG_DEBUG("No work: TBAA base type is same as access type (both ptr).")
-    return root;
-  }
-
-  return tbaa_resolver(root, tbaa.value());
+  auto& instruction = *llvm::dyn_cast<llvm::Instruction>(start_node.value());
+  return resolve_tbaa(root, instruction);
 }
 
 }  // namespace dimeta::tbaa

@@ -99,7 +99,7 @@ std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath&
     if (auto* composite = llvm::dyn_cast<llvm::DICompositeType>(base_type)) {
       LOG_DEBUG("Have ptr to composite " << log::ditype_str(composite))
       auto type_tbaa = tbaa::resolve_tbaa(base_type, *load);
-      if(type_tbaa){
+      if (type_tbaa) {
         return type_tbaa;
       }
     }
@@ -225,7 +225,7 @@ std::optional<llvm::DIType*> find_type(const dataflow::ValuePath& path) {
     if (llvm::isa<llvm::GEPOperator>(*path_iter)) {
       auto* gep = llvm::cast<llvm::GEPOperator>(*path_iter);
       LOG_DEBUG("Path iter gep for extraction is currently " << *gep);
-      const auto gep_result = gep::extract_gep_deref_type(type.value(), *gep);
+      const auto gep_result = gep::extract_gep_dereferenced_type(type.value(), *gep);
       type                  = gep_result.type;
       if (gep_result.member) {
         gep_to_member_map.try_emplace(gep, gep_result.member.value());
@@ -239,9 +239,13 @@ std::optional<llvm::DIType*> find_type(const dataflow::ValuePath& path) {
   }
 
   if (type) {
-    auto type_tbaa = tbaa::resolve_tbaa(type.value(), path);
-    if (type_tbaa) {
-      return type_tbaa;
+    // If last node is a store inst, try to extract type via TBAA
+    const auto start_node = llvm::dyn_cast_or_null<llvm::StoreInst>(*path.start_value());
+    if (start_node) {
+      auto type_tbaa = tbaa::resolve_tbaa(type.value(), *llvm::dyn_cast<llvm::Instruction>(start_node));
+      if (type_tbaa) {
+        type = type_tbaa.value();
+      }
     }
   }
 
