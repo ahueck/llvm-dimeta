@@ -26,6 +26,7 @@ string(COMPARE EQUAL "${CMAKE_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}"
 )
 
 option(DIMETA_USE_HEAPALLOCSITE "Use heapallocsite metadata for C++ heap allocations." ON)
+mark_as_advanced(DIMETA_USE_HEAPALLOCSITE)
 
 option(DIMETA_TEST_CONFIGURE_IDE "Add targets for tests to help the IDE with completion etc." ON)
 mark_as_advanced(DIMETA_TEST_CONFIGURE_IDE)
