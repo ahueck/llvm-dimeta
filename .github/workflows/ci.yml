@@ -41,7 +41,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - llvm-version: 12
+            os: ubuntu-20.04
+            preset: develop
           - llvm-version: 14
+            os: ubuntu-22.04
+            preset: develop
+          - llvm-version: 15
             os: ubuntu-22.04
             preset: develop
           - llvm-version: 18

@@ -1,16 +1,5 @@
 // RUN: %cpp-to-llvm %s | %apply-verifier 2>&1 -yaml | %filecheck %s
 
-// clang-format off
-// CHECK: Name:{{ *}}_Vector_impl
-// CHECK-NEXT: Identifier:{{ *}}_ZTSNSt12_Vector_baseIiN19allocator_namespace12my_allocatorIiEEE12_Vector_implE
-// CHECK-NEXT: Type:{{ *}}struct
-// CHECK-NEXT: Extent:{{ *}}32
-// CHECK-NEXT: Sizes:{{ *}}[ 8, 24 ]
-// CHECK-NEXT: Offsets:{{ *}}[ 0, 8 ]
-// clang-format on
-
-// CHECK: Yaml Verifier: 1
-
 #include <cstddef>
 #include <vector>
 
@@ -86,3 +75,62 @@ void foo() {
   using namespace allocator_namespace;
   std::vector<int, my_allocator<int>> vec_int(11, 0, my_allocator<int>());
 }
+
+// clang-format off
+// CHECK: File:{{.*}}stack_std_vector_allocator.cpp
+// CHECK-NEXT: Function:        foo
+// CHECK-NEXT:   Line:            76
+// CHECK-NEXT: Builtin:         false
+// CHECK-NEXT: Type:
+// CHECK-NEXT:   Compound:
+// CHECK-NEXT:     Name:            'vector<int, allocator_namespace::my_allocator<int> >'
+// CHECK-NEXT:     Identifier:      _ZTSSt6vectorIiN19allocator_namespace12my_allocatorIiEEE
+// CHECK-NEXT:     Type:            class
+// CHECK-NEXT:     Extent:          32
+// CHECK-NEXT:     Sizes:           [ 32 ]
+// CHECK-NEXT:     Offsets:         [ 0 ]
+// CHECK-NEXT:     Base:
+// CHECK-NEXT:       - BaseClass:
+// CHECK-NEXT:           Compound:
+// CHECK-NEXT:             Name:            '_Vector_base<int, allocator_namespace::my_allocator<int> >'
+// CHECK-NEXT:             Identifier:      _ZTSSt12_Vector_baseIiN19allocator_namespace12my_allocatorIiEEE
+// CHECK-NEXT:             Type:            struct
+// CHECK-NEXT:             Extent:          32
+// CHECK-NEXT:             Sizes:           [ 32 ]
+// CHECK-NEXT:             Offsets:         [ 0 ]
+// CHECK-NEXT:             Members:
+// CHECK-NEXT:               - Name:            _M_impl
+// CHECK-NEXT:                 Builtin:         false
+// CHECK-NEXT:                 Type:
+// CHECK-NEXT:                   Compound:
+// CHECK-NEXT:                     Name:            _Vector_impl
+// CHECK-NEXT:                     Identifier:      _ZTSNSt12_Vector_baseIiN19allocator_namespace12my_allocatorIiEEE12_Vector_implE
+// CHECK-NEXT:                     Type:            struct
+// CHECK-NEXT:                     Extent:          32
+// CHECK-NEXT:                     Sizes:           [ 8, 24 ]
+// CHECK-NEXT:                     Offsets:         [ 0, 8 ]
+// CHECK-NEXT:                     Base:
+// CHECK-NEXT:                       - BaseClass:
+// CHECK-NEXT:                           Compound:
+// CHECK-NEXT:                             Name:            'my_allocator<int>'
+// CHECK-NEXT:                             Identifier:      _ZTSN19allocator_namespace12my_allocatorIiEE
+// CHECK-NEXT:                             Type:            class
+// CHECK-NEXT:                             Extent:          8
+// CHECK-NEXT:                             Sizes:           [ 8 ]
+// CHECK-NEXT:                             Offsets:         [ 0 ]
+// CHECK-NEXT:                             Members:
+// CHECK-NEXT:                               - Name:            padding
+// CHECK-NEXT:                                 Builtin:         true
+// CHECK-NEXT:                                 Type:
+// CHECK-NEXT:                                   Fundamental:     { Name: void, Extent: 8, 
+// CHECK-NEXT:                                                      Encoding: void_ptr }
+// CHECK-NEXT:                                   Qualifiers:      [ ptr ]
+// CHECK-NEXT:                           Typedef:         _Tp_alloc_type
+// CHECK-NEXT:                       - BaseClass:
+// CHECK-NEXT:                           Compound:
+// CHECK-NEXT:                             Name:            _Vector_impl_data
+// CHECK-NEXT:                             Identifier:      _ZTSNSt12_Vector_baseIiN19allocator_namespace12my_allocatorIiEEE17_Vector_impl_dataE
+// CHECK-NEXT:                             Type:            struct
+// CHECK-NEXT:                             Extent:          24
+// CHECK-NEXT:                             Sizes:           [ 8, 8, 8 ]
+// CHECK-NEXT:                             Offsets:         [ 0, 8, 16 ]

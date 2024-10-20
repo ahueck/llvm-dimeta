@@ -198,6 +198,7 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
       const auto type_array = subprogram->getType()->getTypeArray();
       const auto arg_pos    = [&](const auto arg_num) {
         if (argument->hasStructRetAttr()) {
+          // return value is passed as argument at this point
           return arg_num;  // see test cpp/heap_lhs_function_opt_nofwd.cpp
         }
         return arg_num + 1;
