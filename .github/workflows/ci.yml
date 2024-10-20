@@ -40,6 +40,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        preset:
+          - name: develop
         include:
           - llvm-version: 14
             os: ubuntu-22.04
