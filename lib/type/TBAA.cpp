@@ -108,7 +108,7 @@ bool composite_fits_tbaa(const llvm::DICompositeType* type, const TBAAHandle& tb
   }
   LOG_DEBUG("Type element size " << type->getElements().size() << " vs. TBAA " << num_members_tbaa_node(tbaa.base_ty))
   auto elements        = type->getElements();
-  int element_position = 0;  // Incremented for every TBAA costant int entry
+  int element_position = 0;  // Incremented for every TBAA constant int entry
   // Loop simply checks if the byte offsets are the same (TODO also compare types!)
   for (auto& operand : tbaa.base_ty->operands()) {
     if (auto value_md = llvm::dyn_cast<llvm::ValueAsMetadata>(operand)) {
