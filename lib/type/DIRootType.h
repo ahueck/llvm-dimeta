@@ -18,7 +18,7 @@ namespace llvm {
 class DIType;
 }
 
-namespace dimeta::root { 
+namespace dimeta::root {
 
 std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path);
 

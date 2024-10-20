@@ -140,10 +140,9 @@ bool DIEventVisitor::visitNode(const llvm::DINode* node) {
   } else if (const auto* sub_range = llvm::dyn_cast<llvm::DISubrange>(node)) {
     assert(!current_.arrays.empty() && "Subrange requires array composite on stack");
     if (sub_range->getCount().is<llvm::ConstantInt*>()) {
-      
       const auto* count = sub_range->getCount().get<llvm::ConstantInt*>();
-      auto range_count = count->getValue().getLimitedValue();
-      auto& array = current_.arrays.back();
+      auto range_count  = count->getValue().getLimitedValue();
+      auto& array       = current_.arrays.back();
       array.subranges.push_back(range_count);
       LOG_FATAL(range_count);
     }

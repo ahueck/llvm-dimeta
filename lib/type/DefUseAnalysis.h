@@ -76,7 +76,7 @@ struct DefUseChain {
       if (user.empty()) {
         continue;
       }
-      
+
       const auto current_node = user.value();
       if (current_node) {
         seen_set_.insert(current_node.value());

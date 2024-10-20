@@ -98,8 +98,8 @@ using QualifiedCompound    = QualType<CompoundType>;
 using QualifiedType        = std::variant<QualifiedCompound, QualifiedFundamental>;
 using QualifiedTypeList    = std::vector<QualifiedType>;
 struct CompileUnitTypes {
-      std::string name;
-      QualifiedTypeList types;
+  std::string name;
+  QualifiedTypeList types;
 };
 using CompileUnitTypeList = std::vector<CompileUnitTypes>;
 

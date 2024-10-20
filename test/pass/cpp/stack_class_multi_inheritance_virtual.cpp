@@ -6,7 +6,7 @@ class Base {
  public:
   double x;
 
-  virtual void foo(){};
+  virtual void foo() {};
 };
 
 class X {

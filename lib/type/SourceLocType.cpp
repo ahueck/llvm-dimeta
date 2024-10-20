@@ -42,12 +42,12 @@ std::optional<location::SourceLocation> location_for(const DimetaData& data) {
   };
 
   if (const auto gv = std::get_if<llvm::DIGlobalVariable*>(&data.di_variable.value())) {
-    const auto* global_var    = *gv;
+    const auto* global_var = *gv;
     return make_source_loc(global_var);
   }
 
   if (const auto alloc_var = std::get_if<llvm::DILocalVariable*>(&data.di_variable.value())) {
-    const auto* alloc         = *alloc_var;
+    const auto* alloc = *alloc_var;
     return make_source_loc(alloc);
   }
 

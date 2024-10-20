@@ -187,7 +187,7 @@ auto MallocTargetMatcher::operator()(const ValuePath& path) -> decltype(DefUseCh
 
   const auto current_value = path.value();
 
-  if(!current_value) {
+  if (!current_value) {
     LOG_DEBUG("Current value is null, skipping")
     return DefUseChain::kSkip;
   }

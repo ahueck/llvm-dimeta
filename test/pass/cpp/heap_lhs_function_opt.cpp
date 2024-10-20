@@ -3,7 +3,7 @@
 #include <cstdlib>
 #include <vector>
 
-std::vector<int*> ar; // without, clang 14 & 18 do a fwd declare of debug data for vectors
+std::vector<int*> ar;  // without, clang 14 & 18 do a fwd declare of debug data for vectors
 
 int*& access(std::vector<int*>& ar) {
   return ar[77];
