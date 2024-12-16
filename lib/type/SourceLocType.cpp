@@ -12,6 +12,7 @@
 
 #include "llvm/IR/DebugInfoMetadata.h"
 
+#include <llvm/ADT/STLExtras.h>
 #include <optional>
 
 namespace dimeta {
@@ -54,6 +55,32 @@ std::optional<location::SourceLocation> location_for(const DimetaData& data) {
   return {};
 }
 
+namespace detail {
+template <class... Ts>
+struct overload : Ts... {
+  using Ts::operator()...;
+};
+template <class... Ts>
+overload(Ts...) -> overload<Ts...>;
+
+template <typename Type>
+void reset_pointer_qualifier(Type& type, int ptr_level) {
+  // "new" can have type_data.pointer_level != metadata pointer level -> if that is the case, we add that qualifier to
+  // begin of list
+  const auto add_pointer = [&](auto& f) {
+    auto count = llvm::count_if(f.qual, [](auto& qual) { return qual == Qualifier::kPtr; });
+    if (count < ptr_level) {
+      const auto begin = f.qual.begin();
+      f.qual.insert(begin, Qualifier{Qualifier::kPtr});
+    }
+  };
+  std::visit(overload{[&](dimeta::QualifiedFundamental& f) -> void { add_pointer(f); },
+                      [&](dimeta::QualifiedCompound& q) -> void { add_pointer(q); }},
+             type);
+}
+
+}  // namespace detail
+
 std::optional<LocatedType> located_type_for(const DimetaData& type_data) {
   auto loc = location_for(type_data);
   if (!loc) {
@@ -71,6 +98,8 @@ std::optional<LocatedType> located_type_for(const DimetaData& type_data) {
   if (!dimeta_result) {
     return {};
   }
+
+  detail::reset_pointer_qualifier(dimeta_result->type_, type_data.pointer_level);
   return LocatedType{dimeta_result->type_, loc.value()};
 }
 
