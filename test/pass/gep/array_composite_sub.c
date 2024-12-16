@@ -15,9 +15,7 @@ struct A {
 
 void foo(struct A* ar) {
   // clang-format off
-  // CHECK: Extracted Type: {{.*}} = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: [[DIREF:![0-9]+]], size: 64)
-  // CHECK: Final Type: [[DIREF]] = !DIBasicType(name: "double", size: 64, encoding: DW_ATE_float)
-  // CHECK-NEXT: Pointer level: 1
+  // CHECK: Final Type: {{.*}} = !DIBasicType(name: "double", size: 64, encoding: DW_ATE_float)
   // clang-format on
   ar->a[1]->x = (double*)malloc(sizeof(double));
 }

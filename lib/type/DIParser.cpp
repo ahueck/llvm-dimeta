@@ -1,7 +1,17 @@
+//  llvm-dimeta library
+//  Copyright (c) 2022-2024 llvm-dimeta authors
+//  Distributed under the BSD 3-Clause license.
+//  (See accompanying file LICENSE)
+//  SPDX-License-Identifier: BSD-3-Clause
+//
+
 #include "DIParser.h"
 
 #include "DIVisitor.h"
+#include "DimetaData.h"
 #include "support/Logger.h"
+
+#include <llvm/BinaryFormat/Dwarf.h>
 
 namespace dimeta::diparser {
 
@@ -79,11 +89,18 @@ bool DIEventVisitor::visitDerivedType(const llvm::DIDerivedType* derived_type) {
       break;
     }
     case DW_TAG_typedef:
-      current_.typedef_name = derived_type->getName();
+      current_.typedef_names.emplace_back(derived_type->getName());
       break;
     case DW_TAG_inheritance:
       current_.is_base_class = true;
       current_.member_offset = derived_type->getOffsetInBits() / 8;
+      break;
+    case DW_TAG_pointer_type:
+      current_.dwarf_tags.emplace_back(tag);
+      // array of pointers:
+      if (!current_.arrays.empty()) {
+        current_.arrays.back().array_of_pointer = derived_type->getSizeInBits();
+      }
       break;
     default:
       current_.dwarf_tags.emplace_back(tag);
@@ -120,6 +137,15 @@ bool DIEventVisitor::visitNode(const llvm::DINode* node) {
     current_.type          = enum_data_.enum_base;
     current_.is_member     = true;
     events_.make_enum_member(current_);
+  } else if (const auto* sub_range = llvm::dyn_cast<llvm::DISubrange>(node)) {
+    assert(!current_.arrays.empty() && "Subrange requires array composite on stack");
+    if (sub_range->getCount().is<llvm::ConstantInt*>()) {
+      const auto* count = sub_range->getCount().get<llvm::ConstantInt*>();
+      auto range_count  = count->getValue().getLimitedValue();
+      auto& array       = current_.arrays.back();
+      array.subranges.push_back(range_count);
+      LOG_FATAL(range_count);
+    }
   }
   return true;
 }
@@ -127,12 +153,16 @@ bool DIEventVisitor::visitNode(const llvm::DINode* node) {
 bool DIEventVisitor::visitCompositeType(const llvm::DICompositeType* composite_type) {
   // See, e.g., pass/c/stack_struct_array.c:
   if (composite_type->getTag() == llvm::dwarf::DW_TAG_array_type) {
-    current_.array_size_bits = composite_type->getSizeInBits();
+    current_.dwarf_tags.emplace_back(llvm::dwarf::DW_TAG_array_type);
+    current_.arrays.emplace_back(state::MetaData::ArrayData{composite_type->getSizeInBits(), Extent{0}});
+    // current_.array_size_bits =composite_type->getSizeInBits();
+    current_.is_vector = composite_type->isVector();
     return true;
   }
 
-  current_.type       = const_cast<llvm::DICompositeType*>(composite_type);
-  current_.has_vtable = composite_type->getVTableHolder() == composite_type;
+  current_.type            = const_cast<llvm::DICompositeType*>(composite_type);
+  current_.has_vtable      = composite_type->getVTableHolder() == composite_type;
+  current_.is_forward_decl = composite_type->isForwardDecl();
 
   enum_data_.is_enum = composite_type->getTag() == llvm::dwarf::DW_TAG_enumeration_type;
   //  current_.state      = state::Entity::Undef;  // determined in "leave" function

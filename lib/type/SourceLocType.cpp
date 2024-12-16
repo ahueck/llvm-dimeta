@@ -1,5 +1,5 @@
-//  Dimeta library
-//  Copyright (c) 2022-2023 Alexander Hück
+//  llvm-dimeta library
+//  Copyright (c) 2022-2024 llvm-dimeta authors
 //  Distributed under the BSD 3-Clause license.
 //  (See accompanying file LICENSE)
 //  SPDX-License-Identifier: BSD-3-Clause
@@ -27,19 +27,28 @@ std::optional<location::SourceLocation> location_for(const DimetaData& data) {
     return {};
   }
 
-  if (const auto gv = std::get_if<llvm::DIGlobalVariable*>(&data.di_variable.value())) {
-    const auto* global_var    = *gv;
-    const auto file           = std::string{global_var->getFilename()};
-    const auto function_scope = [](const auto global) -> std::string {
-      const auto* scope = global->getScope();
+  const auto make_source_loc = [](const auto* variable) {
+    const auto file           = std::string{variable->getFilename()};
+    const auto function_scope = [](const auto alloc) -> std::string {
+      const auto* scope = alloc->getScope();
       if (scope) {
         return std::string{scope->getName()};
       }
       return "";
-    }(global_var);
+    }(variable);
     return location::SourceLocation{file,            //
                                     function_scope,  //
-                                    global_var->getLine()};
+                                    variable->getLine()};
+  };
+
+  if (const auto gv = std::get_if<llvm::DIGlobalVariable*>(&data.di_variable.value())) {
+    const auto* global_var = *gv;
+    return make_source_loc(global_var);
+  }
+
+  if (const auto alloc_var = std::get_if<llvm::DILocalVariable*>(&data.di_variable.value())) {
+    const auto* alloc = *alloc_var;
+    return make_source_loc(alloc);
   }
 
   return {};
@@ -49,6 +58,11 @@ std::optional<LocatedType> located_type_for(const DimetaData& type_data) {
   auto loc = location_for(type_data);
   if (!loc) {
     LOG_DEBUG("Could not determine source location.");
+    return {};
+  }
+
+  if (!type_data.entry_type) {
+    LOG_DEBUG("Could not determine type (missing entry type).");
     return {};
   }
 

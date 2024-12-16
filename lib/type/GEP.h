@@ -1,5 +1,5 @@
-//  Dimeta library
-//  Copyright (c) 2022-2023 Alexander Hück
+//  llvm-dimeta library
+//  Copyright (c) 2022-2024 llvm-dimeta authors
 //  Distributed under the BSD 3-Clause license.
 //  (See accompanying file LICENSE)
 //  SPDX-License-Identifier: BSD-3-Clause
@@ -25,8 +25,9 @@ struct GepIndexToType {
   std::optional<llvm::DIDerivedType*> member{};
 };
 
-GepIndexToType extract_gep_deref_type(llvm::DIType* root, const llvm::GEPOperator& inst);
+GepIndexToType extract_gep_dereferenced_type(llvm::DIType* root, const llvm::GEPOperator& inst);
 
 }  // namespace dimeta::gep
 
 #endif  // DIMETA_GEP_H
+;

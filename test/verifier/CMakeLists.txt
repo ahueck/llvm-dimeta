@@ -28,3 +28,18 @@ target_include_directories(dimeta_TestPass
 )
 
 target_link_libraries(dimeta_TestPass PRIVATE dimeta::Types)
+
+
+function(configure_dimeta_script input output)
+    if(${LLVM_VERSION_MAJOR} VERSION_GREATER_EQUAL "14")
+      set(NEW_PM_REQUIRED 1)
+    else()
+      set(NEW_PM_REQUIRED 0)
+    endif()
+
+
+    dimeta_target_generate_file(${input} ${output})
+endfunction()
+
+configure_dimeta_script(opt-shim.in opt-shim.sh)
+

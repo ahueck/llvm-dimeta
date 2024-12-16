@@ -5,7 +5,7 @@ import sys
 # LLVM toolchain:
 config.clang_cpp = "@DIMETA_CLANGCXX_EXEC@"
 config.clang = "@DIMETA_CLANG_EXEC@"
-config.opt = "@DIMETA_OPT_EXEC@"
+config.opt = "@DIMETA_OPT_SHIM@"
 config.opt_args = "@DIMETA_OPT_ARGS@"
 config.llc = "@DIMETA_LLC_EXEC@"
 config.filecheck = "@DIMETA_FILECHECK_EXEC@"
@@ -20,6 +20,8 @@ config.dimeta_pass = "$<TARGET_FILE_NAME:dimeta::AnalysisPass>"
 config.dimeta_test_pass = "$<TARGET_FILE_NAME:dimeta::TestPass>"
 
 config.heapallocsite = @DIMETA_HEAPALLOCSITE@
+
+config.llvm_version = @LLVM_VERSION_MAJOR@
 
 # Let the main config do the real work.
 config.loaded_site_config = True

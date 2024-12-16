@@ -1,5 +1,5 @@
-//  Dimeta library
-//  Copyright (c) 2022-2023 Alexander Hück
+//  llvm-dimeta library
+//  Copyright (c) 2022-2024 llvm-dimeta authors
 //  Distributed under the BSD 3-Clause license.
 //  (See accompanying file LICENSE)
 //  SPDX-License-Identifier: BSD-3-Clause
@@ -18,9 +18,7 @@
 #include <functional>
 #include <optional>
 
-namespace dimeta {
-
-namespace visitor {
+namespace dimeta::visitor {
 
 template <typename SubClass>
 class DINodeVisitor {
@@ -48,7 +46,8 @@ class DINodeVisitor {
            invoke_if<DICompositeType>(&DINodeVisitor::traverseCompositeType, std::forward<T>(type)) ||
            invoke_if<DILocalVariable>(&DINodeVisitor::traverseVariable, std::forward<T>(type)) ||
            invoke_if<DIGlobalVariable>(&DINodeVisitor::traverseVariable, std::forward<T>(type)) ||
-           invoke_if<DIEnumerator>(&DINodeVisitor::traverseNode, std::forward<T>(type));
+           invoke_if<DIEnumerator>(&DINodeVisitor::traverseNode, std::forward<T>(type)) ||
+           invoke_if<DISubrange>(&DINodeVisitor::traverseNode, std::forward<T>(type));
     ;
   }
 
@@ -203,7 +202,13 @@ class DINodeVisitor {
       --depth_composite_;
     });
 
-    visited_dinodes_.insert(composite_type);
+    // see test "c/stack_struct_member_count.c":
+    // this avoid endless recursion of structs, but array-types are special as they can "share" references to, e.g.,
+    // basictypes
+    const bool is_not_array = composite_type->getTag() != llvm::dwarf::DW_TAG_array_type;
+    if (is_not_array) {
+      visited_dinodes_.insert(composite_type);
+    }
     get().enterCompositeType(composite_type);
 
     const bool ret = get().visitCompositeType(composite_type);
@@ -211,13 +216,23 @@ class DINodeVisitor {
       return false;
     }
 
+    if (!is_not_array) {
+      // Parse subranges of arrays first, before determining type of array
+      for (auto* eleme : composite_type->getElements()) {
+        invoke_if_any(eleme);
+      }
+    }
+
     const bool ret_b = get().traverseType(composite_type->getBaseType());
     if (!ret_b) {
       return false;
     }
 
-    for (auto* eleme : composite_type->getElements()) {
-      invoke_if_any(eleme);
+    if (is_not_array) {
+      // For enum: Pass enum members last, traverseType determines the enum member types first
+      for (auto* eleme : composite_type->getElements()) {
+        invoke_if_any(eleme);
+      }
     }
 
     return true;
@@ -249,8 +264,6 @@ class DINodeVisitor {
   }
 };
 
-}  // namespace visitor
-
-}  // namespace dimeta
+}  // namespace dimeta::visitor
 
 #endif  // DIMETA_DIVISITOR_H

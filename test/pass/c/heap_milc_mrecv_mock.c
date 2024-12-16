@@ -23,8 +23,6 @@ typedef struct {
 msg_sr_t* mrecv;
 
 void foo(int nsites, int tsize, int i) {
-  // CHECK: Extracted Type: {{.*}} = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: [[DIREF:![0-9]+]], size: 64)
-  // CHECK: Final Type: [[DIREF]] = !DIBasicType(name: "char"
-  // CHECK-NEXT: Pointer level: 1
+  // CHECK: Final Type: !{{[0-9]+}} = !DIBasicType(name: "char"
   mrecv[i].msg_buf = (char*)malloc(nsites * tsize);
 }

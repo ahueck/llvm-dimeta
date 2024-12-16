@@ -1,5 +1,5 @@
-//  Dimeta library
-//  Copyright (c) 2022-2023 Alexander Hück
+//  llvm-dimeta library
+//  Copyright (c) 2022-2024 llvm-dimeta authors
 //  Distributed under the BSD 3-Clause license.
 //  (See accompanying file LICENSE)
 //  SPDX-License-Identifier: BSD-3-Clause
@@ -22,6 +22,7 @@ class DIType;
 class DILocation;
 class Value;
 class GlobalVariable;
+class Module;
 }  // namespace llvm
 
 namespace dimeta {
@@ -53,6 +54,8 @@ std::optional<LocatedType> located_type_for(const llvm::AllocaInst*);
 std::optional<LocatedType> located_type_for(const llvm::CallBase*);
 
 std::optional<LocatedType> located_type_for(const llvm::GlobalVariable*);
+
+std::optional<CompileUnitTypeList> compile_unit_types(const llvm::Module* module);
 
 }  // namespace dimeta
 

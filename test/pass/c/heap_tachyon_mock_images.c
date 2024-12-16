@@ -19,10 +19,18 @@ typedef struct {
 
 mipmap* CreateMIPMap() {
   mipmap* mip;
-  // CHECK: Pointer level: 1
+  // CHECK: Name:            ''
+  // CHECK-NEXT: Type:            struct
+  // CHECK-NEXT: Extent:          16
+  // CHECK-NEXT: Sizes:           [ 4, 8 ]
+  // CHECK-NEXT: Offsets:         [ 0, 8 ]
   mip         = (mipmap*)malloc(sizeof(mipmap));
   mip->levels = 2;
-  // CHECK: Pointer level: 2
+  // CHECK: Name:            ''
+  // CHECK-NEXT: Type:            struct
+  // CHECK-NEXT: Extent:          120
+  // CHECK-NEXT: Sizes:           [ 4, 4, 4, 4, 96, 8 ]
+  // CHECK-NEXT: Offsets:         [ 0, 4, 8, 12, 16, 112 ]
   mip->images = (rawimage**)malloc(mip->levels * sizeof(rawimage*));
   return mip;
 }

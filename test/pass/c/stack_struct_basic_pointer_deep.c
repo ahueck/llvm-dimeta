@@ -25,15 +25,15 @@ int foo() {
 // CHECK-NEXT:       - Name:            a
 // CHECK-NEXT:         Builtin:         true
 // CHECK-NEXT:         Type:
-// CHECK-NEXT:           Fundamental:     { Name: int, Extent: 8, Encoding: signed_int }
+// CHECK-NEXT:           Fundamental:     { Name: int, Extent: 4, Encoding: signed_int }
 // CHECK-NEXT:           Qualifiers:      [ ptr, const ]
 // CHECK-NEXT:       - Name:            b
 // CHECK-NEXT:         Builtin:         true
 // CHECK-NEXT:         Type:
-// CHECK-NEXT:           Fundamental:     { Name: int, Extent: 8, Encoding: signed_int }
+// CHECK-NEXT:           Fundamental:     { Name: int, Extent: 4, Encoding: signed_int }
 // CHECK-NEXT:           Qualifiers:      [ const, ptr ]
 // CHECK-NEXT:       - Name:            c
 // CHECK-NEXT:         Builtin:         true
 // CHECK-NEXT:         Type:
-// CHECK-NEXT:           Fundamental:     { Name: int, Extent: 8, Encoding: signed_int }
+// CHECK-NEXT:           Fundamental:     { Name: int, Extent: 4, Encoding: signed_int }
 // CHECK-NEXT:           Qualifiers:      [ ptr, ptr, const ]

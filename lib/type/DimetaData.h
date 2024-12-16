@@ -1,5 +1,5 @@
-//  Dimeta library
-//  Copyright (c) 2022-2023 Alexander Hück
+//  llvm-dimeta library
+//  Copyright (c) 2022-2024 llvm-dimeta authors
 //  Distributed under the BSD 3-Clause license.
 //  (See accompanying file LICENSE)
 //  SPDX-License-Identifier: BSD-3-Clause
@@ -21,20 +21,16 @@ using Extent    = std::uint64_t;
 using Offset    = std::uint64_t;
 using ArraySize = std::uint64_t;
 
-enum class Qualifier {
-  kNone  = 0x0,
-  kConst = 0x1,
-  kPtr   = 0x2,
-  kRef   = 0x4,
-};
+enum class Qualifier { kNone = 0x0, kConst = 0x1, kPtr = 0x2, kRef = 0x4, kPtrToMember = 0x8, kArray = 0x10 };
 
 struct Member;
 struct BaseClass;
-using Members    = std::vector<std::shared_ptr<Member>>;
-using Bases      = std::vector<std::shared_ptr<BaseClass>>;
-using Offsets    = std::vector<Offset>;
-using Sizes      = std::vector<Extent>;
-using Qualifiers = std::vector<Qualifier>;
+using Members       = std::vector<std::shared_ptr<Member>>;
+using Bases         = std::vector<std::shared_ptr<BaseClass>>;
+using Offsets       = std::vector<Offset>;
+using Sizes         = std::vector<Extent>;
+using Qualifiers    = std::vector<Qualifier>;
+using ArraySizeList = std::vector<ArraySize>;
 
 struct CompoundType {
   // struct, union, class etc.
@@ -62,16 +58,18 @@ struct CompoundType {
 struct FundamentalType {
   // int, double etc.
   enum Encoding {
-    kUnknown      = 0x0,
-    kFloat        = 0x1,
-    kChar         = 0x2,
-    kInt          = 0x4,
-    kSigned       = 0x8,
-    kUnsigned     = 0x10,
-    kBool         = 0x12,
-    kPadding      = 0x14,
-    kVoid         = 0x16,
-    kVtablePtr    = 0x18,
+    kUnknown      = 0,
+    kFloat        = 1 << 0,
+    kChar         = 1 << 1,
+    kInt          = 1 << 2,
+    kSigned       = 1 << 3,
+    kUnsigned     = 1 << 4,
+    kBool         = 1 << 5,
+    kPadding      = 1 << 6,
+    kVoid         = 1 << 7,
+    kVtablePtr    = 1 << 8,
+    kNullptr      = 1 << 9,
+    kUTFChar      = 1 << 10,
     kSignedChar   = kChar | kSigned,
     kUnsignedChar = kChar | kUnsigned,
     kSignedInt    = kInt | kSigned,
@@ -86,15 +84,24 @@ struct FundamentalType {
 template <typename T>
 struct QualType {
   T type{};
-  ArraySize array_size{0};  // TODO consider class (around QualType<T>) to model arrays
-  Qualifiers qual{};
-  std::string typedef_name{};
-  bool recurrs{false};
+  ArraySizeList array_size;
+  // ArraySize array_size{0};
+  Qualifiers qual;
+  std::string typedef_name;
+  bool is_vector{false};
+  bool is_forward_decl{false};
+  bool is_recurring{false};
 };
 
 using QualifiedFundamental = QualType<FundamentalType>;
 using QualifiedCompound    = QualType<CompoundType>;
 using QualifiedType        = std::variant<QualifiedCompound, QualifiedFundamental>;
+using QualifiedTypeList    = std::vector<QualifiedType>;
+struct CompileUnitTypes {
+  std::string name;
+  QualifiedTypeList types;
+};
+using CompileUnitTypeList = std::vector<CompileUnitTypes>;
 
 struct BaseClass {
   QualifiedCompound base{};
@@ -108,8 +115,8 @@ struct Member {
 namespace location {
 
 struct SourceLocation {
-  std::string file{};
-  std::string function{};
+  std::string file;
+  std::string function;
   unsigned line{};
 };
 

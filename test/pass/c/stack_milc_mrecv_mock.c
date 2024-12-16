@@ -49,7 +49,7 @@ void foo() {
 // CHECK-NEXT:       - Name:            msg_buf
 // CHECK-NEXT:         Builtin:         true
 // CHECK-NEXT:         Type:
-// CHECK-NEXT:           Fundamental:     { Name: char, Extent: 8, Encoding: signed_char }
+// CHECK-NEXT:           Fundamental:     { Name: char, Extent: 1, Encoding: signed_char }
 // CHECK-NEXT:           Qualifiers:      [ ptr ]
 // CHECK-NEXT:       - Name:            gmem
 // CHECK-NEXT:         Builtin:         false
@@ -64,7 +64,7 @@ void foo() {
 // CHECK-NEXT:               - Name:            mem
 // CHECK-NEXT:                 Builtin:         true
 // CHECK-NEXT:                 Type:
-// CHECK-NEXT:                   Fundamental:     { Name: char, Extent: 8, Encoding: signed_char }
+// CHECK-NEXT:                   Fundamental:     { Name: char, Extent: 1, Encoding: signed_char }
 // CHECK-NEXT:                   Qualifiers:      [ ptr ]
 // CHECK-NEXT:               - Name:            size
 // CHECK-NEXT:                 Builtin:         true
@@ -81,7 +81,7 @@ void foo() {
 // CHECK-NEXT:               - Name:            sitelist
 // CHECK-NEXT:                 Builtin:         true
 // CHECK-NEXT:                 Type:
-// CHECK-NEXT:                   Fundamental:     { Name: int, Extent: 8, Encoding: signed_int }
+// CHECK-NEXT:                   Fundamental:     { Name: int, Extent: 4, Encoding: signed_int }
 // CHECK-NEXT:                   Qualifiers:      [ ptr ]
 // CHECK-NEXT:               - Name:            next
 // CHECK-NEXT:                 Builtin:         false

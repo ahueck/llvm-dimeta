@@ -1,5 +1,5 @@
-//  Dimeta library
-//  Copyright (c) 2022-2023 Alexander Hück
+//  llvm-dimeta library
+//  Copyright (c) 2022-2024 llvm-dimeta authors
 //  Distributed under the BSD 3-Clause license.
 //  (See accompanying file LICENSE)
 //  SPDX-License-Identifier: BSD-3-Clause
@@ -8,7 +8,6 @@
 #include "DimetaData.h"
 #include "Util.h"
 
-#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/YAMLParser.h"
 #include "llvm/Support/YAMLTraits.h"
@@ -138,6 +137,8 @@ struct llvm::yaml::ScalarEnumerationTraits<dimeta::FundamentalType::Encoding> {
     io.enumCase(value, "padding", dimeta::FundamentalType::Encoding::kPadding);
     io.enumCase(value, "void_ptr", dimeta::FundamentalType::Encoding::kVoid);
     io.enumCase(value, "vtable_ptr", dimeta::FundamentalType::Encoding::kVtablePtr);
+    io.enumCase(value, "nullptr", dimeta::FundamentalType::Encoding::kNullptr);
+    io.enumCase(value, "utf_char", dimeta::FundamentalType::Encoding::kUTFChar);
   }
 };
 
@@ -158,6 +159,8 @@ struct llvm::yaml::ScalarEnumerationTraits<dimeta::Qualifier> {
     io.enumCase(info, "const", dimeta::Qualifier::kConst);
     io.enumCase(info, "ptr", dimeta::Qualifier::kPtr);
     io.enumCase(info, "ref", dimeta::Qualifier::kRef);
+    io.enumCase(info, "ptr_to_mem", dimeta::Qualifier::kPtrToMember);
+    io.enumCase(info, "array", dimeta::Qualifier::kArray);
   }
 };
 
@@ -168,7 +171,9 @@ void map_qualtype_fields(IO& io, QualType&& info) {
   map_optional_not_empty(io, "Array", info.array_size);
   map_optional_not_empty(io, "Qualifiers", info.qual);
   map_optional_not_empty(io, "Typedef", info.typedef_name);
-  map_optional_not_empty(io, "Recurring", info.recurrs);
+  map_optional_not_empty(io, "Vector", info.is_vector);
+  map_optional_not_empty(io, "ForwardDecl", info.is_forward_decl);
+  map_optional_not_empty(io, "Recurring", info.is_recurring);
 }
 
 template <>
@@ -209,6 +214,13 @@ inline void map_qualified_type(IO& io, QualifiedType& type) {
 }
 
 template <>
+struct llvm::yaml::MappingTraits<QualifiedType> {
+  static void mapping(IO& io, QualifiedType& info) {
+    map_qualified_type(io, info);
+  }
+};
+
+template <>
 struct llvm::yaml::MappingTraits<std::shared_ptr<Member>> {
   static void mapping(IO& io, std::shared_ptr<Member>& info) {
     io.mapRequired("Name", info->name);
@@ -233,65 +245,90 @@ struct llvm::yaml::MappingTraits<LocatedType> {
   }
 };
 
+template <>
+struct llvm::yaml::SequenceTraits<QualifiedTypeList> {
+  static size_t size(IO& io, QualifiedTypeList& seq) {
+    return seq.size();
+  }
+  static QualifiedTypeList::value_type& element(IO& io, QualifiedTypeList& seq, size_t index) {
+    if (index >= seq.size()) {
+      seq.resize(index + 1);
+    }
+    return seq.at(index);
+  }
+};
+
+template <>
+struct llvm::yaml::MappingTraits<CompileUnitTypes> {
+  static void mapping(IO& io, CompileUnitTypes& info) {
+    io.mapRequired("CUName", info.name);
+    io.mapOptional("Types", info.types);
+  }
+};
+
+LLVM_YAML_IS_SEQUENCE_VECTOR(CompileUnitTypes)
+
 namespace dimeta::io {
-bool emit(llvm::raw_string_ostream& oss, const QualifiedFundamental& compound) {
+namespace detail {
+template <typename T>
+bool emit(llvm::raw_string_ostream& oss, const T& obj) {
   using namespace llvm;
 
   yaml::Output out(oss);
-
-  out << const_cast<QualifiedFundamental&>(compound);
+  out << const_cast<T&>(obj);
 
   return true;
+}
+
+template <typename T>
+bool input(llvm::StringRef yaml, T& obj) {
+  using namespace llvm;
+
+  yaml::Input in(yaml);
+  in >> obj;
+
+  return true;
+}
+}  // namespace detail
+
+bool emit(llvm::raw_string_ostream& oss, const QualifiedFundamental& compound) {
+  return detail::emit(oss, compound);
 }
 
 bool input(llvm::StringRef yaml, QualifiedFundamental& compound) {
-  using namespace llvm;
-
-  yaml::Input in(yaml);
-
-  in >> compound;
-
-  return true;
+  return detail::input(yaml, compound);
 }
 
 bool emit(llvm::raw_string_ostream& oss, const QualifiedCompound& compound) {
-  using namespace llvm;
-
-  yaml::Output out(oss);
-
-  out << const_cast<QualifiedCompound&>(compound);
-
-  return true;
+  return detail::emit(oss, compound);
 }
 
 bool input(llvm::StringRef yaml, QualifiedCompound& compound) {
-  using namespace llvm;
-
-  yaml::Input in(yaml);
-
-  in >> compound;
-
-  return true;
+  return detail::input(yaml, compound);
 }
 
 bool emit(llvm::raw_string_ostream& oss, const LocatedType& type) {
-  using namespace llvm;
-
-  yaml::Output out(oss);
-
-  out << const_cast<LocatedType&>(type);
-
-  return true;
+  return detail::emit(oss, type);
 }
 
 bool input(llvm::StringRef yaml, LocatedType& type) {
-  using namespace llvm;
+  return detail::input(yaml, type);
+}
 
-  yaml::Input in(yaml);
+bool emit(llvm::raw_string_ostream& oss, const CompileUnitTypes& cu_types) {
+  return detail::emit(oss, cu_types);
+}
 
-  in >> type;
+bool input(llvm::StringRef yaml, CompileUnitTypes& cu_types) {
+  return detail::input(yaml, cu_types);
+}
 
-  return true;
+bool emit(llvm::raw_string_ostream& oss, const CompileUnitTypeList& cu_types) {
+  return detail::emit(oss, cu_types);
+}
+
+bool input(llvm::StringRef yaml, CompileUnitTypeList& cu_types) {
+  return detail::input(yaml, cu_types);
 }
 
 }  // namespace dimeta::io

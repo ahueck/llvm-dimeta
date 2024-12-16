@@ -35,8 +35,10 @@ function(configure_dimeta_lit_site_cfg input output)
   pythonize_bool(DIMETA_USE_HEAPALLOCSITE DIMETA_HEAPALLOCSITE)
 
   if(${LLVM_VERSION_MAJOR} VERSION_GREATER_EQUAL "13")
-    set(DIMETA_OPT_ARGS "-enable-new-pm=0")
+    #set(DIMETA_OPT_ARGS "-enable-new-pm=0")
   endif()
+
+  set(DIMETA_OPT_SHIM ${CMAKE_BINARY_DIR}/test/verifier/opt-shim.sh)
 
   dimeta_target_generate_file(${input} ${output})
 endfunction()
@@ -65,7 +67,7 @@ function(dimeta_add_lit_testsuite target comment)
 endfunction()
 
 function(dimeta_add_lit_target)
-  cmake_parse_arguments(ARG "" "" "SUITES" ${ARGN})
+  cmake_parse_arguments(ARG "" "" "SUITES;THREADS" ${ARGN})
 
   foreach(suite IN LISTS ARG_SUITES)
     if("${suite}" STREQUAL "all")
@@ -78,14 +80,16 @@ function(dimeta_add_lit_target)
     endif()
 
     if(NOT EXISTS ${SUITE_PATH})
-      message(WARNING "Could not find suitable lit test target at ${SUITE_PATH}")
+      if(NOT ${SUITE_PATH} MATCHES "staging")
+        message(WARNING "Could not find suitable lit test target at ${SUITE_PATH}")
+      endif()
       continue()
     endif()
 
     dimeta_add_lit_testsuite(${TARGET_NAME}
       "Running the lit suite dimeta::${suite}"
       ${SUITE_PATH}
-      ARGS -v -j 1
+      ARGS -v -j ${ARG_THREADS}
       PARAMS dimeta_site_config=${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg
       DEPENDS ${DIMETA_TEST_DEPENDS}
     )
@@ -98,14 +102,22 @@ set(DIMETA_SUITES
   all
   pass
   pass/gep
+  pass/pointer
+  pass/staging
 )
 
-dimeta_add_lit_target(SUITES ${DIMETA_SUITES})
+include(ProcessorCount)
+ProcessorCount(NUM_CPU)
+if(NUM_CPU EQUAL 0)
+  set(NUM_CPU 1)
+endif()
+
+dimeta_add_lit_target(SUITES ${DIMETA_SUITES} THREADS ${NUM_CPU})
 
 add_test(
   NAME dimeta-lit-suite
   COMMAND
-    ${DIMETA_LIT_EXEC} -j 1 --param
+    ${DIMETA_LIT_EXEC} -j ${NUM_CPU} --param
     dimeta_site_config=${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
