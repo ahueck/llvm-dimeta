@@ -21,7 +21,15 @@ using Extent    = std::uint64_t;
 using Offset    = std::uint64_t;
 using ArraySize = std::uint64_t;
 
-enum class Qualifier { kNone = 0x0, kConst = 0x1, kPtr = 0x2, kRef = 0x4, kPtrToMember = 0x8, kArray = 0x10 };
+enum class Qualifier {
+  kNone        = 0x0,
+  kConst       = 0x1,
+  kPtr         = 0x2,
+  kRef         = 0x4,
+  kPtrToMember = 0x8,
+  kArray       = 0x10,
+  kVector      = 0x20
+};
 
 struct Member;
 struct BaseClass;
@@ -85,9 +93,9 @@ template <typename T>
 struct QualType {
   T type{};
   ArraySizeList array_size;
-  // ArraySize array_size{0};
   Qualifiers qual;
   std::string typedef_name;
+  Extent vector_size{0};
   bool is_vector{false};
   bool is_forward_decl{false};
   bool is_recurring{false};

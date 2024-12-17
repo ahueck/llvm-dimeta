@@ -153,10 +153,12 @@ bool DIEventVisitor::visitNode(const llvm::DINode* node) {
 bool DIEventVisitor::visitCompositeType(const llvm::DICompositeType* composite_type) {
   // See, e.g., pass/c/stack_struct_array.c:
   if (composite_type->getTag() == llvm::dwarf::DW_TAG_array_type) {
-    current_.dwarf_tags.emplace_back(llvm::dwarf::DW_TAG_array_type);
-    current_.arrays.emplace_back(state::MetaData::ArrayData{composite_type->getSizeInBits(), Extent{0}});
-    // current_.array_size_bits =composite_type->getSizeInBits();
     current_.is_vector = composite_type->isVector();
+    current_.dwarf_tags.emplace_back(current_.is_vector ? state::CustomDwarfTag::kVector
+                                                        : llvm::dwarf::DW_TAG_array_type);
+    current_.arrays.emplace_back(
+        state::MetaData::ArrayData{composite_type->getSizeInBits(), Extent{0}, {}, composite_type->isVector()});
+    // current_.array_size_bits =composite_type->getSizeInBits();
     return true;
   }
 

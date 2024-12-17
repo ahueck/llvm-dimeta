@@ -26,6 +26,8 @@ using Extent = std::uint64_t;
 namespace state {
 // enum class Entity : uint8_t { Undef = 0, freestanding = 1, member, base };
 
+enum CustomDwarfTag { kVector = 0xFFFE };
+
 struct MetaData {
   llvm::DIType* type;
 
@@ -36,6 +38,7 @@ struct MetaData {
     Extent array_size_bits{0};
     Extent array_of_pointer{0};
     std::vector<Extent> subranges;
+    bool is_vector{false};
   };
 
   std::vector<ArrayData> arrays;

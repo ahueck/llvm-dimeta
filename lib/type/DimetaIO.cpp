@@ -161,6 +161,7 @@ struct llvm::yaml::ScalarEnumerationTraits<dimeta::Qualifier> {
     io.enumCase(info, "ref", dimeta::Qualifier::kRef);
     io.enumCase(info, "ptr_to_mem", dimeta::Qualifier::kPtrToMember);
     io.enumCase(info, "array", dimeta::Qualifier::kArray);
+    io.enumCase(info, "vector", dimeta::Qualifier::kVector);
   }
 };
 
@@ -172,6 +173,7 @@ void map_qualtype_fields(IO& io, QualType&& info) {
   map_optional_not_empty(io, "Qualifiers", info.qual);
   map_optional_not_empty(io, "Typedef", info.typedef_name);
   map_optional_not_empty(io, "Vector", info.is_vector);
+  map_optional_not_empty(io, "VectorSize", info.vector_size);
   map_optional_not_empty(io, "ForwardDecl", info.is_forward_decl);
   map_optional_not_empty(io, "Recurring", info.is_recurring);
 }
