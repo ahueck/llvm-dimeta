@@ -88,6 +88,8 @@ inline Qualifier dwarf2qual(unsigned tag) {
       return Qualifier::kPtrToMember;
     case DW_TAG_array_type:
       return Qualifier::kArray;
+    case diparser::state::CustomDwarfTag::kVector:
+      return Qualifier::kVector;
     default:
       return Qualifier::kNone;
   }
@@ -154,8 +156,17 @@ inline QualType<T> make_qual_type(const T& type, const diparser::state::MetaData
   const Qualifiers quals  = helper::make_qualifiers(meta_.dwarf_tags);
   const auto array_size   = helper::make_array_sizes(type, meta_.arrays);
   const auto typedef_name = meta_.typedef_names.empty() ? std::string{} : *meta_.typedef_names.begin();
+  
+  Extent vec_size{0};
+  for (const auto& array_data : meta_.arrays) {
+    if (array_data.is_vector) {
+      assert(vec_size == 0 && "Multiple vectors detected in arrays.");
+      vec_size = array_data.array_size_bits / 8;
+    }
+  }
 
-  return QualType<T>{type, array_size, quals, typedef_name, meta_.is_vector, meta_.is_forward_decl, meta_.is_recurring};
+  return QualType<T>{
+      type, array_size, quals, typedef_name, vec_size, meta_.is_vector, meta_.is_forward_decl, meta_.is_recurring};
 }
 
 inline CompoundType make_compound(const llvm::DICompositeType* composite_type) {
