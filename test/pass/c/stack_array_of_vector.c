@@ -10,7 +10,6 @@ void alloc_vector_arrays() {
   double3 d[4];
 }
 
-
 // CHECK:   Line:            8
 // CHECK-NEXT: Builtin:         true
 // CHECK-NEXT: Type:

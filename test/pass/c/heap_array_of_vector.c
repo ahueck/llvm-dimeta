@@ -7,14 +7,13 @@ typedef float float2 __attribute__((ext_vector_type(2)));
 typedef double double3 __attribute__((ext_vector_type(3)));
 
 void malloc_vector(int n) {
-  int2* i;    
-  float2* f;  
-  double3* d; 
-  i= malloc(n * sizeof(int2));
+  int2* i;
+  float2* f;
+  double3* d;
+  i = malloc(n * sizeof(int2));
   f = malloc(n * sizeof(float2));
   d = malloc(n * sizeof(double3));
 }
-
 
 // CHECK:   Line:            13
 // CHECK-NEXT: Builtin:         true

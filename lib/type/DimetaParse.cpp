@@ -156,7 +156,7 @@ inline QualType<T> make_qual_type(const T& type, const diparser::state::MetaData
   const Qualifiers quals  = helper::make_qualifiers(meta_.dwarf_tags);
   const auto array_size   = helper::make_array_sizes(type, meta_.arrays);
   const auto typedef_name = meta_.typedef_names.empty() ? std::string{} : *meta_.typedef_names.begin();
-  
+
   Extent vec_size{0};
   for (const auto& array_data : meta_.arrays) {
     if (array_data.is_vector) {
