@@ -38,7 +38,12 @@ class FindMatchingMember : public visitor::DINodeVisitor<FindMatchingMember> {
   // ~FindMatchingMember() = default;
 
   bool visitCompositeType(const llvm::DICompositeType* type) {
-    const auto id = type->getIdentifier();
+    const auto id = [](const auto* type) -> llvm::StringRef {
+      if (type->getIdentifier().empty()) {
+        return type->getName();
+      }
+      return type->getIdentifier();
+    }(type);
     if (id.equals(composite_name_)) {
       result = type;
       return false;
@@ -214,6 +219,10 @@ std::optional<llvm::DIType*> tbaa_resolver(llvm::DIType* root, const TBAAHandle&
     if (finder.result) {
       LOG_DEBUG("Found matching sub member " << log::ditype_str(finder.result.value()))
       composite = const_cast<llvm::DICompositeType*>(finder.result.value());
+      if (composite->getElements().size() != (tbaa.base_ty->getNumOperands() / 2)) {
+        LOG_DEBUG("Mismatch between sub member element count and TBAA base type count")
+        return root;
+      }
     } else {
       LOG_DEBUG("Did not find matching sub member")
       return root;
