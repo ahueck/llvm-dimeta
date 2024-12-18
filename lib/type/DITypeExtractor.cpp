@@ -40,6 +40,7 @@
 
 #include <cassert>
 #include <iterator>
+#include <unordered_map>
 
 namespace dimeta::type {
 
