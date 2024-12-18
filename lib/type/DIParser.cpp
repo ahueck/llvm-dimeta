@@ -144,7 +144,7 @@ bool DIEventVisitor::visitNode(const llvm::DINode* node) {
       auto range_count  = count->getValue().getLimitedValue();
       auto& array       = current_.arrays.back();
       array.subranges.push_back(range_count);
-      LOG_FATAL(range_count);
+      // LOG_FATAL(range_count);
     }
   }
   return true;
