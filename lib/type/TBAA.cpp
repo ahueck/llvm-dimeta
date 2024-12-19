@@ -22,6 +22,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <assert.h>
+#include <llvm/ADT/STLExtras.h>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -218,9 +219,12 @@ std::optional<llvm::DIType*> tbaa_resolver(llvm::DIType* root, const TBAAHandle&
     finder.traverseCompositeType(composite);
     if (finder.result) {
       LOG_DEBUG("Found matching sub member " << log::ditype_str(finder.result.value()))
-      composite = const_cast<llvm::DICompositeType*>(finder.result.value());
-      if (composite->getElements().size() != (tbaa.base_ty->getNumOperands() / 2)) {
-        LOG_DEBUG("Mismatch between sub member element count and TBAA base type count")
+      composite              = const_cast<llvm::DICompositeType*>(finder.result.value());
+      const auto num_members = [](const auto& elements) {
+        return llvm::count_if(elements, [](const auto* node) { return llvm::isa<llvm::DIDerivedType>(node); });
+      }(composite->getElements());
+      if (num_members != (tbaa.base_ty->getNumOperands() / 2)) {
+        LOG_DEBUG("Mismatch between sub member element count and TBAA base type count " << *tbaa.base_ty)
         return root;
       }
     } else {
