@@ -85,6 +85,12 @@ std::optional<llvm::DILocalVariable*> find_local_variable(const llvm::Instructio
           break;
         }
       }
+      if (auto load = llvm::dyn_cast<llvm::LoadInst>(user)) {
+        result = find_di_var(load);
+        if (result) {
+          break;
+        }
+      }
     }
   }
   return result;
