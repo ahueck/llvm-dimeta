@@ -1,4 +1,4 @@
-# llvm-dimeta  &middot; [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
+# llvm-dimeta  &middot; [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause) [![Coverage Status](https://coveralls.io/repos/github/ahueck/llvm-dimeta/badge.svg?branch=main)](https://coveralls.io/github/ahueck/llvm-dimeta)
 
 llvm-dimeta is library to determine the type of stack (`AllocaInst`), globals (`GlobalVariables`) and heap allocations in LLVM IR based only on the LLVM debug information and metadata.
 
