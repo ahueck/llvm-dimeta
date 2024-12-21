@@ -43,16 +43,16 @@ jobs:
         include:
           - llvm-version: 12
             os: ubuntu-20.04
-            preset: develop
+            preset: coverage
           - llvm-version: 14
             os: ubuntu-22.04
-            preset: develop
+            preset: coverage
           - llvm-version: 15
             os: ubuntu-22.04
-            preset: develop
+            preset: coverage
           - llvm-version: 18
             os: ubuntu-24.04
-            preset: develop
+            preset: coverage
 
     runs-on: ${{ matrix.os }}
 
@@ -67,6 +67,9 @@ jobs:
 
       - name: Install Clang
         run: sudo apt-get install clang-${{ matrix.llvm-version }} clang-tidy-${{ matrix.llvm-version }}
+
+      - name: Install lcov
+        run: sudo apt-get install lcov
 
       - name: Setup env
         run: |
@@ -83,3 +86,24 @@ jobs:
 
       - name: Test with lit-suite
         run: cmake --build build --target check-dimeta
+
+      - name: Build coverage report
+        run: cmake --build build --target dimeta-coverage
+
+      - name: Coveralls (parallel)
+        uses: coverallsapp/github-action@master
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path-to-lcov: build/coverage.info
+          flag-name: ${{ matrix.llvm-version }}-${{ matrix.os }}
+          parallel: true
+
+  finish-coverage:
+    needs: lit-suite
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Coveralls Finished
+        uses: coverallsapp/github-action@master
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          parallel-finished: true
