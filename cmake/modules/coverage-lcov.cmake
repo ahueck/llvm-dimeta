@@ -25,7 +25,7 @@ endif()
 
 set(
     DIMETA_COVERAGE_TRACE_COMMAND
-    ${DIMETA_LCOV_EXEC} ${GCOV_TOOL} -c -q
+    ${DIMETA_LCOV_EXEC} ${GCOV_TOOL} --rc branch_coverage=1 --rc derive_function_end_line=0 -c -q
     -o "${PROJECT_BINARY_DIR}/coverage.info"
     -d "${PROJECT_BINARY_DIR}"
     --include "${PROJECT_SOURCE_DIR}/*"
@@ -35,7 +35,7 @@ set(
 
 set(
     DIMETA_COVERAGE_HTML_COMMAND
-    ${DIMETA_GENHTML_EXEC} --legend -f -q
+    ${DIMETA_GENHTML_EXEC} --rc branch_coverage=1 --rc derive_function_end_line=0 --legend -f -q
     "${PROJECT_BINARY_DIR}/coverage.info"
     -p "${PROJECT_SOURCE_DIR}"
     -o "${PROJECT_BINARY_DIR}/coverage_html"
