@@ -78,6 +78,7 @@ struct FundamentalType {
     kVtablePtr    = 1 << 8,
     kNullptr      = 1 << 9,
     kUTFChar      = 1 << 10,
+    kComplex      = 1 << 11,
     kSignedChar   = kChar | kSigned,
     kUnsignedChar = kChar | kUnsigned,
     kSignedInt    = kInt | kSigned,

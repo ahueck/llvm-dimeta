@@ -70,6 +70,8 @@ inline FundamentalType::Encoding dwarf2encoding(const unsigned di_encoding) {
       return FundamentalType::Encoding::kBool;
     case DW_ATE_UTF:
       return FundamentalType::Encoding::kUTFChar;
+    case DW_ATE_complex_float:
+      return FundamentalType::Encoding::kComplex;
     default:
       return FundamentalType::Encoding::kUnknown;
   }
