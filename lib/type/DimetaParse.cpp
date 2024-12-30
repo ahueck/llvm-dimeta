@@ -186,7 +186,16 @@ inline QualifiedCompound make_qualified_compound(const diparser::state::MetaData
 
 QualifiedFundamental make_qualified_fundamental(const diparser::state::MetaData& meta_, std::string_view name,
                                                 FundamentalType::Encoding encoding) {
-  const auto size  = (meta_.type->getSizeInBits() / 8);
+  const auto size = [&]() {
+    auto size = (meta_.type->getSizeInBits() / 8);
+    if (size == 0) {
+      if (encoding == FundamentalType::Encoding::kNullptr) {
+        // sizeof std::nullptr == sizeof void*
+        size = meta_.member_size > 0 ? meta_.member_size : sizeof(void*);
+      }
+    }
+    return size;
+  }();
   auto fundamental = FundamentalType{std::string{name}, size, encoding};
   return make_qual_type<FundamentalType>(fundamental, meta_);
 }

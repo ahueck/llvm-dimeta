@@ -175,7 +175,7 @@ void foo() {
 // CHECK-NEXT:   - Name:            null_ptr_var
 // CHECK-NEXT:     Builtin:         true
 // CHECK-NEXT:     Type:
-// CHECK-NEXT:       Fundamental:     { Name: 'decltype(nullptr)', Extent: 0, Encoding: nullptr }
+// CHECK-NEXT:       Fundamental:     { Name: 'decltype(nullptr)', Extent: 8, Encoding: nullptr }
 // CHECK-NEXT:       Typedef:         nullptr_t
 // CHECK-NEXT:   - Name:            size_var
 // CHECK-NEXT:     Builtin:         true
