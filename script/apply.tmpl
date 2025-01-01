@@ -1,0 +1,47 @@
+#!/bin/bash
+
+target=$1
+extension="${target##*.}"
+
+function is_optim() {
+  for arg in "$@"; do
+    case "$arg" in
+    -O?)
+      opt_flag="$arg"
+      return 1
+    ;;
+    esac
+  done
+  return 0
+}
+
+if [ $extension == "c" ]; then
+  compiler="@DIMETA_CLANG_EXEC@"
+else
+  compiler="@DIMETA_CLANGCXX_EXEC@"
+fi
+
+opt_tool="@DIMETA_OPT_EXEC@ @DIMETA_OPT_ARGS@"
+if [[ "@DIMETA_TEST_MODE@__" == "1__" ]]; then
+  dimeta_pass_plugin="$<TARGET_FILE:dimeta::TestPass> -dimeta-test"
+else
+  dimeta_pass_plugin="$<TARGET_FILE:dimeta::AnalysisPass> -dimeta"
+fi
+
+function to_llvm() {
+  $compiler -S -O1 -g -emit-llvm -Xclang -disable-llvm-passes -fno-discard-value-names "$target" -o -
+}
+
+is_optim
+if [[ "$?" == "0" ]];then
+  to_llvm | \
+    $opt_tool -load $dimeta_pass_plugin ${@:2}
+else
+  to_llvm | $opt_tool $opt_flag -S | \
+    $opt_tool -load $dimeta_pass_plugin ${@:2}
+fi
+
+if [[ "@DIMETA_TEST_MODE@__" == "1__" ]]; then
+  echo "Checks for file: " "$target"
+  grep -Ein "CHECK(-NEXT)?:" "$target"
+fi

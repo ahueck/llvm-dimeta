@@ -1,0 +1,109 @@
+name: Dimeta-CI
+
+on:
+  push:
+    branches: [ master, devel ]
+  pull_request:
+
+env:
+  CXX: clang++
+  CC: clang
+
+jobs:
+  format-check:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Format source code
+        run: |
+          find demo lib test \
+            -type f \
+            -a \( -name "*.c" -o -name "*.cpp" -o -name "*.h" \) \
+            -print0 \
+            | xargs -0 clang-format-14 -i
+
+      - name: Format check
+        run: |
+          git status --porcelain --untracked-files=no
+          git status --porcelain --untracked-files=no | xargs -o -I {} test -z \"{}\"
+
+  codespell:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: codespell-project/actions-codespell@v2
+
+  lit-suite:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - llvm-version: 12
+            os: ubuntu-20.04
+            preset: coverage
+          - llvm-version: 14
+            os: ubuntu-22.04
+            preset: coverage
+          - llvm-version: 15
+            os: ubuntu-22.04
+            preset: coverage
+          - llvm-version: 18
+            os: ubuntu-24.04
+            preset: coverage
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update apt
+        run: sudo apt-get update
+
+      - name: Install LLVM
+        run: sudo apt-get install libllvm${{ matrix.llvm-version }} llvm-${{ matrix.llvm-version }} llvm-${{ matrix.llvm-version }}-dev
+
+      - name: Install Clang
+        run: sudo apt-get install clang-${{ matrix.llvm-version }} clang-tidy-${{ matrix.llvm-version }}
+
+      - name: Install lcov
+        run: sudo apt-get install lcov
+
+      - name: Setup env
+        run: |
+          sudo ln -f -s /usr/bin/clang-${{ matrix.llvm-version }} /usr/bin/clang
+          sudo ln -f -s /usr/bin/clang++-${{ matrix.llvm-version }} /usr/bin/clang++
+          echo "LLVM_CMAKE_DIR=/usr/lib/llvm-${{ matrix.llvm-version }}/cmake" >> $GITHUB_ENV
+          echo "EXTERNAL_LIT=/usr/lib/llvm-${{ matrix.llvm-version }}/build/utils/lit/lit.py" >> $GITHUB_ENV
+
+      - name: Configure Dimeta
+        run: cmake -B build --preset ${{ matrix.preset }} -DLLVM_DIR=${LLVM_CMAKE_DIR} -DLLVM_EXTERNAL_LIT=${EXTERNAL_LIT}
+
+      - name: Build Dimeta
+        run: cmake --build build --parallel 2
+
+      - name: Test with lit-suite
+        run: cmake --build build --target check-dimeta
+
+      - name: Build coverage report
+        run: cmake --build build --target dimeta-coverage
+
+      - name: Coveralls (parallel)
+        uses: coverallsapp/github-action@master
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path-to-lcov: build/coverage.info
+          flag-name: ${{ matrix.llvm-version }}-${{ matrix.os }}
+          parallel: true
+
+  finish-coverage:
+    needs: lit-suite
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Coveralls Finished
+        uses: coverallsapp/github-action@master
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          parallel-finished: true
