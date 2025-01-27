@@ -163,6 +163,7 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::CallValuePath& call_
       LOG_DEBUG("Root is malloc-like call")
       // TODO ask for type of newlike call here!
       if (call_path.call && (call_inst == call_path.call.value())) {
+        // Test triggers by cpp/heap_lhs_function_opt_nofwd.cpp and ir/01_endless_recursion.ll
         LOG_WARNING("Root value is the same as the initial malloc-like call")
         return {};
       }
