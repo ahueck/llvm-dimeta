@@ -81,10 +81,10 @@ bool DIEventVisitor::visitDerivedType(const llvm::DIDerivedType* derived_type) {
   using namespace llvm::dwarf;
 
   const auto make_member = [&](const auto* derived) {
-    current_.member_name   = derived_type->getName();
-    current_.is_member     = true;
-    current_.member_offset = derived_type->getOffsetInBits() / 8;
-    current_.member_size   = derived_type->getSizeInBits() / 8;
+    current_.member_name      = derived_type->getName();
+    current_.is_member        = true;
+    current_.member_offset    = derived_type->getOffsetInBits() / 8;
+    current_.member_size      = derived_type->getSizeInBits() / 8;
     current_.is_member_static = derived->isStaticMember();
   };
 
