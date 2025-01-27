@@ -1,6 +1,6 @@
 ; RUN: %apply-verifier %s |& %filecheck %s
 ; CHECK-NOT: Assertion
-; REQUIRES: hasopaque
+; REQUIRES: llvm-18
 
 ; CHECK: SourceLoc:
 ; CHECK-NEXT:   File:            '/usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/ompi/mpi/cxx/datatype_inln.h'
