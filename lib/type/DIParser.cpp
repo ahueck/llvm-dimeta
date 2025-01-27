@@ -96,7 +96,7 @@ bool DIEventVisitor::visitDerivedType(const llvm::DIDerivedType* derived_type) {
     }
     case DW_TAG_variable: {
       // see test ir/02_mpicxx.ll: Datatype has a static member,
-      // which is encoded as a variable, and not a member
+      // which is encoded as a variable, and not as a member (variable)
       if (!derived_type->isStaticMember()) {
         LOG_WARNING("Variable is not a static member. " << *derived_type)
       } else {
@@ -223,11 +223,6 @@ void DIEventVisitor::leaveCompositeType(const llvm::DICompositeType* composite_t
 
   if (!(meta_for_composite.is_member || meta_for_composite.is_base_class)) {
     // create (free-standing) compound (finished recursion)
-    // LOG_DEBUG(*composite_type)
-    // LOG_DEBUG(*stack_.front().type)
-    // if (!stack_.empty()) {
-    //   std::exit(0);
-    // }
     assert(stack_.empty() && "Free standing composite requires empty stack");
     //    assert(composite_e == state::Entity::freestanding);
   }
