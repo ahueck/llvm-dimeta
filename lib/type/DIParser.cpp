@@ -11,6 +11,7 @@
 #include "DimetaData.h"
 #include "support/Logger.h"
 
+#include <cstdlib>
 #include <llvm/BinaryFormat/Dwarf.h>
 
 namespace dimeta::diparser {
@@ -79,13 +80,28 @@ bool DIEventVisitor::visitBasicType(const llvm::DIBasicType* basic_type) {
 bool DIEventVisitor::visitDerivedType(const llvm::DIDerivedType* derived_type) {
   using namespace llvm::dwarf;
 
+  const auto make_member = [&](const auto* derived) {
+    current_.member_name      = derived_type->getName();
+    current_.is_member        = true;
+    current_.member_offset    = derived_type->getOffsetInBits() / 8;
+    current_.member_size      = derived_type->getSizeInBits() / 8;
+    current_.is_member_static = derived->isStaticMember();
+  };
+
   const auto tag = derived_type->getTag();
   switch (tag) {
     case DW_TAG_member: {
-      current_.member_name   = derived_type->getName();
-      current_.is_member     = true;
-      current_.member_offset = derived_type->getOffsetInBits() / 8;
-      current_.member_size   = derived_type->getSizeInBits() / 8;
+      make_member(derived_type);
+      break;
+    }
+    case DW_TAG_variable: {
+      // see test ir/02_mpicxx.ll: Datatype has a static member,
+      // which is encoded as a variable, and not as a member (variable)
+      if (!derived_type->isStaticMember()) {
+        LOG_WARNING("Variable is not a static member. " << *derived_type)
+      } else {
+        make_member(derived_type);
+      }
       break;
     }
     case DW_TAG_typedef:
@@ -154,8 +170,8 @@ bool DIEventVisitor::visitCompositeType(const llvm::DICompositeType* composite_t
   // See, e.g., pass/c/stack_struct_array.c:
   if (composite_type->getTag() == llvm::dwarf::DW_TAG_array_type) {
     current_.is_vector = composite_type->isVector();
-    current_.dwarf_tags.emplace_back(current_.is_vector ? state::CustomDwarfTag::kVector
-                                                        : llvm::dwarf::DW_TAG_array_type);
+    current_.dwarf_tags.emplace_back(current_.is_vector ? static_cast<unsigned>(state::CustomDwarfTag::kVector)
+                                                        : static_cast<unsigned>(llvm::dwarf::DW_TAG_array_type));
     current_.arrays.emplace_back(
         state::MetaData::ArrayData{composite_type->getSizeInBits(), Extent{0}, {}, composite_type->isVector()});
     // current_.array_size_bits =composite_type->getSizeInBits();
