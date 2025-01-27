@@ -13,6 +13,7 @@
 #include "GEP.h"
 #include "TBAA.h"
 #include "Util.h"
+#include "ValuePath.h"
 #include "support/Logger.h"
 
 #include "llvm/ADT/ArrayRef.h"
@@ -208,18 +209,18 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dat
 
 }  // namespace reset
 
-std::optional<llvm::DIType*> find_type(const dataflow::ValuePath& path) {
-  auto type = root::find_type_root(path);
+std::optional<llvm::DIType*> find_type(const dataflow::CallValuePath& call_path) {
+  auto type = root::find_type_root(call_path);
 
   if (!type) {
-    LOG_DEBUG("find_type_root failed to find a type for path " << path)
+    LOG_DEBUG("find_type_root failed to find a type for path " << call_path.path)
     return {};
   }
 
   reset::GepToDIMemberMap gep_to_member_map;
 
-  const auto path_end = path.path_to_value.rend();
-  for (auto path_iter = path.path_to_value.rbegin(); path_iter != path_end; ++path_iter) {
+  const auto path_end = call_path.path.path_to_value.rend();
+  for (auto path_iter = call_path.path.path_to_value.rbegin(); path_iter != path_end; ++path_iter) {
     if (!type) {
       break;
     }
@@ -237,13 +238,14 @@ std::optional<llvm::DIType*> find_type(const dataflow::ValuePath& path) {
       continue;
     }
     LOG_DEBUG("Extracted type w.r.t. gep: " << log::ditype_str(*type));
-    type = reset::reset_ditype(type.value(), path, path_iter, path_end, gep_to_member_map).value_or(type.value());
+    type = reset::reset_ditype(type.value(), call_path.path, path_iter, path_end, gep_to_member_map)
+               .value_or(type.value());
     LOG_DEBUG("reset_ditype result " << log::ditype_str(type.value_or(nullptr)) << "\n")
   }
 
   if (type) {
     // If last node is a store inst, try to extract type via TBAA
-    const auto start_node = llvm::dyn_cast_or_null<llvm::StoreInst>(*path.start_value());
+    const auto start_node = llvm::dyn_cast_or_null<llvm::StoreInst>(*call_path.path.start_value());
     if (start_node) {
       auto type_tbaa = tbaa::resolve_tbaa(type.value(), *llvm::dyn_cast<llvm::Instruction>(start_node));
       if (type_tbaa) {
