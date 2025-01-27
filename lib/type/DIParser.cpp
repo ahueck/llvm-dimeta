@@ -157,9 +157,15 @@ bool DIEventVisitor::visitNode(const llvm::DINode* node) {
     assert(!current_.arrays.empty() && "Subrange requires array composite on stack");
     if (sub_range->getCount().is<llvm::ConstantInt*>()) {
       const auto* count = sub_range->getCount().get<llvm::ConstantInt*>();
-      auto range_count  = count->getValue().getLimitedValue();
       auto& array       = current_.arrays.back();
-      array.subranges.push_back(range_count);
+      if (!count->getValue().isNegative()) {
+        auto range_count = count->getValue().getLimitedValue();
+        array.subranges.push_back(range_count);
+      } else {
+        // see test cpp/stack_static_members_array.cpp
+        // static int[] equals subrange(count: -1), we set simply to 0 for neg. numbers
+        array.subranges.push_back(0);
+      }
       // LOG_FATAL(range_count);
     }
   }
