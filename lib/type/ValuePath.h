@@ -17,6 +17,12 @@
 #include <algorithm>
 #include <cstddef>
 #include <functional>
+#include <llvm/IR/InstrTypes.h>
+#include <optional>
+
+namespace llvm {
+class CallBase;
+}
 
 namespace dimeta::dataflow {
 
@@ -116,6 +122,13 @@ inline llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const ValuePath& pat
   os << "]";
   return os;
 }
+
+struct CallValuePath final {
+  // The "call" is the initial call the ValuePath is constructed on
+  // may be none if RootType calculates the root type based on an alloca
+  std::optional<const llvm::CallBase*> call;
+  ValuePath path;
+};
 
 }  // namespace dimeta::dataflow
 
