@@ -51,6 +51,7 @@ struct MetaData {
 
   llvm::SmallVector<unsigned, 8> dwarf_tags;
   bool is_member{false};
+  bool is_member_static{false};
   bool is_base_class{false};
   bool has_vtable{false};
   bool is_recurring{false};
