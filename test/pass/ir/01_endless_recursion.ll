@@ -1,6 +1,13 @@
 ; RUN: %apply-verifier %s | %filecheck %s
 ; CHECK-NOT: Segmentation
 ; TIMEOUT: 3
+; REQUIRES: hasopaque
+
+; `DIRootType::find_type_root` caused infinite recursion as follows:  
+; Initially, `find_type(%call5.i.i.i2.i6.i)` is invoked.  
+; During execution, the ValuePath root type of `%call5.i.i.i2.i6.i` is determined to be `%call5.i.i.i2.i6.i` itself.  
+; If the identified root type is a heap-like call, `find_type_root` recursively invokes `find_type()` on it, i.e., `find_type(%call5.i.i.i2.i6.i)`.  
+; This self-referential determination led to infinite recursion in `find_type`.
 
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
