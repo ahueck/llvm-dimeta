@@ -11,6 +11,7 @@
 #include "DimetaData.h"
 #include "support/Logger.h"
 
+#include <cstdlib>
 #include <llvm/BinaryFormat/Dwarf.h>
 
 namespace dimeta::diparser {
@@ -79,13 +80,28 @@ bool DIEventVisitor::visitBasicType(const llvm::DIBasicType* basic_type) {
 bool DIEventVisitor::visitDerivedType(const llvm::DIDerivedType* derived_type) {
   using namespace llvm::dwarf;
 
+  const auto make_member = [&](const auto* derived) {
+    current_.member_name   = derived_type->getName();
+    current_.is_member     = true;
+    current_.member_offset = derived_type->getOffsetInBits() / 8;
+    current_.member_size   = derived_type->getSizeInBits() / 8;
+  };
+
   const auto tag = derived_type->getTag();
   switch (tag) {
     case DW_TAG_member: {
-      current_.member_name   = derived_type->getName();
-      current_.is_member     = true;
-      current_.member_offset = derived_type->getOffsetInBits() / 8;
-      current_.member_size   = derived_type->getSizeInBits() / 8;
+      make_member(derived_type);
+      break;
+    }
+    case DW_TAG_variable: {
+      // see test ir/02_mpicxx.ll: Datatype has a static member,
+      // which is encoded as a variable, and not a member
+      if (!derived_type->isStaticMember()) {
+        LOG_WARNING("Variable is not a static member. " << *derived_type)
+      } else {
+        current_.is_member_static = true;
+        make_member(derived_type);
+      }
       break;
     }
     case DW_TAG_typedef:
@@ -207,6 +223,11 @@ void DIEventVisitor::leaveCompositeType(const llvm::DICompositeType* composite_t
 
   if (!(meta_for_composite.is_member || meta_for_composite.is_base_class)) {
     // create (free-standing) compound (finished recursion)
+    // LOG_DEBUG(*composite_type)
+    // LOG_DEBUG(*stack_.front().type)
+    // if (!stack_.empty()) {
+    //   std::exit(0);
+    // }
     assert(stack_.empty() && "Free standing composite requires empty stack");
     //    assert(composite_e == state::Entity::freestanding);
   }

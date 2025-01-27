@@ -155,7 +155,11 @@ template <typename T>
 inline QualType<T> make_qual_type(const T& type, const diparser::state::MetaData& meta_) {
   static_assert(std::is_same_v<T, CompoundType> || std::is_same_v<T, FundamentalType>, "Wrong type.");
 
-  const Qualifiers quals  = helper::make_qualifiers(meta_.dwarf_tags);
+  Qualifiers quals = helper::make_qualifiers(meta_.dwarf_tags);
+  if (meta_.is_member_static) {
+    // TODO should this be the last, or should it be position dependent w.r.t. dwarf_tags?
+    quals.emplace_back(Qualifier::kStatic);
+  }
   const auto array_size   = helper::make_array_sizes(type, meta_.arrays);
   const auto typedef_name = meta_.typedef_names.empty() ? std::string{} : *meta_.typedef_names.begin();
 

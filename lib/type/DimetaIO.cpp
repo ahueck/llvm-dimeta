@@ -163,6 +163,7 @@ struct llvm::yaml::ScalarEnumerationTraits<dimeta::Qualifier> {
     io.enumCase(info, "ptr_to_mem", dimeta::Qualifier::kPtrToMember);
     io.enumCase(info, "array", dimeta::Qualifier::kArray);
     io.enumCase(info, "vector", dimeta::Qualifier::kVector);
+    io.enumCase(info, "static", dimeta::Qualifier::kStatic);
   }
 };
 
