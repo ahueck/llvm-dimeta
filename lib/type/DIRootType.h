@@ -11,16 +11,17 @@
 #include <optional>
 
 namespace dimeta::dataflow {
-struct ValuePath;
+struct CallValuePath;
 }  // namespace dimeta::dataflow
 
 namespace llvm {
 class DIType;
+class CallBase;
 }
 
 namespace dimeta::root {
 
-std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path);
+std::optional<llvm::DIType*> find_type_root(const dataflow::CallValuePath& path);
 
 }
 

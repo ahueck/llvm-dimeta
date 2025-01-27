@@ -15,6 +15,7 @@
 #include "DimetaParse.h"
 #include "MemoryOps.h"
 #include "Util.h"
+#include "ValuePath.h"
 #include "support/Logger.h"
 
 #include "llvm/ADT/ArrayRef.h"
@@ -54,11 +55,11 @@ class DbgVariableIntrinsic;
 
 namespace dimeta {
 
-llvm::SmallVector<llvm::DIType*, 4> collect_types(llvm::ArrayRef<dataflow::ValuePath> paths_to_type) {
+llvm::SmallVector<llvm::DIType*, 4> collect_types(const llvm::CallBase* call, llvm::ArrayRef<dataflow::ValuePath> paths_to_type) {
   using namespace llvm;
   SmallVector<llvm::DIType*, 4> di_types;
   llvm::transform(paths_to_type, dimeta::util::optional_back_inserter(di_types),
-                  [](const auto& path) { return type::find_type(path); });
+                  [&](const auto& path) { return type::find_type(dataflow::CallValuePath{call, path}); });
   return di_types;
 }
 
@@ -86,7 +87,8 @@ auto final_ditype(std::optional<llvm::DIType*> root_ditype) -> std::pair<std::op
 std::optional<llvm::DIType*> type_for_malloclike(const llvm::CallBase* call) {
   const auto ditype_paths = dataflow::type_for_heap_call(call);
 
-  const auto ditypes_vector = collect_types(ditype_paths);
+  LOG_DEBUG("Found paths, now collecting types")
+  const auto ditypes_vector = collect_types(call, ditype_paths);
   if (ditypes_vector.empty()) {
     return {};
   }
@@ -138,7 +140,7 @@ std::optional<DimetaData> type_for(const llvm::CallBase* call) {
 #endif
 
   if (!extracted_type) {
-    LOG_TRACE("Type for malloc-like: " << cb_fun->getName())
+    LOG_DEBUG("Type for malloc-like: " << cb_fun->getName())
     extracted_type = type_for_malloclike(call);
   }
   auto source_loc                        = difinder::find_location(call);

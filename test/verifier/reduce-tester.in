@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# Usage: llvm-reduce --test=path/to/tester.sh input.ll
+
+verifier_pass="@TESTPASS_PASS_DIR@/$<TARGET_FILE_NAME:dimeta::TestPass>"
+
+@OPT_SHIM@ -load-pass-plugin ${verifier_pass} -passes=dimeta-test --disable-output $1 
