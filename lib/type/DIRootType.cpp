@@ -162,7 +162,7 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::CallValuePath& call_
       // see test c/heap_tachyon_mock_images.c
       LOG_DEBUG("Root is malloc-like call")
       // TODO ask for type of newlike call here!
-      if(call_path.call && (call_inst == call_path.call.value())){
+      if (call_path.call && (call_inst == call_path.call.value())) {
         LOG_WARNING("Root value is the same as the initial malloc-like call")
         return {};
       }
@@ -175,7 +175,7 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::CallValuePath& call_
       return extracted_type->entry_type;
     }
 
-    const auto& path = call_path.path;
+    const auto& path         = call_path.path;
     auto store_function_type = helper::type_of_store_to_call(path, called_f, call_inst);
     if (store_function_type) {
       return store_function_type;

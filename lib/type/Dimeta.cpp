@@ -55,11 +55,13 @@ class DbgVariableIntrinsic;
 
 namespace dimeta {
 
-llvm::SmallVector<llvm::DIType*, 4> collect_types(const llvm::CallBase* call, llvm::ArrayRef<dataflow::ValuePath> paths_to_type) {
+llvm::SmallVector<llvm::DIType*, 4> collect_types(const llvm::CallBase* call,
+                                                  llvm::ArrayRef<dataflow::ValuePath> paths_to_type) {
   using namespace llvm;
   SmallVector<llvm::DIType*, 4> di_types;
-  llvm::transform(paths_to_type, dimeta::util::optional_back_inserter(di_types),
-                  [&](const auto& path) { return type::find_type(dataflow::CallValuePath{call, path}); });
+  llvm::transform(paths_to_type, dimeta::util::optional_back_inserter(di_types), [&](const auto& path) {
+    return type::find_type(dataflow::CallValuePath{call, path});
+  });
   return di_types;
 }
 

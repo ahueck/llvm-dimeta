@@ -17,7 +17,7 @@ struct CallValuePath;
 namespace llvm {
 class DIType;
 class CallBase;
-}
+}  // namespace llvm
 
 namespace dimeta::root {
 

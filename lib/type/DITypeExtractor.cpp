@@ -236,7 +236,8 @@ std::optional<llvm::DIType*> find_type(const dataflow::CallValuePath& call_path)
       continue;
     }
     LOG_DEBUG("Extracted type w.r.t. gep: " << log::ditype_str(*type));
-    type = reset::reset_ditype(type.value(), call_path.path, path_iter, path_end, gep_to_member_map).value_or(type.value());
+    type = reset::reset_ditype(type.value(), call_path.path, path_iter, path_end, gep_to_member_map)
+               .value_or(type.value());
     LOG_DEBUG("reset_ditype result " << log::ditype_str(type.value_or(nullptr)) << "\n")
   }
 
