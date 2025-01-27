@@ -28,7 +28,8 @@ enum class Qualifier {
   kRef         = 0x4,
   kPtrToMember = 0x8,
   kArray       = 0x10,
-  kVector      = 0x20
+  kVector      = 0x20,
+  kStatic      = 0x40
 };
 
 struct Member;
