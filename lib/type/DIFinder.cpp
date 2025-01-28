@@ -53,14 +53,27 @@ llvm::Value* get_alloca_for(const DbgVar* dbg_var) {
 }
 }  // namespace compat
 
-std::optional<const llvm::DbgVariableRecord*>
-find_record (const llvm::Instruction* root)
-{
-  for (auto const& inst : *root->getParent ())
-  {
-    for (llvm::DbgVariableRecord& var : filterDbgVars (inst.getDbgRecordRange ()))
-    {
-      if (compat::get_alloca_for (&var) == root)
+#if LLVM_VERSION_MAJOR < 19
+
+std::optional<const llvm::DbgVariableIntrinsic*> find_intrinsic(const llvm::Instruction* ai) {
+  using namespace llvm;
+  auto& func = *ai->getFunction();
+  for (auto& inst : llvm::instructions(func)) {
+    if (auto* dbg = dyn_cast<DbgVariableIntrinsic>(&inst)) {
+      if (compat::get_alloca_for(dbg) == ai) {
+        return dbg;
+      }
+    }
+  }
+  return {};
+}
+
+#else
+
+std::optional<const llvm::DbgVariableRecord*> find_intrinsic(const llvm::Instruction* root) {
+  for (auto const& inst : *root->getParent()) {
+    for (llvm::DbgVariableRecord& var : filterDbgVars(inst.getDbgRecordRange())) {
+      if (compat::get_alloca_for(&var) == root)
         return &var;
     }
   }
@@ -68,11 +81,13 @@ find_record (const llvm::Instruction* root)
   return {};
 }
 
+#endif
+
 std::optional<llvm::DILocalVariable*> find_local_variable(const llvm::Instruction* ai, bool bitcast_search) {
   using namespace llvm;
   //  DebugInfoFinder di_finder;
   const auto find_di_var = [&](auto* ai) -> std::optional<DILocalVariable*> {
-    auto intrinsic = find_record(ai);
+    auto intrinsic = find_intrinsic(ai);
     if (intrinsic) {
       return intrinsic.value()->getVariable();
     }
@@ -103,7 +118,7 @@ std::optional<llvm::DILocation*> find_location(const llvm::Instruction* inst) {
     return location.get();
   }
 
-  auto dbg_intrinsic = find_record(inst);
+  auto dbg_intrinsic = find_intrinsic(inst);
   if (dbg_intrinsic) {
     return dbg_intrinsic.value()->getDebugLoc().get();
   }
