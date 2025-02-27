@@ -358,6 +358,18 @@ GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, 
   }
 }
 
+std::optional<GepIndexToType> try_resolve_inlined_operator(const llvm::GEPOperator* gep) {
+  auto* const load = llvm::dyn_cast<llvm::Instruction>(gep->getPointerOperand());
+  if (!load)
+    return {};
+
+  const auto* const sub_prog = llvm::dyn_cast<llvm::DISubprogram>(load->getDebugLoc().getScope());
+  assert(sub_prog && "Scope does not represent a subprogram");
+
+  // Return the return-type of the inlined subroutine
+  return {GepIndexToType { sub_prog->getType()->getTypeArray()[0] }};
+}
+
 GepIndexToType extract_gep_dereferenced_type(llvm::DIType* root, const llvm::GEPOperator& inst) {
   using namespace llvm;
 
@@ -414,10 +426,8 @@ GepIndexToType extract_gep_dereferenced_type(llvm::DIType* root, const llvm::GEP
   assert(composite_type != nullptr && "Root should be a struct-like type. A");
 
   if (composite_type->isForwardDecl()) {
-    LOG_DEBUG("Forward declared composite type cannot be resolved " << log::ditype_str(composite_type))
-    // TODO: Make some error code for such a case, this is hit by `cpp/heap_vector_operator_opt.cpp` and looking at
-    //       the DI type, it doesn't seem to have a way to get the underlying type so...
-    return GepIndexToType{};
+    LOG_DEBUG("Trying to resolve forward-declared composite type " << log::ditype_str(composite_type))
+    return try_resolve_inlined_operator(&inst).value_or(GepIndexToType {});
   }
 
   LOG_DEBUG("Gep to DI composite: " << log::ditype_str(composite_type))

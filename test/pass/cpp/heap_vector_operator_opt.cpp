@@ -1,7 +1,7 @@
 // RUN: %cpp-to-llvm %s | %opt -O1 -S | %apply-verifier 2>&1 | %filecheck %s
 
 // This compilers fwd declare the vector debug data
-// REQUIRES: !19 && !18 && !14 && !15
+// REQUIRES: !18 && !14 && !15
 
 #include <cstdlib>
 #include <vector>
