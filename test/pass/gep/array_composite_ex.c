@@ -3,7 +3,9 @@
 
 #include <stdlib.h>
 
-struct B {double* x;};
+struct B {
+  double* x;
+};
 
 struct A {
   float b;

@@ -267,32 +267,29 @@ GepIndexToType iterate_gep_index(llvm::DICompositeType* composite_type, const Ge
 }
 
 struct DestructureGepIndex : visitor::DINodeVisitor<DestructureGepIndex> {
-  explicit DestructureGepIndex(const size_t index)
-    : index { index }
-  {}
+  explicit DestructureGepIndex(const size_t index) : index{index} {
+  }
 
   [[nodiscard]] std::optional<GepIndexToType> result() const {
     return this->outermost_candidate;
   }
 
   bool visitCompositeType(const llvm::DICompositeType* ty) {
-    LOG_DEBUG("visitCompositeType: " << ty->getName() << " index: " << index
-      << " offset base: " << this->offset_base);
+    LOG_DEBUG("visitCompositeType: " << ty->getName() << " index: " << index << " offset base: " << this->offset_base);
 
     for (auto* element : ty->getElements()) {
       if (auto* derived_ty = llvm::dyn_cast<llvm::DIDerivedType>(element)) {
         assert(derived_ty->getTag() == llvm::dwarf::DW_TAG_member && "Expected member element in composite ty");
         LOG_DEBUG("looking @ member: " << derived_ty->getName() << " offset: " << derived_ty->getOffsetInBits() / 8
-          << " size: " << derived_ty->getSizeInBits() / 8);
+                                       << " size: " << derived_ty->getSizeInBits() / 8);
 
         if (const auto offset = this->offset_base + (derived_ty->getOffsetInBits() / 8);
             index >= offset && index < offset + derived_ty->getSizeInBits() / 8) {
-
           LOG_DEBUG("saving candidate member");
           if (const auto* base_ty = derived_ty->getBaseType(); base_ty)
             LOG_DEBUG(" base ty: " << base_ty->getName());
 
-          this->outermost_candidate.emplace(GepIndexToType { derived_ty->getBaseType(), derived_ty });
+          this->outermost_candidate.emplace(GepIndexToType{derived_ty->getBaseType(), derived_ty});
 
           // We should only ever be able to recurse into one composite type where the offset condition holds, so
           // save the offset base for that member.
@@ -307,10 +304,10 @@ struct DestructureGepIndex : visitor::DINodeVisitor<DestructureGepIndex> {
     return true;
   }
 
-private:
+ private:
   size_t index;
-  size_t offset_base {};
-  std::optional<GepIndexToType> outermost_candidate {};
+  size_t offset_base{};
+  std::optional<GepIndexToType> outermost_candidate{};
 };
 
 GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, const GepIndices& gep_indices) {
@@ -348,7 +345,7 @@ GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, 
   }
 
   if (gep_indices.byte_access()) {
-    DestructureGepIndex visitor { gep_indices.indices_[0] };
+    DestructureGepIndex visitor{gep_indices.indices_[0]};
     visitor.traverseCompositeType(composite_type);
 
     // TODO: Should this function really return `GepIndexToType` instead of an optional?
@@ -400,14 +397,14 @@ GepIndexToType extract_gep_dereferenced_type(llvm::DIType* root, const llvm::GEP
     return type;
   };
 
-  auto *const base_ty = find_composite(root);
+  auto* const base_ty = find_composite(root);
 
-  auto *const ty = dyn_cast<DIDerivedType>(root);
-  auto *const composite_type = llvm::dyn_cast<DICompositeType>(base_ty);
+  auto* const ty             = dyn_cast<DIDerivedType>(root);
+  auto* const composite_type = llvm::dyn_cast<DICompositeType>(base_ty);
   // TODO: This check seems like a bad idea but I'm not really sure how to do it properly, I reckon we need *some*
   //       heuristic to detect "fake-array" types though (e.g. gep/array_composite_s.c)
-  if (util::is_byte_indexing(&inst)
-    && (!composite_type || (ty && ty->getBaseType()->getTag() == dwarf::DW_TAG_pointer_type))) {
+  if (util::is_byte_indexing(&inst) &&
+      (!composite_type || (ty && ty->getBaseType()->getTag() == dwarf::DW_TAG_pointer_type))) {
     return GepIndexToType{root};
   }
 
