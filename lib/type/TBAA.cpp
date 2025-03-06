@@ -45,7 +45,7 @@ class FindMatchingMember : public visitor::DINodeVisitor<FindMatchingMember> {
       }
       return type->getIdentifier();
     }(type);
-    if (id.equals(composite_name_)) {
+    if (id == composite_name_) {
       result = type;
       return false;
     }

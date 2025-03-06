@@ -227,6 +227,8 @@ std::optional<llvm::DIType*> find_type(const dataflow::CallValuePath& call_path)
     if (llvm::isa<llvm::GEPOperator>(*path_iter)) {
       auto* gep = llvm::cast<llvm::GEPOperator>(*path_iter);
       LOG_DEBUG("Path iter gep for extraction is currently " << *gep);
+      // TODO: Maybe we could somehow get more info on the underlying type from the dataflow path
+      //       if this returns an empty result due to forward decls?
       const auto gep_result = gep::extract_gep_dereferenced_type(type.value(), *gep);
       type                  = gep_result.type;
       if (gep_result.member) {

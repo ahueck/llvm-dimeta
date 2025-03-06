@@ -84,7 +84,7 @@ class DINodeVisitor {
       return traverseVariable(var);
     }
 
-    const auto exit = util::create_scope_exit([&]() { get().leaveNode(node); });
+    const auto exit = dimeta::util::create_scope_exit([&]() { get().leaveNode(node); });
     get().enterNode(node);
     const bool ret = get().visitNode(node);
     return ret;
@@ -99,7 +99,7 @@ class DINodeVisitor {
   }
 
   bool traverseVariable(const llvm::DIVariable* var) {
-    const auto exit = util::create_scope_exit([&]() { get().leaveVariable(var); });
+    const auto exit = dimeta::util::create_scope_exit([&]() { get().leaveVariable(var); });
     get().enterVariable(var);
 
     const bool ret = get().visitVariable(var);
@@ -133,7 +133,7 @@ class DINodeVisitor {
 
   bool traverseBasicType(const llvm::DIBasicType* basic_type) {
     ++depth_var_;
-    const auto exit = util::create_scope_exit([&]() {
+    const auto exit = dimeta::util::create_scope_exit([&]() {
       get().leaveBasicType(basic_type);
       assert(depth_var_ > 0);
       --depth_var_;
@@ -148,7 +148,7 @@ class DINodeVisitor {
 
   bool traverseDerivedType(const llvm::DIDerivedType* derived_type) {
     ++depth_derived_;
-    const auto exit = util::create_scope_exit([&]() {
+    const auto exit = dimeta::util::create_scope_exit([&]() {
       get().leaveDerivedType(derived_type);
       assert(depth_derived_ > 0);
       --depth_derived_;
@@ -172,7 +172,7 @@ class DINodeVisitor {
 
   bool traverseRecurringCompositeType(const llvm::DICompositeType* composite_type) {
     ++depth_composite_;
-    const auto exit = util::create_scope_exit([&]() {
+    const auto exit = dimeta::util::create_scope_exit([&]() {
       get().leaveRecurringCompositeType(composite_type);
       assert(depth_composite_ > 0);
       --depth_composite_;
@@ -196,7 +196,7 @@ class DINodeVisitor {
     }
 
     ++depth_composite_;
-    const auto exit = util::create_scope_exit([&]() {
+    const auto exit = dimeta::util::create_scope_exit([&]() {
       get().leaveCompositeType(composite_type);
       assert(depth_composite_ > 0);
       --depth_composite_;
