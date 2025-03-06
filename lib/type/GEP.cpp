@@ -364,7 +364,7 @@ std::optional<GepIndexToType> try_resolve_inlined_operator(const llvm::GEPOperat
   assert(sub_prog && "Scope does not represent a subprogram");
 
   // Return the return-type of the inlined subroutine
-  return {GepIndexToType { sub_prog->getType()->getTypeArray()[0] }};
+  return {GepIndexToType{sub_prog->getType()->getTypeArray()[0]}};
 }
 
 GepIndexToType extract_gep_dereferenced_type(llvm::DIType* root, const llvm::GEPOperator& inst) {
@@ -424,7 +424,7 @@ GepIndexToType extract_gep_dereferenced_type(llvm::DIType* root, const llvm::GEP
 
   if (composite_type->isForwardDecl()) {
     LOG_DEBUG("Trying to resolve forward-declared composite type " << log::ditype_str(composite_type))
-    return try_resolve_inlined_operator(&inst).value_or(GepIndexToType {});
+    return try_resolve_inlined_operator(&inst).value_or(GepIndexToType{});
   }
 
   LOG_DEBUG("Gep to DI composite: " << log::ditype_str(composite_type))
