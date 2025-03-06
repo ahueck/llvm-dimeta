@@ -2,7 +2,7 @@ name: Dimeta-CI
 
 on:
   push:
-    branches: [ feature/llvm-19 ]
+    branches: [ main, devel ]
   pull_request:
 
 env:
