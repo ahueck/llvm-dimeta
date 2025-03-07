@@ -120,10 +120,13 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::CallValuePath& call_
   LOG_DEBUG("Root value is " << *root_value)
 
   if (const auto* ret = dyn_cast<ReturnInst>(root_value)) {
-    auto* sub_prog  = ret->getFunction()->getSubprogram();
+    auto* sub_prog = ret->getFunction()->getSubprogram();
+    if (!sub_prog) {
+      return {};
+    }
     auto type_array = sub_prog->getType()->getTypeArray();
     if (type_array.size() > 0) {
-      return {*type_array.begin()};
+      return {type_array[0]};
     }
     return {};
   }

@@ -357,14 +357,32 @@ GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, 
 
 std::optional<GepIndexToType> try_resolve_inlined_operator(const llvm::GEPOperator* gep) {
   auto* const load = llvm::dyn_cast<llvm::Instruction>(gep->getPointerOperand());
-  if (!load)
+  if (!load) {
     return {};
+  }
 
   const auto* const sub_prog = llvm::dyn_cast<llvm::DISubprogram>(load->getDebugLoc().getScope());
   assert(sub_prog && "Scope does not represent a subprogram");
 
-  // Return the return-type of the inlined subroutine
-  return {GepIndexToType{sub_prog->getType()->getTypeArray()[0]}};
+  // see cpp/heap_vector_operator.cpp: vector::operator[] returns a reference, that we skip here:
+  const auto remove_ref = [&](auto* di_type) {
+    auto node = detail::find_non_derived_type_unless(di_type, [](auto* node) {
+      if (const auto* type = llvm::dyn_cast<llvm::DIDerivedType>(node)) {
+        return type->getTag() == llvm::dwarf::DW_TAG_pointer_type ||
+               type->getTag() == llvm::dwarf::DW_TAG_ptr_to_member_type;
+      }
+      return false;
+    });
+    return node;
+  };
+
+  if (auto* sub_program_type = sub_prog->getType()) {
+    if (sub_program_type->getTypeArray().size() > 0) {
+      return {GepIndexToType{remove_ref(*sub_program_type->getTypeArray().begin())}};
+    }
+  }
+  LOG_DEBUG("Could not detect inlined operator")
+  return {};
 }
 
 GepIndexToType extract_gep_dereferenced_type(llvm::DIType* root, const llvm::GEPOperator& inst) {
@@ -372,7 +390,11 @@ GepIndexToType extract_gep_dereferenced_type(llvm::DIType* root, const llvm::GEP
 
   const auto gep_src = inst.getSourceElementType();
 
-  if (gep_src->isPointerTy()) {
+  auto* const base_ty        = find_non_derived_type(root);
+  auto* const composite_type = llvm::dyn_cast<DICompositeType>(base_ty);
+  // see test cpp/heap_vector_opt.cpp: GEP on pointer (of inlined operator[])
+  const bool may_be_inlined_operator = (composite_type != nullptr) && composite_type->isForwardDecl();
+  if (gep_src->isPointerTy() && !may_be_inlined_operator) {
     LOG_DEBUG("Gep to ptr " << log::ditype_str(root));
     // The commented code is used in conjunction with load/store reset (non-basic!, e.g., reset_load_related):
     //    if (auto* type_behind_ptr = llvm::dyn_cast<llvm::DIDerivedType>(root)) {
@@ -394,33 +416,15 @@ GepIndexToType extract_gep_dereferenced_type(llvm::DIType* root, const llvm::GEP
     return GepIndexToType{root};
   }
 
-  const auto find_composite = [](llvm::DIType* root) {
-    assert(root != nullptr && "Root type should be non-null");
-    llvm::DIType* type = root;
-    while (llvm::isa<llvm::DIDerivedType>(type)) {
-      const auto ditype = llvm::dyn_cast<llvm::DIDerivedType>(type);
-      auto next_type    = ditype->getBaseType();
-      if (next_type != nullptr) {
-        type = next_type;
-      } else {
-        break;
-      }
-    }
-    return type;
-  };
-
-  auto* const base_ty = find_composite(root);
-
-  auto* const ty             = dyn_cast<DIDerivedType>(root);
-  auto* const composite_type = llvm::dyn_cast<DICompositeType>(base_ty);
+  auto* const derived_root = llvm::dyn_cast<DIDerivedType>(root);
   // TODO: This check seems like a bad idea but I'm not really sure how to do it properly, I reckon we need *some*
   //       heuristic to detect "fake-array" types though (e.g. gep/array_composite_s.c)
   if (util::is_byte_indexing(&inst) &&
-      (!composite_type || (ty && ty->getBaseType()->getTag() == dwarf::DW_TAG_pointer_type))) {
+      (!composite_type || (derived_root && derived_root->getBaseType()->getTag() == dwarf::DW_TAG_pointer_type))) {
     return GepIndexToType{root};
   }
 
-  assert(composite_type != nullptr && "Root should be a struct-like type. A");
+  assert(composite_type != nullptr && "Root should be a struct-like type.");
 
   if (composite_type->isForwardDecl()) {
     LOG_DEBUG("Trying to resolve forward-declared composite type " << log::ditype_str(composite_type))
