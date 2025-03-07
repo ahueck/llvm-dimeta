@@ -71,13 +71,16 @@ std::optional<const llvm::DbgVariableIntrinsic*> find_intrinsic(const llvm::Inst
 #else
 
 std::optional<const llvm::DbgVariableRecord*> find_intrinsic(const llvm::Instruction* root) {
-  for (auto const& inst : *root->getParent()) {
+  auto& func = *root->getFunction();
+  for (auto const& inst : llvm::instructions(func)) {
     for (llvm::DbgVariableRecord& var : filterDbgVars(inst.getDbgRecordRange())) {
-      if (compat::get_alloca_for(&var) == root)
+      // LOG_DEBUG(var)
+      if (compat::get_alloca_for(&var) == root) {
+        // LOG_DEBUG(var)
         return &var;
+      }
     }
   }
-
   return {};
 }
 
