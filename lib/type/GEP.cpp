@@ -404,7 +404,7 @@ GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, 
     visitor.traverseCompositeType(composite_type);
 
     // TODO: Should this function really return `GepIndexToType` instead of an optional?
-    return visitor.result().value();
+    return visitor.result().value_or(GepIndexToType{composite_type});
   } else {
     return iterate_gep_index(composite_type, gep_indices);
   }
