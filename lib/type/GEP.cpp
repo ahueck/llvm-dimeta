@@ -267,15 +267,16 @@ GepIndexToType iterate_gep_index(llvm::DICompositeType* composite_type, const Ge
 }
 
 struct DestructureGepIndex : visitor::DINodeVisitor<DestructureGepIndex> {
-  explicit DestructureGepIndex(const size_t index) : index{index} {
+  explicit DestructureGepIndex(const size_t index) : index_{index} {
   }
 
   [[nodiscard]] std::optional<GepIndexToType> result() const {
-    return this->outermost_candidate;
+    return this->outermost_candidate_;
   }
 
   bool visitCompositeType(const llvm::DICompositeType* ty) {
-    LOG_DEBUG("visitCompositeType: " << ty->getName() << " index: " << index << " offset base: " << this->offset_base);
+    LOG_DEBUG("visitCompositeType: " << ty->getName() << " index: " << index_
+                                     << " offset base: " << this->offset_base_);
 
     for (auto* element : ty->getElements()) {
       if (auto* derived_ty = llvm::dyn_cast<llvm::DIDerivedType>(element)) {
@@ -283,19 +284,29 @@ struct DestructureGepIndex : visitor::DINodeVisitor<DestructureGepIndex> {
         LOG_DEBUG("looking @ member: " << derived_ty->getName() << " offset: " << derived_ty->getOffsetInBits() / 8
                                        << " size: " << derived_ty->getSizeInBits() / 8);
 
-        if (const auto offset = this->offset_base + (derived_ty->getOffsetInBits() / 8);
-            index >= offset && index < offset + derived_ty->getSizeInBits() / 8) {
-          LOG_DEBUG("saving candidate member");
-          if (const auto* base_ty = derived_ty->getBaseType(); base_ty)
-            LOG_DEBUG(" base ty: " << base_ty->getName());
+        const auto deriv_offset = (derived_ty->getOffsetInBits() / 8);
+        const auto deriv_size   = (derived_ty->getSizeInBits() / 8);
+        const auto offset       = this->offset_base_ + deriv_offset;
+        if (index_ >= offset && index_ < (offset + deriv_size)) {
+          const auto member_base_type = derived_ty->getBaseType();
 
-          this->outermost_candidate.emplace(GepIndexToType{derived_ty->getBaseType(), derived_ty});
+          LOG_DEBUG("saving candidate member " << log::ditype_str(member_base_type));
+          // if (const auto* base_ty = derived_ty->getBaseType(); (base_ty != nullptr)) {
+          //   LOG_DEBUG(" base ty: " << log::ditype_str(base_ty));
+          // }
+
+          this->outermost_candidate_.emplace(GepIndexToType{member_base_type, derived_ty});
+          // return false;
+          if (detail::is_pointer_like(*member_base_type) ||
+              member_base_type->getTag() == llvm::dwarf::DW_TAG_array_type) {
+            return false;  // if offset matches, and its a pointer-like, we do not need to recurse.
+          }
 
           // We should only ever be able to recurse into one composite type where the offset condition holds, so
           // save the offset base for that member.
-          if (const auto* comp_ty = llvm::dyn_cast<llvm::DICompositeType>(derived_ty->getBaseType()); comp_ty) {
+          if (llvm::isa<llvm::DICompositeType>(member_base_type)) {
             LOG_DEBUG("setting offset base to: " << offset);
-            this->offset_base = offset;
+            this->offset_base_ = offset;
           }
         }
       }
@@ -305,9 +316,9 @@ struct DestructureGepIndex : visitor::DINodeVisitor<DestructureGepIndex> {
   }
 
  private:
-  size_t index;
-  size_t offset_base{};
-  std::optional<GepIndexToType> outermost_candidate{};
+  size_t index_;
+  size_t offset_base_{};
+  std::optional<GepIndexToType> outermost_candidate_{};
 };
 
 GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, const GepIndices& gep_indices) {
@@ -320,20 +331,21 @@ GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, 
   if (gep_indices.byte_access()) {
     // Test heap_tachyon_mock_image.c for llvm 12:
     // This mostly applies to llvm <= 12?
-    LOG_DEBUG("Gep indices are byte access: " << gep_indices)
-    const auto& elems = composite_type->getElements();
-    assert(elems.size() > 0 && "Need at least one member for gep byte-based access");
-    assert(gep_indices.size() == 1 && "Byte access is only supported for one byte index value");
-    for (auto element : elems) {
-      if (auto ditype = llvm::dyn_cast<llvm::DIDerivedType>(element)) {
-        assert(ditype->getTag() == llvm::dwarf::DW_TAG_member && "A member is expected here");
-        const auto offset_bytes = ditype->getOffsetInBits() / 8;
-        if (offset_bytes == gep_indices.indices_[0]) {
-          LOG_DEBUG("got match for: " << ditype->getName());
-          return GepIndexToType{ditype->getBaseType(), ditype};
-        }
-      }
-    }
+
+    // LOG_DEBUG("Gep indices are byte access: " << gep_indices)
+    // const auto& elems = composite_type->getElements();
+    // assert(elems.size() > 0 && "Need at least one member for gep byte-based access");
+    // assert(gep_indices.size() == 1 && "Byte access is only supported for one byte index value");
+    // for (auto element : elems) {
+    //   if (auto ditype = llvm::dyn_cast<llvm::DIDerivedType>(element)) {
+    //     assert(ditype->getTag() == llvm::dwarf::DW_TAG_member && "A member is expected here");
+    //     const auto offset_bytes = ditype->getOffsetInBits() / 8;
+    //     if (offset_bytes == gep_indices.indices_[0]) {
+    //       LOG_DEBUG("got match for: " << ditype->getName());
+    //       return GepIndexToType{ditype->getBaseType(), ditype};
+    //     }
+    //   }
+    // }
   }
 
   if (gep_indices.skipped_first() && gep_indices.indices_[0] != 0) {
