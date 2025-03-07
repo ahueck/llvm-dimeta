@@ -278,40 +278,82 @@ struct DestructureGepIndex : visitor::DINodeVisitor<DestructureGepIndex> {
     LOG_DEBUG("visitCompositeType: " << ty->getName() << " index: " << index_
                                      << " offset base: " << this->offset_base_);
 
-    for (auto* element : ty->getElements()) {
-      if (auto* derived_ty = llvm::dyn_cast<llvm::DIDerivedType>(element)) {
-        assert(derived_ty->getTag() == llvm::dwarf::DW_TAG_member && "Expected member element in composite ty");
-        LOG_DEBUG("looking @ member: " << derived_ty->getName() << " offset: " << derived_ty->getOffsetInBits() / 8
-                                       << " size: " << derived_ty->getSizeInBits() / 8);
+    // for (auto* element : ty->getElements()) {
+    //   if (auto* derived_ty = llvm::dyn_cast<llvm::DIDerivedType>(element)) {
+    //     if (derived_ty->getTag() != llvm::dwarf::DW_TAG_member) {
+    //       continue;
+    //     }
+    //     // assert(derived_ty->getTag() == llvm::dwarf::DW_TAG_member && "Expected member element in composite ty");
+    //     LOG_DEBUG("looking @ member: " << derived_ty->getName() << " offset: " << derived_ty->getOffsetInBits() / 8
+    //                                    << " size: " << derived_ty->getSizeInBits() / 8);
 
-        const auto deriv_offset = (derived_ty->getOffsetInBits() / 8);
-        const auto deriv_size   = (derived_ty->getSizeInBits() / 8);
-        const auto offset       = this->offset_base_ + deriv_offset;
-        if (index_ >= offset && index_ < (offset + deriv_size)) {
-          const auto member_base_type = derived_ty->getBaseType();
+    //     const auto deriv_offset = (derived_ty->getOffsetInBits() / 8);
+    //     const auto deriv_size   = (derived_ty->getSizeInBits() / 8);
+    //     const auto offset       = this->offset_base_ + deriv_offset;
+    //     const auto lower_bound  = offset;
+    //     const auto upper_bound  = offset + deriv_size;
 
-          LOG_DEBUG("saving candidate member " << log::ditype_str(member_base_type));
-          // if (const auto* base_ty = derived_ty->getBaseType(); (base_ty != nullptr)) {
-          //   LOG_DEBUG(" base ty: " << log::ditype_str(base_ty));
-          // }
+    //     if (index_ >= lower_bound && index_ < upper_bound) {
+    //       auto* const member_base_type = derived_ty->getBaseType();
 
-          this->outermost_candidate_.emplace(GepIndexToType{member_base_type, derived_ty});
-          // return false;
-          if (detail::is_pointer_like(*member_base_type) ||
-              member_base_type->getTag() == llvm::dwarf::DW_TAG_array_type) {
-            return false;  // if offset matches, and its a pointer-like, we do not need to recurse.
-          }
+    //       LOG_DEBUG("saving candidate member " << log::ditype_str(member_base_type));
+    //       // if (const auto* base_ty = derived_ty->getBaseType(); (base_ty != nullptr)) {
+    //       //   LOG_DEBUG(" base ty: " << log::ditype_str(base_ty));
+    //       // }
 
-          // We should only ever be able to recurse into one composite type where the offset condition holds, so
-          // save the offset base for that member.
-          if (llvm::isa<llvm::DICompositeType>(member_base_type)) {
-            LOG_DEBUG("setting offset base to: " << offset);
-            this->offset_base_ = offset;
-          }
-        }
+    //       this->outermost_candidate_.emplace(GepIndexToType{member_base_type, derived_ty});
+    //       // return false;
+    //       if (detail::is_pointer_like(*member_base_type) ||
+    //           member_base_type->getTag() == llvm::dwarf::DW_TAG_array_type) {
+    //         return false;  // if offset matches, and its a pointer-like, we do not need to recurse.
+    //       }
+
+    //       // We should only ever be able to recurse into one composite type where the offset condition holds, so
+    //       // save the offset base for that member.
+    //       if (llvm::isa<llvm::DICompositeType>(member_base_type)) {
+    //         LOG_DEBUG("setting offset base to: " << offset);
+    //         this->offset_base_ = offset;
+    //       }
+    //     }
+    //   }
+    // }
+
+    return true;
+  }
+
+  bool visitDerivedType(const llvm::DIDerivedType* derived_ty) {
+    if (derived_ty->getTag() != llvm::dwarf::DW_TAG_member) {
+      return true;
+    }
+    // assert(derived_ty->getTag() == llvm::dwarf::DW_TAG_member && "Expected member element in composite ty");
+    LOG_DEBUG("looking @ member: " << derived_ty->getName() << " offset: " << derived_ty->getOffsetInBits() / 8
+                                   << " size: " << derived_ty->getSizeInBits() / 8);
+
+    const auto deriv_offset = (derived_ty->getOffsetInBits() / 8);
+    const auto deriv_size   = (derived_ty->getSizeInBits() / 8);
+    const auto offset       = this->offset_base_ + deriv_offset;
+    const auto lower_bound  = offset;
+    const auto upper_bound  = offset + deriv_size;
+
+    if (index_ >= lower_bound && index_ < upper_bound) {
+      auto* const member_base_type = derived_ty->getBaseType();
+
+      LOG_DEBUG("saving candidate member type " << log::ditype_str(member_base_type));
+
+      this->outermost_candidate_.emplace(
+          GepIndexToType{member_base_type, const_cast<llvm::DIDerivedType*>(derived_ty)});
+      // return false;
+      if (detail::is_pointer_like(*member_base_type) || member_base_type->getTag() == llvm::dwarf::DW_TAG_array_type) {
+        return false;  // if offset matches, and its a pointer-like, we do not need to recurse.
+      }
+
+      // We should only ever be able to recurse into one composite type where the offset condition holds, so
+      // save the offset base for that member.
+      if (llvm::isa<llvm::DICompositeType>(member_base_type)) {
+        LOG_DEBUG("setting offset base to: " << offset);
+        this->offset_base_ = offset;
       }
     }
-
     return true;
   }
 
@@ -357,6 +399,7 @@ GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, 
   }
 
   if (gep_indices.byte_access()) {
+    LOG_DEBUG("Trying to resolve byte access based on offset " << gep_indices.indices_[0])
     DestructureGepIndex visitor{gep_indices.indices_[0]};
     visitor.traverseCompositeType(composite_type);
 
