@@ -446,7 +446,7 @@ GepIndexToType extract_gep_dereferenced_type(llvm::DIType* root, const llvm::GEP
   const auto gep_src = inst.getSourceElementType();
 
   auto* const base_ty        = find_non_derived_type(root);
-  auto* const composite_type = llvm::dyn_cast<DICompositeType>(base_ty);
+  auto* const composite_type = llvm::dyn_cast_or_null<DICompositeType>(base_ty);
   // see test cpp/heap_vector_opt.cpp: GEP on pointer (of inlined operator[])
   const bool may_be_inlined_operator = (composite_type != nullptr) && composite_type->isForwardDecl();
   if (gep_src->isPointerTy() && !may_be_inlined_operator) {
