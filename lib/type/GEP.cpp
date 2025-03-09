@@ -421,7 +421,7 @@ GepIndexToType extract_gep_dereferenced_type(llvm::DIType* root, const llvm::GEP
 
   if (composite_type->isForwardDecl()) {
     LOG_DEBUG("Trying to resolve forward-declared composite type " << log::ditype_str(composite_type))
-    return try_resolve_inlined_operator(&inst).value_or(GepIndexToType{});
+    return try_resolve_inlined_operator(&inst).value_or(GepIndexToType{root});
   }
 
   LOG_DEBUG("Gep to DI composite: " << log::ditype_str(composite_type))
