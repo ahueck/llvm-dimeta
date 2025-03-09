@@ -41,6 +41,7 @@
 
 #include <cassert>
 #include <iterator>
+#include <type_traits>
 #include <unordered_map>
 
 namespace dimeta::type {
@@ -49,42 +50,36 @@ namespace reset {
 
 using GepToDIMemberMap = std::unordered_map<const llvm::GEPOperator*, llvm::DIDerivedType*>;
 
-template <typename T>
-bool load_to(const llvm::LoadInst* load) {
-  auto load_target = load->getPointerOperand();
-  if (llvm::isa<T>(load_target)) {
-    return true;
-  }
-  if (auto bcast = llvm::dyn_cast<llvm::BitCastInst>(load_target)) {
-    if (llvm::isa<T>(bcast->getOperand(0))) {
-      return true;
-    }
-  }
-  return false;
-}
+namespace detail {
 
-template <typename T>
-std::optional<const T*> get_store_to(const llvm::StoreInst* store) {
-  const auto* store_target = store->getPointerOperand();
-  if (llvm::isa<T>(store_target)) {
-    return llvm::dyn_cast<T>(store_target);
+template <typename T, typename InstTy>
+std::optional<const T*> get_operand_to(const InstTy* memory_instruction) {
+  static_assert(std::is_same_v<InstTy, llvm::StoreInst> || std::is_same_v<InstTy, llvm::LoadInst>,
+                "Expected load or store instruction");
+  const auto* memory_target = memory_instruction->getPointerOperand();
+  if (llvm::isa<T>(memory_target)) {
+    return llvm::dyn_cast<T>(memory_target);
   }
-  if (auto bcast = llvm::dyn_cast<llvm::BitCastInst>(store_target)) {
+
+  if (auto bcast = llvm::dyn_cast<llvm::BitCastInst>(memory_target)) {
     if (llvm::isa<T>(bcast->getOperand(0))) {
       return llvm::dyn_cast<T>(bcast->getOperand(0));
     }
   }
-  // if (auto bcast = llvm::dyn_cast<llvm::ConstantExpr>(store_target)) {
-  //   if (llvm::isa<T>(bcast->getOperand(0))) {
-  //     return llvm::dyn_cast<T>(bcast->getOperand(0));
-  //   }
-  // }
+
   return {};
 }
 
+}  // namespace detail
+
 template <typename T>
 bool store_to(const llvm::StoreInst* store) {
-  return get_store_to<T>(store).has_value();
+  return detail::get_operand_to<T>(store).has_value();
+}
+
+template <typename T>
+bool load_to(const llvm::LoadInst* store) {
+  return detail::get_operand_to<T>(store).has_value();
 }
 
 std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath& path, llvm::DIType* type_to_reset,
@@ -96,8 +91,14 @@ std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath&
     return type;
   }
 
-  if (auto* ptr_to_type = llvm::dyn_cast<llvm::DIDerivedType>(type)) {
-    auto base_type = ptr_to_type->getBaseType();
+  if (auto* maybe_ptr_to_type = llvm::dyn_cast<llvm::DIDerivedType>(type)) {
+    if ((maybe_ptr_to_type->getTag() == llvm::dwarf::DW_TAG_pointer_type ||
+         maybe_ptr_to_type->getTag() == llvm::dwarf::DW_TAG_reference_type)) {
+      LOG_DEBUG("Load of pointer-like " << log::ditype_str(maybe_ptr_to_type))
+    }
+
+    auto base_type = maybe_ptr_to_type->getBaseType();
+
     if (auto* composite = llvm::dyn_cast<llvm::DICompositeType>(base_type)) {
       LOG_DEBUG("Have ptr to composite " << log::ditype_str(composite))
       auto type_tbaa = tbaa::resolve_tbaa(base_type, *load);
@@ -115,23 +116,11 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
                                                        const llvm::StoreInst* store_inst) {
   auto type = type_to_reset;
 
-  // if (auto* array_to_composite = llvm::dyn_cast<llvm::DICompositeType>(type)) {
-  //   if (array_to_composite->getTag() == llvm::dwarf::DW_TAG_array_type) {
-  //     LOG_DEBUG("Loaded from extracted type of array type " << log::ditype_str(array_to_composite->getBaseType()))
-  //     return array_to_composite->getBaseType();
-  //   }
-  // }
-
   if (store_to<llvm::GlobalVariable>(store_inst) || store_to<llvm::AllocaInst>(store_inst)) {
     // Relevant in "heap_lulesh_mock_char.cpp"
     LOG_DEBUG("Store to alloca/global, return " << log::ditype_str(type))
     return type;
   }
-
-  // if (auto store_to_composite = llvm::dyn_cast<llvm::DICompositeType>(type)) {
-  //   LOG_DEBUG("Store to compound, return it " << log::ditype_str(type))
-  //   return type;
-  // }
 
   if (!llvm::isa<llvm::DIDerivedType>(type)) {
     LOG_DEBUG("Store resolved, return " << log::ditype_str(type))
@@ -160,7 +149,7 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
     if (auto* may_be_ptr_to_ptr = llvm::dyn_cast<llvm::DIDerivedType>(derived_type->getBaseType())) {
       // Pointer to pointer by default remove one level for RHS assignment type w.r.t. store:
       const auto is_ptr_to_ptr = may_be_ptr_to_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type ||
-                                 derived_type->getTag() == llvm::dwarf::DW_TAG_reference_type;
+                                 may_be_ptr_to_ptr->getTag() == llvm::dwarf::DW_TAG_reference_type;
       if (is_ptr_to_ptr) {
         LOG_DEBUG("Store to ptr-ptr, return " << log::ditype_str(may_be_ptr_to_ptr))
         return may_be_ptr_to_ptr;
