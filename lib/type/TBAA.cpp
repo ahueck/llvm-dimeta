@@ -214,7 +214,7 @@ std::optional<llvm::DIType*> tbaa_resolver(llvm::DIType* root, const TBAAHandle&
   }
 
   if (struct_name != tbaa.base_name()) {
-    LOG_DEBUG("Names differ. Name of struct: " << struct_name << " vs name of TBAA " << tbaa.base_name())
+    LOG_DEBUG("Names differ. Name of struct: \"" << struct_name << "\" vs name of TBAA \"" << tbaa.base_name() << "\".")
     FindMatchingMember finder{tbaa.base_name()};
     finder.traverseCompositeType(composite);
     if (finder.result) {
@@ -224,7 +224,8 @@ std::optional<llvm::DIType*> tbaa_resolver(llvm::DIType* root, const TBAAHandle&
         return llvm::count_if(elements, [](const auto* node) { return llvm::isa<llvm::DIDerivedType>(node); });
       }(composite->getElements());
       if (num_members != (tbaa.base_ty->getNumOperands() / 2)) {
-        LOG_DEBUG("Mismatch between sub member element count and TBAA base type count " << *tbaa.base_ty)
+        LOG_DEBUG("Mismatch between sub member element count and TBAA base type count "
+                  << log::ditype_str(tbaa.base_ty))
         return root;
       }
     } else {
