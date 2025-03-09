@@ -275,8 +275,8 @@ struct DestructureGepIndex : visitor::DINodeVisitor<DestructureGepIndex> {
   }
 
   bool visitCompositeType(const llvm::DICompositeType* composite) const {
-    LOG_DEBUG("visitCompositeType: " << composite->getName() << " index: " << byte_index_
-                                     << " offset base: " << this->offset_base_);
+    LOG_DEBUG("visitCompositeType: " << log::ditype_str(composite) << ": " << composite->getName()
+                                     << " index: " << byte_index_ << " offset base: " << this->offset_base_);
     return true;
   }
 
@@ -303,6 +303,9 @@ struct DestructureGepIndex : visitor::DINodeVisitor<DestructureGepIndex> {
           GepIndexToType{member_base_type, const_cast<llvm::DIDerivedType*>(derived_ty)});
 
       if (detail::is_pointer_like(*member_base_type) || member_base_type->getTag() == llvm::dwarf::DW_TAG_array_type) {
+        LOG_DEBUG("Terminating recursion, found pointer-like "
+                  << detail::is_pointer_like(*member_base_type) << " or array-like "
+                  << (member_base_type->getTag() == llvm::dwarf::DW_TAG_array_type))
         return false;  // if offset matches, and its a pointer-like, we do not need to recurse.
       }
 
@@ -411,7 +414,6 @@ GepIndexToType extract_gep_dereferenced_type(llvm::DIType* root, const llvm::GEP
   //       heuristic to detect "fake-array" types though (e.g. gep/array_composite_s.c)
   if (util::is_byte_indexing(&inst) && (!composite_type || is_pointer_target)) {
     LOG_DEBUG("Gep with byte offset to pointer-like : " << log::ditype_str(root))
-    // return GepIndexToType{derived_root->getBaseType()}; // TODO this might work?
     return GepIndexToType{root};
   }
 
