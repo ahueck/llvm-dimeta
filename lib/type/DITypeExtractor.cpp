@@ -74,11 +74,11 @@ std::optional<const T*> get_store_to(const llvm::StoreInst* store) {
       return llvm::dyn_cast<T>(bcast->getOperand(0));
     }
   }
-  if (auto bcast = llvm::dyn_cast<llvm::ConstantExpr>(store_target)) {
-    if (llvm::isa<T>(bcast->getOperand(0))) {
-      return llvm::dyn_cast<T>(bcast->getOperand(0));
-    }
-  }
+  // if (auto bcast = llvm::dyn_cast<llvm::ConstantExpr>(store_target)) {
+  //   if (llvm::isa<T>(bcast->getOperand(0))) {
+  //     return llvm::dyn_cast<T>(bcast->getOperand(0));
+  //   }
+  // }
   return {};
 }
 
@@ -111,17 +111,16 @@ std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath&
   return type;
 }
 
-std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath& path, llvm::DIType* type_to_reset,
-                                                       const llvm::StoreInst* store_inst,
-                                                       const GepToDIMemberMap& gep2member) {
+std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath&, llvm::DIType* type_to_reset,
+                                                       const llvm::StoreInst* store_inst) {
   auto type = type_to_reset;
 
-  if (auto* array_to_composite = llvm::dyn_cast<llvm::DICompositeType>(type)) {
-    if (array_to_composite->getTag() == llvm::dwarf::DW_TAG_array_type) {
-      LOG_DEBUG("Loaded from extracted type of array type " << log::ditype_str(array_to_composite->getBaseType()))
-      return array_to_composite->getBaseType();
-    }
-  }
+  // if (auto* array_to_composite = llvm::dyn_cast<llvm::DICompositeType>(type)) {
+  //   if (array_to_composite->getTag() == llvm::dwarf::DW_TAG_array_type) {
+  //     LOG_DEBUG("Loaded from extracted type of array type " << log::ditype_str(array_to_composite->getBaseType()))
+  //     return array_to_composite->getBaseType();
+  //   }
+  // }
 
   if (store_to<llvm::GlobalVariable>(store_inst) || store_to<llvm::AllocaInst>(store_inst)) {
     // Relevant in "heap_lulesh_mock_char.cpp"
@@ -129,30 +128,46 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
     return type;
   }
 
-  if (auto* ptr_type = llvm::dyn_cast<llvm::DIDerivedType>(type)) {
-    // LOG_DEBUG(*ptr_type)
-    if (auto* ptr_to_ptr = llvm::dyn_cast<llvm::DIDerivedType>(ptr_type->getBaseType())) {
+  // if (auto store_to_composite = llvm::dyn_cast<llvm::DICompositeType>(type)) {
+  //   LOG_DEBUG("Store to compound, return it " << log::ditype_str(type))
+  //   return type;
+  // }
+
+  if (!llvm::isa<llvm::DIDerivedType>(type)) {
+    LOG_DEBUG("Store resolved, return " << log::ditype_str(type))
+    return type;
+  }
+
+  auto* derived_type = llvm::cast<llvm::DIDerivedType>(type);
+
+  if (derived_type->getTag() == llvm::dwarf::DW_TAG_member) {
+    auto* member_base               = derived_type->getBaseType();
+    const bool is_array_type_member = member_base->getTag() == llvm::dwarf::DW_TAG_array_type;
+    // Need to look at base type for array-type member of struct. Tests w.r.t. gep:
+    // 1. array_composite.c
+    // 2. array_composite_offset_zero.c
+    // 3. array_composite_sub_offset_zero.c
+    // 4. global_nested.c
+    if (is_array_type_member) {
+      return llvm::cast<llvm::DICompositeType>(member_base)->getBaseType();
+    }
+    return member_base;
+  }
+
+  const bool is_pointer = derived_type->getTag() == llvm::dwarf::DW_TAG_pointer_type ||
+                          derived_type->getTag() == llvm::dwarf::DW_TAG_reference_type;
+  if (is_pointer) {
+    if (auto* may_be_ptr_to_ptr = llvm::dyn_cast<llvm::DIDerivedType>(derived_type->getBaseType())) {
       // Pointer to pointer by default remove one level for RHS assignment type w.r.t. store:
-      const auto is_ptr_to_ptr = ptr_to_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type;
-
-      auto gep = get_store_to<llvm::GetElementPtrInst>(store_inst);
-      if (is_ptr_to_ptr && gep) {
-        if (auto gep_op = llvm::dyn_cast<llvm::GEPOperator>(gep.value())) {
-          if (auto member = gep2member.find(gep_op); member != std::end(gep2member)) {
-            //            auto member_di = member->second;
-            LOG_DEBUG("Gep returns member to struct, return ptr_type " << log::ditype_str(ptr_type))
-            return ptr_type;
-          }
-          LOG_DEBUG("Gep operator does not return member " << *gep_op)
-        }
-      }
-
+      const auto is_ptr_to_ptr = may_be_ptr_to_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type ||
+                                 derived_type->getTag() == llvm::dwarf::DW_TAG_reference_type;
       if (is_ptr_to_ptr) {
-        LOG_DEBUG("Store to ptr-ptr, return " << log::ditype_str(ptr_to_ptr))
-        return ptr_to_ptr;
+        LOG_DEBUG("Store to ptr-ptr, return " << log::ditype_str(may_be_ptr_to_ptr))
+        return may_be_ptr_to_ptr;
       }
     }
-    if (auto* ptr_to_composite = llvm::dyn_cast<llvm::DICompositeType>(ptr_type->getBaseType())) {
+
+    if (auto* ptr_to_composite = llvm::dyn_cast<llvm::DICompositeType>(derived_type->getBaseType())) {
       if (store_to<llvm::LoadInst>(store_inst)) {
         // Triggers for "heap_lhs_obj_opt.c" (llvm 14/15)
         auto composite_members = ptr_to_composite->getElements();
@@ -165,19 +180,13 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
     }
   }
 
-  if (auto store_to_composite = llvm::dyn_cast<llvm::DICompositeType>(type)) {
-    LOG_DEBUG("Store to compound, return it " << log::ditype_str(type))
-    return type;
-  }
-
   LOG_DEBUG("Store resolved, return " << log::ditype_str(type))
   return type;
 }
 
 template <typename Iter, typename Iter2>
 std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dataflow::ValuePath& path,
-                                          const Iter& path_iter, const Iter2& path_end,
-                                          const reset::GepToDIMemberMap& gep2member) {
+                                          const Iter& path_iter, const Iter2&) {
   std::optional<llvm::DIType*> type = type_to_reset;
   if (!type) {
     LOG_DEBUG("No type to reset!")
@@ -199,7 +208,7 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dat
   if (const auto* store_inst = llvm::dyn_cast<llvm::StoreInst>(*next_value)) {
     // - a store with a ditype(array) is likely the first element of the array
     LOG_DEBUG("Reset based on store")
-    return reset::reset_store_related_basic(path, type.value(), store_inst, gep2member);
+    return reset::reset_store_related_basic(path, type.value(), store_inst);
   }
 
   LOG_DEBUG(">> skipping");
@@ -217,8 +226,6 @@ std::optional<llvm::DIType*> find_type(const dataflow::CallValuePath& call_path)
     return {};
   }
 
-  reset::GepToDIMemberMap gep_to_member_map;
-
   const auto path_end = call_path.path.path_to_value.rend();
   for (auto path_iter = call_path.path.path_to_value.rbegin(); path_iter != path_end; ++path_iter) {
     if (!type) {
@@ -232,20 +239,20 @@ std::optional<llvm::DIType*> find_type(const dataflow::CallValuePath& call_path)
       const auto gep_result = gep::extract_gep_dereferenced_type(type.value(), *gep);
       type                  = gep_result.type;
       if (gep_result.member) {
-        gep_to_member_map.try_emplace(gep, gep_result.member.value());
+        LOG_DEBUG("Using gep member type result")
+        type = gep_result.member;
       }
       LOG_DEBUG("Gep reset type is " << log::ditype_str(type.value_or(nullptr)) << "\n")
       continue;
     }
     LOG_DEBUG("Extracted type w.r.t. gep: " << log::ditype_str(*type));
-    type = reset::reset_ditype(type.value(), call_path.path, path_iter, path_end, gep_to_member_map)
-               .value_or(type.value());
+    type = reset::reset_ditype(type.value(), call_path.path, path_iter, path_end).value_or(type.value());
     LOG_DEBUG("reset_ditype result " << log::ditype_str(type.value_or(nullptr)) << "\n")
   }
 
   if (type) {
     // If last node is a store inst, try to extract type via TBAA
-    const auto start_node = llvm::dyn_cast_or_null<llvm::StoreInst>(*call_path.path.start_value());
+    const auto* const start_node = llvm::dyn_cast_or_null<llvm::StoreInst>(*call_path.path.start_value());
     if (start_node) {
       auto type_tbaa = tbaa::resolve_tbaa(type.value(), *llvm::dyn_cast<llvm::Instruction>(start_node));
       if (type_tbaa) {
