@@ -405,10 +405,13 @@ GepIndexToType extract_gep_dereferenced_type(llvm::DIType* root, const llvm::GEP
   }
 
   auto* const derived_root = llvm::dyn_cast<DIDerivedType>(root);
+  const bool is_pointer_target =
+      (derived_root != nullptr) && derived_root->getBaseType()->getTag() == dwarf::DW_TAG_pointer_type;
   // TODO: This check seems like a bad idea but I'm not really sure how to do it properly, I reckon we need *some*
   //       heuristic to detect "fake-array" types though (e.g. gep/array_composite_s.c)
-  if (util::is_byte_indexing(&inst) &&
-      (!composite_type || (derived_root && derived_root->getBaseType()->getTag() == dwarf::DW_TAG_pointer_type))) {
+  if (util::is_byte_indexing(&inst) && (!composite_type || is_pointer_target)) {
+    LOG_DEBUG("Gep with byte offset to pointer-like : " << log::ditype_str(root))
+    // return GepIndexToType{derived_root->getBaseType()}; // TODO this might work?
     return GepIndexToType{root};
   }
 

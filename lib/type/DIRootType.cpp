@@ -215,7 +215,7 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::CallValuePath& call_
         return arg_num + 1;
       }(argument->getArgNo());
 
-      LOG_DEBUG(*subprogram << " " << *argument)
+      LOG_DEBUG(log::ditype_str(subprogram) << " -> " << *argument)
       LOG_DEBUG("Arg data: " << argument->getArgNo() << " Type num operands: " << type_array->getNumOperands())
       assert(arg_pos < type_array.size() && "Arg position greater than DI type array of subprogram!");
       return type_array[arg_pos];
