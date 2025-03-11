@@ -22,12 +22,37 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <assert.h>
+#include <cstddef>
 #include <llvm/ADT/STLExtras.h>
+#include <llvm/ADT/SmallVector.h>
 #include <optional>
 #include <string>
 #include <string_view>
 
 namespace dimeta::tbaa {
+
+inline size_t num_composite_members(const llvm::DICompositeType* composite) {
+  const auto num_members = llvm::count_if(composite->getElements(), [](const auto* node) {
+    if (auto derived = llvm::dyn_cast<llvm::DIDerivedType>(node)) {
+      return derived->getTag() == llvm::dwarf::DW_TAG_member;
+    }
+    return false;
+  });
+  return num_members;
+}
+
+inline llvm::SmallVector<llvm::DIDerivedType*, 4> composite_members(const llvm::DICompositeType* composite) {
+  llvm::SmallVector<llvm::DIDerivedType*, 4> members;
+  for (auto* member : composite->getElements()) {
+    if (auto* derived = llvm::dyn_cast<llvm::DIDerivedType>(member)) {
+      if (derived->getTag() == llvm::dwarf::DW_TAG_member) {
+        members.push_back(derived);
+      }
+    }
+  }
+
+  return members;
+}
 
 class FindMatchingMember : public visitor::DINodeVisitor<FindMatchingMember> {
   llvm::StringRef composite_name_;
@@ -103,23 +128,28 @@ inline bool tbaa_operand_is_ptr(llvm::MDNode* type_node) {
   return tbaa_operand_name(type_node) == "any pointer";
 }
 
-bool composite_fits_tbaa(const llvm::DICompositeType* type, const TBAAHandle& tbaa) {
+bool composite_fits_tbaa(const llvm::DICompositeType* composite, const TBAAHandle& tbaa) {
   const auto num_members_tbaa_node = [](llvm::MDNode* node) {
     const auto num = node->getNumOperands();
     assert(num > 0 && "Operand count must be > 0");
     return (num - 1) / 2;
   };
-  if (type->getElements().size() != num_members_tbaa_node(tbaa.base_ty)) {
+
+  const auto num_members = num_composite_members(composite);
+
+  if (num_members != num_members_tbaa_node(tbaa.base_ty)) {
     return false;
   }
-  LOG_DEBUG("Type element size " << type->getElements().size() << " vs. TBAA " << num_members_tbaa_node(tbaa.base_ty))
-  auto elements        = type->getElements();
+
+  LOG_DEBUG("Type element size " << num_members << " vs. TBAA " << num_members_tbaa_node(tbaa.base_ty))
+
+  auto elements        = composite_members(composite);
   int element_position = 0;  // Incremented for every TBAA constant int entry
   // Loop simply checks if the byte offsets are the same (TODO also compare types!)
-  for (auto& operand : tbaa.base_ty->operands()) {
-    if (auto value_md = llvm::dyn_cast<llvm::ValueAsMetadata>(operand)) {
+  for (auto& tbaa_operand : tbaa.base_ty->operands()) {
+    if (auto value_md = llvm::dyn_cast<llvm::ValueAsMetadata>(tbaa_operand)) {
       if (auto current_offset = llvm::dyn_cast<llvm::ConstantInt>(value_md->getValue())) {
-        auto current_member = llvm::dyn_cast<llvm::DIDerivedType>(elements[element_position]);
+        auto current_member = elements[element_position];
         if (!current_offset->equalsInt(current_member->getOffsetInBits() / 8)) {
           return false;
         }
@@ -132,7 +162,7 @@ bool composite_fits_tbaa(const llvm::DICompositeType* type, const TBAAHandle& tb
 }
 
 namespace iteration {
-auto find_first_non_member(llvm::DIType* root) {
+auto find_first_non_member_basetype(llvm::DIType* root) {
   llvm::DIType* type = root;
   while (type && llvm::isa<llvm::DIDerivedType>(type)) {
     auto ditype = llvm::dyn_cast<llvm::DIDerivedType>(type);
@@ -149,16 +179,18 @@ auto next_di_member(llvm::DIType* base_type, int member_index = 0) -> std::optio
   if (base->getElements().empty()) {
     return {};
   }
+  // LOG_DEBUG("Next DIType member at pos " << member_index << " is " << log::ditype_str(base_type))
   if (member_index == 0) {
     auto node = *base->getElements().begin();
     // this ignores pointer types etc.:    return find_composite(llvm::dyn_cast<llvm::DIType>(node));
-    return find_first_non_member(llvm::dyn_cast<llvm::DIType>(node));
+    return find_first_non_member_basetype(llvm::dyn_cast<llvm::DIType>(node));
   }
+  // std::exit(1);
   assert(member_index < base->getElements().size() && "Member index value needs to be within number of DI members!");
   auto node = base->getElements()[member_index];
   LOG_DEBUG("Next DIType member at pos " << member_index << " is " << log::ditype_str(node))
   // this ignores pointer types etc.:    return find_composite(llvm::dyn_cast<llvm::DIType>(node));
-  return find_first_non_member(llvm::dyn_cast<llvm::DIType>(node));
+  return find_first_non_member_basetype(llvm::dyn_cast<llvm::DIType>(node));
 };
 
 auto next_tbaa_type(llvm::MDNode* base_ty, llvm::ConstantInt* offset) -> std::pair<llvm::MDNode*, int> {
@@ -166,6 +198,7 @@ auto next_tbaa_type(llvm::MDNode* base_ty, llvm::ConstantInt* offset) -> std::pa
   if (!offset) {
     return {llvm::dyn_cast<llvm::MDNode>(base_ty->getOperand(1)), 0};
   }
+
   auto pos = llvm::find_if(base_ty->operands(), [&](const llvm::MDOperand& operand) {
     if (auto value_md = llvm::dyn_cast<llvm::ValueAsMetadata>(operand)) {
       if (auto current_offset = llvm::dyn_cast<llvm::ConstantInt>(value_md->getValue())) {
@@ -176,10 +209,40 @@ auto next_tbaa_type(llvm::MDNode* base_ty, llvm::ConstantInt* offset) -> std::pa
     }
     return false;
   });
+
   assert(pos != std::end(base_ty->operands()) && "Could not find offset for access of type!");
-  auto operand_node_at_offset = std::prev(pos);
-  auto dist                   = std::distance(std::begin(base_ty->operands()), pos);
-  int offset_member_access    = static_cast<int>(dist) / 2 - 1;
+  auto operand_node_at_offset    = std::prev(pos);
+  const auto distance            = std::distance(std::begin(base_ty->operands()), pos);
+  const int offset_member_access = static_cast<int>(distance) / 2 - 1;
+  assert(offset_member_access >= 0 && "TBAA access index to DIType must be positive number!");
+  return {llvm::dyn_cast<llvm::MDNode>(*operand_node_at_offset), offset_member_access};
+};
+
+auto next_tbaa_type_descend(const llvm::MDNode* base_ty, llvm::ConstantInt* offset) -> std::pair<llvm::MDNode*, int> {
+  // return operand at 1 (the base_ty member at offset 0)
+  if (!offset) {
+    return {llvm::dyn_cast<llvm::MDNode>(base_ty->getOperand(1)), 0};
+  }
+
+  auto pos = llvm::find_if(base_ty->operands(), [&](const llvm::MDOperand& operand) {
+    if (auto value_md = llvm::dyn_cast<llvm::ValueAsMetadata>(operand)) {
+      if (auto current_offset = llvm::dyn_cast<llvm::ConstantInt>(value_md->getValue())) {
+        if (offset->getValue() == current_offset->getValue()) {
+          return true;
+        }
+      }
+    }
+    return false;
+  });
+
+  if (pos == std::end(base_ty->operands())) {
+    return next_tbaa_type_descend(llvm::dyn_cast<llvm::MDNode>(base_ty->getOperand(1)), offset);
+  }
+
+  assert(pos != std::end(base_ty->operands()) && "Could not find offset for access of type!");
+  auto operand_node_at_offset    = std::prev(pos);
+  const auto distance            = std::distance(std::begin(base_ty->operands()), pos);
+  const int offset_member_access = static_cast<int>(distance) / 2 - 1;
   assert(offset_member_access >= 0 && "TBAA access index to DIType must be positive number!");
   return {llvm::dyn_cast<llvm::MDNode>(*operand_node_at_offset), offset_member_access};
 };
@@ -208,10 +271,13 @@ std::optional<llvm::DIType*> tbaa_resolver(llvm::DIType* root, const TBAAHandle&
   //  assert(root->getTag() == llvm::dwarf::DW_TAG_structure_type && "Root should be struct-like");
 
   // Cpp TBAA uses identifier, in C we use the name:
-  auto struct_name = std::string{composite->getIdentifier()};
-  if (struct_name.empty()) {
-    struct_name = std::string{composite->getName()};
-  }
+  const auto struct_name = [](const auto* composite) {
+    auto name = std::string{composite->getIdentifier()};
+    if (name.empty()) {
+      name = std::string{composite->getName()};
+    }
+    return name;
+  }(composite);
 
   if (struct_name != tbaa.base_name()) {
     LOG_DEBUG("Names differ. Name of struct: \"" << struct_name << "\" vs name of TBAA \"" << tbaa.base_name() << "\".")
@@ -220,9 +286,7 @@ std::optional<llvm::DIType*> tbaa_resolver(llvm::DIType* root, const TBAAHandle&
     if (finder.result) {
       LOG_DEBUG("Found matching sub member " << log::ditype_str(finder.result.value()))
       composite              = const_cast<llvm::DICompositeType*>(finder.result.value());
-      const auto num_members = [](const auto& elements) {
-        return llvm::count_if(elements, [](const auto* node) { return llvm::isa<llvm::DIDerivedType>(node); });
-      }(composite->getElements());
+      const auto num_members = num_composite_members(composite);
       if (num_members != (tbaa.base_ty->getNumOperands() / 2)) {
         LOG_DEBUG("Mismatch between sub member element count and TBAA base type count "
                   << log::ditype_str(tbaa.base_ty))
@@ -255,10 +319,12 @@ std::optional<llvm::DIType*> tbaa_resolver(llvm::DIType* root, const TBAAHandle&
   LOG_DEBUG("TBAA tree iteration.")
   LOG_DEBUG("  From ditype: " << log::ditype_str(composite))
   LOG_DEBUG("  From TBAA: " << log::ditype_str(next_tbaa))
+  LOG_DEBUG("  At offset: " << *next_offset)
   do {
-    auto [next_tbaa_node, access_offset_index] = iteration::next_tbaa_type(next_tbaa, next_offset);
+    auto [next_tbaa_node, access_offset_index] = iteration::next_tbaa_type_descend(next_tbaa, next_offset);
     next_tbaa                                  = next_tbaa_node;
-    auto try_next_di                           = iteration::next_di_member(next_ditype, access_offset_index);
+    LOG_DEBUG("Next TBAA node " << log::ditype_str(next_tbaa))
+    auto try_next_di = iteration::next_di_member(next_ditype, access_offset_index);
 
     next_offset = nullptr;
 
@@ -303,17 +369,11 @@ std::optional<llvm::DIType*> resolve_tbaa(llvm::DIType* root, const llvm::Instru
     LOG_DEBUG("No work: TBAA base type is same as access type (both ptr).")
     return root;
   }
-  return tbaa_resolver(root, tbaa.value());
-}
-
-std::optional<llvm::DIType*> resolve_tbaa(llvm::DIType* root, const dataflow::ValuePath& path) {
-  using namespace tbaa;
-  const auto start_node = path.start_value();
-  if (!start_node) {
-    return root;
+  const auto node = tbaa_resolver(root, tbaa.value());
+  if (node.has_value() && node.value() != root) {
+    // std::exit(1);
   }
-  auto& instruction = *llvm::dyn_cast<llvm::Instruction>(start_node.value());
-  return resolve_tbaa(root, instruction);
+  return node;
 }
 
 }  // namespace dimeta::tbaa
