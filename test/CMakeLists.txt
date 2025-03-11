@@ -103,6 +103,7 @@ set(DIMETA_SUITES
   pass
   pass/gep
   pass/pointer
+  pass/ir
   pass/staging
 )
 
