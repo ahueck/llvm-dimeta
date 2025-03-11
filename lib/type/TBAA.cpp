@@ -24,6 +24,7 @@
 
 #include <assert.h>
 #include <cstddef>
+#include <iterator>
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/ADT/SmallVector.h>
 #include <optional>
@@ -36,6 +37,7 @@ struct TBAAHandle {
   llvm::MDNode* base_ty;
   llvm::MDNode* access_ty;
   llvm::ConstantInt* offset;
+  size_t offset_value{};
 
   static std::optional<TBAAHandle> create(const llvm::Instruction& store) {
     auto* access = store.getMetadata(llvm::StringRef{"tbaa"});
@@ -62,13 +64,25 @@ struct TBAAHandle {
     return base_name() == "any pointer";
   }
 
+  void reset_base(llvm::MDNode* new_base_ty) {
+    LOG_DEBUG("Reset base_type " << log::ditype_str(base_ty) << " to " << log::ditype_str(new_base_ty))
+    base_ty = new_base_ty;
+  }
+
+  void subtract_offset(size_t offset_) {
+    LOG_DEBUG("Reset offset value " << offset_value << " with subtraction of " << offset_)
+    assert(offset_ <= offset_value && "New offset should not be greater than current one");
+    offset_value -= offset_;
+  }
+
  private:
   explicit TBAAHandle(llvm::MDNode& tbaa_node) {
     base_ty       = llvm::dyn_cast<llvm::MDNode>(tbaa_node.getOperand(0));
     access_ty     = llvm::dyn_cast<llvm::MDNode>(tbaa_node.getOperand(1));
     auto value_md = llvm::dyn_cast<llvm::ValueAsMetadata>(tbaa_node.getOperand(2))->getValue();
     assert(value_md && "Offset value may not be null.");
-    offset = llvm::dyn_cast<llvm::ConstantInt>(value_md);
+    offset       = llvm::dyn_cast<llvm::ConstantInt>(value_md);
+    offset_value = offset->getLimitedValue();
   }
 };
 
@@ -137,6 +151,60 @@ inline size_t tbaa_operand_count(llvm::MDNode* type_node) {
   return (num - 1) / 2;
 }
 
+inline std::optional<llvm::StringRef> tbaa_operand_name(llvm::MDNode* type_node) {
+  const auto num = type_node->getNumOperands();
+  if (num < 1) {
+    return {};
+  }
+  return llvm::dyn_cast<llvm::MDString>(type_node->getOperand(0))->getString();
+}
+
+struct TBAADestructure {
+  llvm::StringRef name;
+  size_t offset_base_{};
+  std::optional<llvm::MDNode*> outermost_candidate_{};
+
+  bool traverse_tbaa_nodes(llvm::MDNode* new_base_ty) {
+    const auto tbaa_name = tbaa_operand_name(new_base_ty).value_or("");
+    if (!tbaa_name.empty() && name == tbaa_name) {
+      LOG_DEBUG("Match found " << log::ditype_str(new_base_ty))
+      outermost_candidate_.emplace(new_base_ty);
+      return true;
+    }
+
+    const auto* end_node = std::prev(new_base_ty->op_end());
+    for (const auto* iter = new_base_ty->op_begin(); iter != end_node; ++iter) {
+      const auto& operand = *iter;
+
+      if (auto* mdnode = llvm::dyn_cast<llvm::MDNode>(operand)) {
+        auto result = traverse_tbaa_nodes(mdnode);
+
+        if (result) {
+          // we found a matching node, we need to set the offset now to re-calculate later
+          const auto* offset = std::next(iter);
+          if (auto* value_md = llvm::dyn_cast<llvm::ValueAsMetadata>(*offset)) {
+            if (auto* current_offset = llvm::dyn_cast<llvm::ConstantInt>(value_md->getValue())) {
+              this->offset_base_ += current_offset->getLimitedValue();
+            }
+          }
+          break;
+        }
+      }
+    }
+
+    return false;
+  }
+};
+
+inline std::pair<std::optional<llvm::MDNode*>, size_t> tbaa_sub_node_matches_name(llvm::StringRef name,
+                                                                                  llvm::MDNode* new_base_ty) {
+  TBAADestructure tbaa{name};
+  const auto found = tbaa.traverse_tbaa_nodes(new_base_ty);
+  LOG_DEBUG("Found " << log::ditype_str(tbaa.outermost_candidate_.value_or(nullptr)) << " at offset "
+                     << tbaa.offset_base_)
+  return {tbaa.outermost_candidate_, tbaa.offset_base_};
+}
+
 }  // namespace helper
 
 bool composite_fits_tbaa(const llvm::DICompositeType* composite, const TBAAHandle& tbaa) {
@@ -166,7 +234,7 @@ bool composite_fits_tbaa(const llvm::DICompositeType* composite, const TBAAHandl
   return true;
 }
 
-std::optional<llvm::DIType*> tbaa_resolver(llvm::DIType* root, const TBAAHandle& tbaa) {
+std::optional<llvm::DIType*> tbaa_resolver(llvm::DIType* root, TBAAHandle& tbaa) {
   const auto find_composite = [](llvm::DIType* root) {
     llvm::DIType* type = root;
     while (type && llvm::isa<llvm::DIDerivedType>(type)) {
@@ -195,22 +263,30 @@ std::optional<llvm::DIType*> tbaa_resolver(llvm::DIType* root, const TBAAHandle&
     return name;
   }(composite);
 
-  if (struct_name != tbaa.base_name()) {
+  if (struct_name != tbaa.base_name() && !tbaa.base_name().empty()) {
     LOG_DEBUG("Names differ. Name of struct: \"" << struct_name << "\" vs name of TBAA \"" << tbaa.base_name() << "\".")
     auto result_composite = helper::find_composite_with_name(tbaa.base_name(), composite);
 
-    if (!result_composite) {
-      LOG_DEBUG("Did not find matching sub member")
-      return root;
-    }
-
-    LOG_DEBUG("Found matching sub member " << log::ditype_str(result_composite.value()))
-    composite              = result_composite.value();  // const_cast<llvm::DICompositeType*>(result_composite.value());
-    const auto num_members = helper::num_composite_members(composite);
-    const auto num_tbaa    = helper::tbaa_operand_count(tbaa.base_ty);
-    if (num_members != num_tbaa) {
-      LOG_DEBUG("Mismatch between sub member element count and TBAA base type count " << log::ditype_str(tbaa.base_ty))
-      return root;
+    if (result_composite) {
+      LOG_DEBUG("Found matching sub member " << log::ditype_str(result_composite.value()))
+      composite = result_composite.value();  // const_cast<llvm::DICompositeType*>(result_composite.value());
+      const auto num_members = helper::num_composite_members(composite);
+      const auto num_tbaa    = helper::tbaa_operand_count(tbaa.base_ty);
+      if (num_members != num_tbaa) {
+        LOG_DEBUG("Mismatch between sub member element count and TBAA base type count "
+                  << log::ditype_str(tbaa.base_ty))
+        return root;
+      }
+    } else {
+      LOG_DEBUG("Did not find matching sub member: " << struct_name)
+      auto new_base = helper::tbaa_sub_node_matches_name(struct_name, tbaa.base_ty);
+      if (!new_base.first) {
+        return root;
+      }
+      LOG_DEBUG("New TBAA base " << log::ditype_str(new_base.first.value()) << " with negative offset "
+                                 << new_base.second)
+      tbaa.reset_base(new_base.first.value());
+      tbaa.subtract_offset(new_base.second);
     }
   }
 
@@ -228,9 +304,9 @@ std::optional<llvm::DIType*> tbaa_resolver(llvm::DIType* root, const TBAAHandle&
   LOG_DEBUG("TBAA tree data.")
   LOG_DEBUG("  From ditype: " << log::ditype_str(composite))
   LOG_DEBUG("  From TBAA: " << log::ditype_str(tbaa.base_ty))
-  LOG_DEBUG("  At offset: " << *tbaa.offset)
+  LOG_DEBUG("  At offset: " << tbaa.offset_value)
 
-  auto result = visitor::util::resolve_byte_offset_to_member_of(composite, tbaa.offset->getLimitedValue());
+  auto result = visitor::util::resolve_byte_offset_to_member_of(composite, tbaa.offset_value);
   if (result) {
     return result->type_of_member;
   }
