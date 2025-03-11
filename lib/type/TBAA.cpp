@@ -208,8 +208,6 @@ std::optional<llvm::DIType*> tbaa_resolver(llvm::DIType* root, const TBAAHandle&
 
   LOG_DEBUG("Found maybe legible composite node: " << log::ditype_str(composite))
 
-  //  assert(root->getTag() == llvm::dwarf::DW_TAG_structure_type && "Root should be struct-like");
-
   // Cpp TBAA uses identifier, in C we use the name:
   const auto struct_name = [](const auto* composite) {
     auto name = std::string{composite->getIdentifier()};
@@ -223,6 +221,7 @@ std::optional<llvm::DIType*> tbaa_resolver(llvm::DIType* root, const TBAAHandle&
     LOG_DEBUG("Names differ. Name of struct: \"" << struct_name << "\" vs name of TBAA \"" << tbaa.base_name() << "\".")
     FindMatchingMember finder{tbaa.base_name()};
     finder.traverseCompositeType(composite);
+
     if (finder.result) {
       LOG_DEBUG("Found matching sub member " << log::ditype_str(finder.result.value()))
       composite              = const_cast<llvm::DICompositeType*>(finder.result.value());
@@ -247,19 +246,14 @@ std::optional<llvm::DIType*> tbaa_resolver(llvm::DIType* root, const TBAAHandle&
     }
   }
 
-  // Handle "malloc" -> "store" (to struct) at offset 0 (optimized away gep):
   assert(tbaa.access_is_ptr() && "TBAA access should be pointer");
 
-  bool endpoint_reached     = false;
-  auto next_tbaa            = tbaa.base_ty;
-  llvm::DIType* next_ditype = composite;
-  auto next_offset          = tbaa.offset;
   LOG_DEBUG("TBAA tree data.")
   LOG_DEBUG("  From ditype: " << log::ditype_str(composite))
-  LOG_DEBUG("  From TBAA: " << log::ditype_str(next_tbaa))
-  LOG_DEBUG("  At offset: " << *next_offset)
+  LOG_DEBUG("  From TBAA: " << log::ditype_str(tbaa.base_ty))
+  LOG_DEBUG("  At offset: " << *tbaa.offset)
 
-  auto result = visitor::util::resolve_byte_offset_to_member_of(composite, next_offset->getLimitedValue());
+  auto result = visitor::util::resolve_byte_offset_to_member_of(composite, tbaa.offset->getLimitedValue());
   if (result) {
     return result->type_of_member;
   }
@@ -281,7 +275,7 @@ std::optional<llvm::DIType*> resolve_tbaa(llvm::DIType* root, const llvm::Instru
   }
   const auto node = tbaa_resolver(root, tbaa.value());
   if (node.has_value() && node.value() != root) {
-    // std::exit(1);
+    LOG_DEBUG("Determined new type with TBAA")
   }
   return node;
 }
