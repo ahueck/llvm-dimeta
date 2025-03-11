@@ -8,6 +8,7 @@
 #include "TBAA.h"
 
 #include "DIVisitor.h"
+#include "DIVisitorUtil.h"
 #include "DefUseAnalysis.h"
 #include "support/Logger.h"
 
@@ -174,78 +175,17 @@ auto find_first_non_member_basetype(llvm::DIType* root) {
   return type;
 };
 
-auto next_di_member(llvm::DIType* base_type, int member_index = 0) -> std::optional<llvm::DIType*> {
-  auto base = llvm::dyn_cast<llvm::DICompositeType>(base_type);
-  if (base->getElements().empty()) {
-    return {};
+namespace detail {
+
+inline bool is_pointer_like(const llvm::DIType& di_type) {
+  if (const auto* type = llvm::dyn_cast<llvm::DIDerivedType>(&di_type)) {
+    return type->getTag() == llvm::dwarf::DW_TAG_array_type || type->getTag() == llvm::dwarf::DW_TAG_reference_type ||
+           type->getTag() == llvm::dwarf::DW_TAG_pointer_type ||
+           type->getTag() == llvm::dwarf::DW_TAG_ptr_to_member_type;
   }
-  // LOG_DEBUG("Next DIType member at pos " << member_index << " is " << log::ditype_str(base_type))
-  if (member_index == 0) {
-    auto node = *base->getElements().begin();
-    // this ignores pointer types etc.:    return find_composite(llvm::dyn_cast<llvm::DIType>(node));
-    return find_first_non_member_basetype(llvm::dyn_cast<llvm::DIType>(node));
-  }
-  // std::exit(1);
-  assert(member_index < base->getElements().size() && "Member index value needs to be within number of DI members!");
-  auto node = base->getElements()[member_index];
-  LOG_DEBUG("Next DIType member at pos " << member_index << " is " << log::ditype_str(node))
-  // this ignores pointer types etc.:    return find_composite(llvm::dyn_cast<llvm::DIType>(node));
-  return find_first_non_member_basetype(llvm::dyn_cast<llvm::DIType>(node));
-};
-
-auto next_tbaa_type(llvm::MDNode* base_ty, llvm::ConstantInt* offset) -> std::pair<llvm::MDNode*, int> {
-  // return operand at 1 (the base_ty member at offset 0)
-  if (!offset) {
-    return {llvm::dyn_cast<llvm::MDNode>(base_ty->getOperand(1)), 0};
-  }
-
-  auto pos = llvm::find_if(base_ty->operands(), [&](const llvm::MDOperand& operand) {
-    if (auto value_md = llvm::dyn_cast<llvm::ValueAsMetadata>(operand)) {
-      if (auto current_offset = llvm::dyn_cast<llvm::ConstantInt>(value_md->getValue())) {
-        if (offset->getValue() == current_offset->getValue()) {
-          return true;
-        }
-      }
-    }
-    return false;
-  });
-
-  assert(pos != std::end(base_ty->operands()) && "Could not find offset for access of type!");
-  auto operand_node_at_offset    = std::prev(pos);
-  const auto distance            = std::distance(std::begin(base_ty->operands()), pos);
-  const int offset_member_access = static_cast<int>(distance) / 2 - 1;
-  assert(offset_member_access >= 0 && "TBAA access index to DIType must be positive number!");
-  return {llvm::dyn_cast<llvm::MDNode>(*operand_node_at_offset), offset_member_access};
-};
-
-auto next_tbaa_type_descend(const llvm::MDNode* base_ty, llvm::ConstantInt* offset) -> std::pair<llvm::MDNode*, int> {
-  // return operand at 1 (the base_ty member at offset 0)
-  if (!offset) {
-    return {llvm::dyn_cast<llvm::MDNode>(base_ty->getOperand(1)), 0};
-  }
-
-  auto pos = llvm::find_if(base_ty->operands(), [&](const llvm::MDOperand& operand) {
-    if (auto value_md = llvm::dyn_cast<llvm::ValueAsMetadata>(operand)) {
-      if (auto current_offset = llvm::dyn_cast<llvm::ConstantInt>(value_md->getValue())) {
-        if (offset->getValue() == current_offset->getValue()) {
-          return true;
-        }
-      }
-    }
-    return false;
-  });
-
-  if (pos == std::end(base_ty->operands())) {
-    return next_tbaa_type_descend(llvm::dyn_cast<llvm::MDNode>(base_ty->getOperand(1)), offset);
-  }
-
-  assert(pos != std::end(base_ty->operands()) && "Could not find offset for access of type!");
-  auto operand_node_at_offset    = std::prev(pos);
-  const auto distance            = std::distance(std::begin(base_ty->operands()), pos);
-  const int offset_member_access = static_cast<int>(distance) / 2 - 1;
-  assert(offset_member_access >= 0 && "TBAA access index to DIType must be positive number!");
-  return {llvm::dyn_cast<llvm::MDNode>(*operand_node_at_offset), offset_member_access};
-};
+  return false;
+}
+}  // namespace detail
 
 }  // namespace iteration
 
@@ -307,8 +247,6 @@ std::optional<llvm::DIType*> tbaa_resolver(llvm::DIType* root, const TBAAHandle&
     }
   }
 
-  //  assert(struct_name == tbaa->base_name() && "Root DIType should have same struct name.");
-
   // Handle "malloc" -> "store" (to struct) at offset 0 (optimized away gep):
   assert(tbaa.access_is_ptr() && "TBAA access should be pointer");
 
@@ -316,44 +254,16 @@ std::optional<llvm::DIType*> tbaa_resolver(llvm::DIType* root, const TBAAHandle&
   auto next_tbaa            = tbaa.base_ty;
   llvm::DIType* next_ditype = composite;
   auto next_offset          = tbaa.offset;
-  LOG_DEBUG("TBAA tree iteration.")
+  LOG_DEBUG("TBAA tree data.")
   LOG_DEBUG("  From ditype: " << log::ditype_str(composite))
   LOG_DEBUG("  From TBAA: " << log::ditype_str(next_tbaa))
   LOG_DEBUG("  At offset: " << *next_offset)
-  do {
-    auto [next_tbaa_node, access_offset_index] = iteration::next_tbaa_type_descend(next_tbaa, next_offset);
-    next_tbaa                                  = next_tbaa_node;
-    LOG_DEBUG("Next TBAA node " << log::ditype_str(next_tbaa))
-    auto try_next_di = iteration::next_di_member(next_ditype, access_offset_index);
 
-    next_offset = nullptr;
-
-    endpoint_reached = tbaa_operand_is_ptr(next_tbaa);
-
-    LOG_DEBUG("  >> New ditype: " << log::ditype_str(try_next_di.value()))
-    LOG_DEBUG("  >> New TBAA: " << log::ditype_str(next_tbaa))
-    if (endpoint_reached) {
-      LOG_DEBUG("  >> Endpoint " << log::ditype_str(try_next_di.value()))
-
-      while (auto val = llvm::dyn_cast<llvm::DIDerivedType>(try_next_di.value())) {
-        if (val->getTag() == llvm::dwarf::DW_TAG_typedef) {
-          LOG_DEBUG("Reset to " << log::ditype_str(val->getBaseType()));
-          try_next_di = val->getBaseType();
-        } else {
-          break;
-        }
-      }
-
-      return try_next_di.value();
-    } else {
-      // not yet found the any_pointer, hence recurse!
-      next_ditype = llvm::dyn_cast<llvm::DICompositeType>(try_next_di.value());
-      LOG_DEBUG("  >> Try to recurse to " << log::ditype_str(next_ditype))
-      assert(next_ditype && "We expect a composite type here");
-    }
-  } while (!endpoint_reached);
-
-  return next_ditype;
+  auto result = visitor::util::resolve_byte_offset_to_member_of(composite, next_offset->getLimitedValue());
+  if (result) {
+    return result->type_of_member;
+  }
+  return {};
 }
 
 std::optional<llvm::DIType*> resolve_tbaa(llvm::DIType* root, const llvm::Instruction& instruction) {
