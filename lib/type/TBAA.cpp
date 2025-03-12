@@ -152,8 +152,7 @@ inline size_t tbaa_operand_count(llvm::MDNode* type_node) {
 }
 
 inline std::optional<llvm::StringRef> tbaa_operand_name(llvm::MDNode* type_node) {
-  const auto num = type_node->getNumOperands();
-  if (num < 1) {
+  if (type_node->getNumOperands() == 0) {
     return {};
   }
   return llvm::dyn_cast<llvm::MDString>(type_node->getOperand(0))->getString();
@@ -279,14 +278,13 @@ std::optional<llvm::DIType*> tbaa_resolver(llvm::DIType* root, TBAAHandle& tbaa)
       }
     } else {
       LOG_DEBUG("Did not find matching sub member: " << struct_name)
-      auto new_base = helper::tbaa_sub_node_matches_name(struct_name, tbaa.base_ty);
-      if (!new_base.first) {
+      const auto [new_base, calculated_offset] = helper::tbaa_sub_node_matches_name(struct_name, tbaa.base_ty);
+      if (!new_base) {
         return root;
       }
-      LOG_DEBUG("New TBAA base " << log::ditype_str(new_base.first.value()) << " with negative offset "
-                                 << new_base.second)
-      tbaa.reset_base(new_base.first.value());
-      tbaa.subtract_offset(new_base.second);
+      LOG_DEBUG("New TBAA base " << log::ditype_str(new_base.value()) << " with negative offset " << calculated_offset)
+      tbaa.reset_base(new_base.value());
+      tbaa.subtract_offset(calculated_offset);
     }
   }
 

@@ -1,5 +1,6 @@
 // the code becomes a store of malloc to chunky (no gep etc.) -> need to rely on TBAA:
 // RUN: %cpp-to-llvm %s | %opt -O1 -S | %apply-verifier 2>&1 | %filecheck %s
+// RUN: %cpp-to-llvm %s | %apply-verifier 2>&1 | %filecheck %s
 
 extern "C" {
 void* malloc(unsigned);
