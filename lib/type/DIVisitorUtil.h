@@ -8,17 +8,28 @@
 #ifndef DIMETA_DIVISITORUTILS_H
 #define DIMETA_DIVISITORUTILS_H
 
+#include <llvm/IR/DebugInfoMetadata.h>
+#include <optional>
+
 namespace llvm {
 class DINode;
 class raw_ostream;
 class Module;
+class DIDerivedType;
+class DIType;
+class DICompositeType;
 }  // namespace llvm
 
 namespace dimeta::visitor::util {
 
 void print_dinode(llvm::DINode*, llvm::raw_ostream&, llvm::Module* m = nullptr);
 
-// void print_dinode_semantic(llvm::DINode*, llvm::raw_ostream&);
+struct StructMember {
+  std::optional<llvm::DIDerivedType*> member{};
+  std::optional<llvm::DIType*> type_of_member;
+};
+
+std::optional<StructMember> resolve_byte_offset_to_member_of(llvm::DICompositeType* composite, unsigned byte_offset);
 
 }  // namespace dimeta::visitor::util
 

@@ -7,6 +7,7 @@
 
 #include "GEP.h"
 
+#include "DIVisitor.h"
 #include "DIVisitorUtil.h"
 #include "support/Logger.h"
 
@@ -27,7 +28,6 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include <DIVisitor.h>
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -43,7 +43,7 @@ inline bool is_byte_indexing(const llvm::GEPOperator* gep) {
 }
 
 inline bool is_first_non_zero_indexing(const llvm::GEPOperator* gep) {
-  if (auto const_idx = llvm::dyn_cast<llvm::ConstantInt>((*gep->idx_begin()).get())) {
+  if (auto* const_idx = llvm::dyn_cast<llvm::ConstantInt>((*gep->idx_begin()).get())) {
     const int64_t index = const_idx->getValue().getSExtValue();
     return index > 0;
   }
@@ -97,7 +97,7 @@ GepIndices GepIndices::create(const llvm::GEPOperator* inst, bool skip_first) {
       skip_first = false;
       continue;
     }
-    if (auto const_idx = llvm::dyn_cast<llvm::ConstantInt>(index.get())) {
+    if (auto* const_idx = llvm::dyn_cast<llvm::ConstantInt>(index.get())) {
       const int64_t index = const_idx->getValue().getSExtValue();
       gep_ind.indices_.emplace_back(index);
     }
@@ -123,8 +123,8 @@ inline llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const GepIndices& in
 
 llvm::DINode* select_non_zero_element(llvm::DINode* element, llvm::DINode* next_element) {
   // used to detect the empty base class optimization
-  auto derived_type_member      = llvm::dyn_cast<llvm::DIDerivedType>(element);
-  auto next_derived_type_member = llvm::dyn_cast<llvm::DIDerivedType>(next_element);
+  auto* derived_type_member      = llvm::dyn_cast<llvm::DIDerivedType>(element);
+  auto* next_derived_type_member = llvm::dyn_cast<llvm::DIDerivedType>(next_element);
   if (derived_type_member != nullptr && next_derived_type_member != nullptr) {
     LOG_DEBUG("Non-null elements")
     if (derived_type_member->getOffsetInBits() == next_derived_type_member->getOffsetInBits()) {
@@ -145,8 +145,8 @@ auto find_non_derived_type_unless(llvm::DIType* root, UnlessFn&& unless) {
     if (unless(type)) {
       break;
     }
-    auto ditype = llvm::dyn_cast<llvm::DIDerivedType>(type);
-    type        = ditype->getBaseType();
+    auto* ditype = llvm::dyn_cast<llvm::DIDerivedType>(type);
+    type         = ditype->getBaseType();
   }
   return type;
 }
@@ -176,10 +176,10 @@ llvm::DICompositeType* skip_first_gep_access(llvm::DICompositeType* composite_ty
     if (elems.empty()) {
       return {};
     }
-    auto element = *base->getElements().begin();
+    auto* element = *base->getElements().begin();
     if (elems.size() > 1) {
-      auto next_element = *(std::next(base->getElements().begin()));
-      element           = select_non_zero_element(element, next_element);
+      auto* next_element = *(std::next(base->getElements().begin()));
+      element            = select_non_zero_element(element, next_element);
     }
 
     return find_non_derived_type_unless_ptr(llvm::dyn_cast<llvm::DIType>(element));
@@ -222,7 +222,7 @@ GepIndexToType iterate_gep_index(llvm::DICompositeType* composite_type, const Ge
     const auto& elems = composite_type->getElements();
     assert(elems.size() > index);
 
-    auto element = elems[index];
+    auto* element = elems[index];
     if (!llvm::isa<llvm::DIDerivedType>(element)) {
       LOG_DEBUG("Index shows to non-derived type: " << log::ditype_str(element))
       // TODO, if only one index, and this triggers, go first element all the way down?
@@ -231,18 +231,18 @@ GepIndexToType iterate_gep_index(llvm::DICompositeType* composite_type, const Ge
 
     if (index == 0 && elems.size() > 1) {
       LOG_DEBUG("Check zero-size pattern")
-      auto next_element = elems[index + 1];
-      element           = select_non_zero_element(element, next_element);
+      auto* next_element = elems[index + 1];
+      element            = select_non_zero_element(element, next_element);
     }
 
     LOG_DEBUG(" element: " << log::ditype_str(element))
 
-    if (auto derived_type_member = llvm::dyn_cast<llvm::DIDerivedType>(element)) {
-      auto member_type = find_non_derived_type_unless_ptr(derived_type_member->getBaseType());
+    if (auto* derived_type_member = llvm::dyn_cast<llvm::DIDerivedType>(element)) {
+      auto* member_type = find_non_derived_type_unless_ptr(derived_type_member->getBaseType());
 
       LOG_DEBUG("Looking at " << log::ditype_str(member_type))
 
-      if (auto composite_member_type = llvm::dyn_cast<llvm::DICompositeType>(member_type)) {
+      if (auto* composite_member_type = llvm::dyn_cast<llvm::DICompositeType>(member_type)) {
         if (composite_member_type->getTag() == llvm::dwarf::DW_TAG_class_type ||
             composite_member_type->getTag() == llvm::dwarf::DW_TAG_structure_type) {
           // maybe need to recurse into!
@@ -266,74 +266,11 @@ GepIndexToType iterate_gep_index(llvm::DICompositeType* composite_type, const Ge
   return {};
 }
 
-struct DestructureGepIndex : visitor::DINodeVisitor<DestructureGepIndex> {
-  explicit DestructureGepIndex(const size_t index) : index{index} {
-  }
-
-  [[nodiscard]] std::optional<GepIndexToType> result() const {
-    return this->outermost_candidate;
-  }
-
-  bool visitCompositeType(const llvm::DICompositeType* ty) {
-    LOG_DEBUG("visitCompositeType: " << ty->getName() << " index: " << index << " offset base: " << this->offset_base);
-
-    for (auto* element : ty->getElements()) {
-      if (auto* derived_ty = llvm::dyn_cast<llvm::DIDerivedType>(element)) {
-        assert(derived_ty->getTag() == llvm::dwarf::DW_TAG_member && "Expected member element in composite ty");
-        LOG_DEBUG("looking @ member: " << derived_ty->getName() << " offset: " << derived_ty->getOffsetInBits() / 8
-                                       << " size: " << derived_ty->getSizeInBits() / 8);
-
-        if (const auto offset = this->offset_base + (derived_ty->getOffsetInBits() / 8);
-            index >= offset && index < offset + derived_ty->getSizeInBits() / 8) {
-          LOG_DEBUG("saving candidate member");
-          if (const auto* base_ty = derived_ty->getBaseType(); base_ty)
-            LOG_DEBUG(" base ty: " << base_ty->getName());
-
-          this->outermost_candidate.emplace(GepIndexToType{derived_ty->getBaseType(), derived_ty});
-
-          // We should only ever be able to recurse into one composite type where the offset condition holds, so
-          // save the offset base for that member.
-          if (const auto* comp_ty = llvm::dyn_cast<llvm::DICompositeType>(derived_ty->getBaseType()); comp_ty) {
-            LOG_DEBUG("setting offset base to: " << offset);
-            this->offset_base = offset;
-          }
-        }
-      }
-    }
-
-    return true;
-  }
-
- private:
-  size_t index;
-  size_t offset_base{};
-  std::optional<GepIndexToType> outermost_candidate{};
-};
-
 GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, const GepIndices& gep_indices) {
   if (gep_indices.empty()) {
     // this triggers for composite (-array) access without constant index, see "heap_milc_struct_mock.c":
     LOG_DEBUG("Gep indices empty")
     return GepIndexToType{composite_type};
-  }
-
-  if (gep_indices.byte_access()) {
-    // Test heap_tachyon_mock_image.c for llvm 12:
-    // This mostly applies to llvm <= 12?
-    LOG_DEBUG("Gep indices are byte access: " << gep_indices)
-    const auto& elems = composite_type->getElements();
-    assert(elems.size() > 0 && "Need at least one member for gep byte-based access");
-    assert(gep_indices.size() == 1 && "Byte access is only supported for one byte index value");
-    for (auto element : elems) {
-      if (auto ditype = llvm::dyn_cast<llvm::DIDerivedType>(element)) {
-        assert(ditype->getTag() == llvm::dwarf::DW_TAG_member && "A member is expected here");
-        const auto offset_bytes = ditype->getOffsetInBits() / 8;
-        if (offset_bytes == gep_indices.indices_[0]) {
-          LOG_DEBUG("got match for: " << ditype->getName());
-          return GepIndexToType{ditype->getBaseType(), ditype};
-        }
-      }
-    }
   }
 
   if (gep_indices.skipped_first() && gep_indices.indices_[0] != 0) {
@@ -345,48 +282,66 @@ GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, 
   }
 
   if (gep_indices.byte_access()) {
-    DestructureGepIndex visitor{gep_indices.indices_[0]};
-    visitor.traverseCompositeType(composite_type);
-
+    LOG_DEBUG("Trying to resolve byte access based on offset " << gep_indices.indices_[0])
+    auto result = visitor::util::resolve_byte_offset_to_member_of(composite_type, gep_indices.indices_[0]);
+    if (result) {
+      return GepIndexToType{result->type_of_member, result->member};
+    }
     // TODO: Should this function really return `GepIndexToType` instead of an optional?
-    return visitor.result().value();
-  } else {
-    return iterate_gep_index(composite_type, gep_indices);
+    return GepIndexToType{composite_type};  // visitor.result().value_or(GepIndexToType{composite_type});
   }
+
+  return iterate_gep_index(composite_type, gep_indices);
 }
 
 std::optional<GepIndexToType> try_resolve_inlined_operator(const llvm::GEPOperator* gep) {
-  auto* const load = llvm::dyn_cast<llvm::Instruction>(gep->getPointerOperand());
-  if (!load)
+  const auto* const load = llvm::dyn_cast<llvm::Instruction>(gep->getPointerOperand());
+  if (!load) {
     return {};
+  }
 
   const auto* const sub_prog = llvm::dyn_cast<llvm::DISubprogram>(load->getDebugLoc().getScope());
   assert(sub_prog && "Scope does not represent a subprogram");
 
-  // Return the return-type of the inlined subroutine
-  return {GepIndexToType{sub_prog->getType()->getTypeArray()[0]}};
+  // see cpp/heap_vector_operator.cpp: vector::operator[] returns a reference, that we skip here:
+  const auto remove_ref = [&](auto* di_type) {
+    auto node = detail::find_non_derived_type_unless(di_type, [](auto* node) {
+      if (const auto* type = llvm::dyn_cast<llvm::DIDerivedType>(node)) {
+        return type->getTag() == llvm::dwarf::DW_TAG_pointer_type ||
+               type->getTag() == llvm::dwarf::DW_TAG_ptr_to_member_type;
+      }
+      return false;
+    });
+    return node;
+  };
+
+  if (auto* sub_program_type = sub_prog->getType()) {
+    if (sub_program_type->getTypeArray().size() > 0) {
+      return {GepIndexToType{remove_ref(*sub_program_type->getTypeArray().begin())}};
+    }
+  }
+  LOG_DEBUG("Could not detect inlined operator")
+  return {};
 }
 
 GepIndexToType extract_gep_dereferenced_type(llvm::DIType* root, const llvm::GEPOperator& inst) {
   using namespace llvm;
 
-  const auto gep_src = inst.getSourceElementType();
+  auto* const gep_src = inst.getSourceElementType();
 
-  if (gep_src->isPointerTy()) {
+  auto* const base_ty        = find_non_derived_type(root);
+  auto* const composite_type = llvm::dyn_cast_or_null<DICompositeType>(base_ty);
+  // see test cpp/heap_vector_opt.cpp: GEP on pointer (of inlined operator[])
+  const bool may_be_inlined_operator = (composite_type != nullptr) && composite_type->isForwardDecl();
+
+  if (gep_src->isPointerTy() && !may_be_inlined_operator) {
     LOG_DEBUG("Gep to ptr " << log::ditype_str(root));
-    // The commented code is used in conjunction with load/store reset (non-basic!, e.g., reset_load_related):
-    //    if (auto* type_behind_ptr = llvm::dyn_cast<llvm::DIDerivedType>(root)) {
-    //      assert((type_behind_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type) && "Expected a DI pointer type.");
-    //      return type_behind_ptr->getBaseType();
-    //    }
-    // if (!llvm::isa<llvm::DICompositeType>(root)) {
     return GepIndexToType{root};
-    // }
   }
 
   if (gep_src->isArrayTy()) {
-    if (auto composite_type = llvm::dyn_cast<llvm::DICompositeType>(root)) {
-      auto base_type = composite_type->getBaseType();
+    if (composite_type != nullptr) {
+      auto* base_type = composite_type->getBaseType();
       LOG_DEBUG("Gep to array of DI composite, with base type " << log::ditype_str(base_type));
       return GepIndexToType{base_type};
     }
@@ -394,37 +349,21 @@ GepIndexToType extract_gep_dereferenced_type(llvm::DIType* root, const llvm::GEP
     return GepIndexToType{root};
   }
 
-  const auto find_composite = [](llvm::DIType* root) {
-    assert(root != nullptr && "Root type should be non-null");
-    llvm::DIType* type = root;
-    while (llvm::isa<llvm::DIDerivedType>(type)) {
-      const auto ditype = llvm::dyn_cast<llvm::DIDerivedType>(type);
-      auto next_type    = ditype->getBaseType();
-      if (next_type != nullptr) {
-        type = next_type;
-      } else {
-        break;
-      }
-    }
-    return type;
-  };
-
-  auto* const base_ty = find_composite(root);
-
-  auto* const ty             = dyn_cast<DIDerivedType>(root);
-  auto* const composite_type = llvm::dyn_cast<DICompositeType>(base_ty);
+  auto* const derived_root = llvm::dyn_cast<DIDerivedType>(root);
+  const bool is_pointer_target =
+      (derived_root != nullptr) && derived_root->getBaseType()->getTag() == dwarf::DW_TAG_pointer_type;
   // TODO: This check seems like a bad idea but I'm not really sure how to do it properly, I reckon we need *some*
   //       heuristic to detect "fake-array" types though (e.g. gep/array_composite_s.c)
-  if (util::is_byte_indexing(&inst) &&
-      (!composite_type || (ty && ty->getBaseType()->getTag() == dwarf::DW_TAG_pointer_type))) {
+  if (util::is_byte_indexing(&inst) && (!composite_type || is_pointer_target)) {
+    LOG_DEBUG("Gep with byte offset to pointer-like : " << log::ditype_str(root))
     return GepIndexToType{root};
   }
 
-  assert(composite_type != nullptr && "Root should be a struct-like type. A");
+  assert(composite_type != nullptr && "Root should be a struct-like type.");
 
   if (composite_type->isForwardDecl()) {
     LOG_DEBUG("Trying to resolve forward-declared composite type " << log::ditype_str(composite_type))
-    return try_resolve_inlined_operator(&inst).value_or(GepIndexToType{});
+    return try_resolve_inlined_operator(&inst).value_or(GepIndexToType{root});
   }
 
   LOG_DEBUG("Gep to DI composite: " << log::ditype_str(composite_type))
