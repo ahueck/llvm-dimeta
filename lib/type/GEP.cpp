@@ -7,6 +7,7 @@
 
 #include "GEP.h"
 
+#include "DIVisitor.h"
 #include "DIVisitorUtil.h"
 #include "support/Logger.h"
 
@@ -27,7 +28,6 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include <DIVisitor.h>
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -266,65 +266,6 @@ GepIndexToType iterate_gep_index(llvm::DICompositeType* composite_type, const Ge
   return {};
 }
 
-struct DestructureGepIndex : visitor::DINodeVisitor<DestructureGepIndex> {
-  explicit DestructureGepIndex(const size_t index) : byte_index_{index} {
-  }
-
-  [[nodiscard]] std::optional<GepIndexToType> result() const {
-    return this->outermost_candidate_;
-  }
-
-  bool visitCompositeType(const llvm::DICompositeType* composite) const {
-    LOG_DEBUG("visitCompositeType: " << log::ditype_str(composite) << ": " << composite->getName()
-                                     << " index: " << byte_index_ << " offset base: " << this->offset_base_);
-    return true;
-  }
-
-  bool visitDerivedType(const llvm::DIDerivedType* derived_ty) {
-    if (derived_ty->getTag() != llvm::dwarf::DW_TAG_member) {
-      return true;
-    }
-    // assert(derived_ty->getTag() == llvm::dwarf::DW_TAG_member && "Expected member element in composite ty");
-    LOG_DEBUG("looking @ member: " << derived_ty->getName() << " offset: " << derived_ty->getOffsetInBits() / 8
-                                   << " size: " << derived_ty->getSizeInBits() / 8);
-
-    const auto deriv_offset = (derived_ty->getOffsetInBits() / 8);
-    const auto deriv_size   = (derived_ty->getSizeInBits() / 8);
-    const auto offset       = this->offset_base_ + deriv_offset;
-    const auto lower_bound  = offset;
-    const auto upper_bound  = offset + deriv_size;
-
-    if (byte_index_ >= lower_bound && byte_index_ < upper_bound) {
-      auto* const member_base_type = derived_ty->getBaseType();
-
-      LOG_DEBUG("saving candidate member type " << log::ditype_str(member_base_type));
-
-      this->outermost_candidate_.emplace(
-          GepIndexToType{member_base_type, const_cast<llvm::DIDerivedType*>(derived_ty)});
-
-      if (detail::is_pointer_like(*member_base_type) || member_base_type->getTag() == llvm::dwarf::DW_TAG_array_type) {
-        LOG_DEBUG("Terminating recursion, found pointer-like "
-                  << detail::is_pointer_like(*member_base_type) << " or array-like "
-                  << (member_base_type->getTag() == llvm::dwarf::DW_TAG_array_type))
-        return false;  // if offset matches, and its a pointer-like, we do not need to recurse.
-      }
-
-      // We should only ever be able to recurse into one composite type where the offset condition holds, so
-      // save the offset base for that member.
-      if (llvm::isa<llvm::DICompositeType>(member_base_type)) {
-        LOG_DEBUG("setting offset base to: " << offset);
-        this->offset_base_ = offset;
-      }
-    }
-    return true;
-  }
-
- private:
-  size_t byte_index_;
-  size_t offset_base_{};
-  std::optional<GepIndexToType> outermost_candidate_{};
-};
-
 GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, const GepIndices& gep_indices) {
   if (gep_indices.empty()) {
     // this triggers for composite (-array) access without constant index, see "heap_milc_struct_mock.c":
@@ -342,11 +283,12 @@ GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, 
 
   if (gep_indices.byte_access()) {
     LOG_DEBUG("Trying to resolve byte access based on offset " << gep_indices.indices_[0])
-    DestructureGepIndex visitor{gep_indices.indices_[0]};
-    visitor.traverseCompositeType(composite_type);
-
+    auto result = visitor::util::resolve_byte_offset_to_member_of(composite_type, gep_indices.indices_[0]);
+    if (result) {
+      return GepIndexToType{result->type_of_member, result->member};
+    }
     // TODO: Should this function really return `GepIndexToType` instead of an optional?
-    return visitor.result().value_or(GepIndexToType{composite_type});
+    return GepIndexToType{composite_type};  // visitor.result().value_or(GepIndexToType{composite_type});
   }
 
   return iterate_gep_index(composite_type, gep_indices);

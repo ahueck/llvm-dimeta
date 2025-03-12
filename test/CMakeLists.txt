@@ -89,7 +89,7 @@ function(dimeta_add_lit_target)
     dimeta_add_lit_testsuite(${TARGET_NAME}
       "Running the lit suite dimeta::${suite}"
       ${SUITE_PATH}
-      ARGS -v -j ${ARG_THREADS}
+      ARGS --show-xfail --show-unsupported -v -j ${ARG_THREADS}
       PARAMS dimeta_site_config=${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg
       DEPENDS ${DIMETA_TEST_DEPENDS}
     )
@@ -103,6 +103,7 @@ set(DIMETA_SUITES
   pass
   pass/gep
   pass/pointer
+  pass/ir
   pass/staging
 )
 
@@ -117,7 +118,7 @@ dimeta_add_lit_target(SUITES ${DIMETA_SUITES} THREADS ${NUM_CPU})
 add_test(
   NAME dimeta-lit-suite
   COMMAND
-    ${DIMETA_LIT_EXEC} -j ${NUM_CPU} --param
+    ${DIMETA_LIT_EXEC} -j ${NUM_CPU} --show-xfail --show-unsupported --param
     dimeta_site_config=${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
