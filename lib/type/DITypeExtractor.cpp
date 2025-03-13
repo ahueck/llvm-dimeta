@@ -78,8 +78,8 @@ bool store_to(const llvm::StoreInst* store) {
 }
 
 template <typename T>
-bool load_to(const llvm::LoadInst* store) {
-  return detail::get_operand_to<T>(store).has_value();
+bool load_to(const llvm::LoadInst* load) {
+  return detail::get_operand_to<T>(load).has_value();
 }
 
 std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath& path, llvm::DIType* type_to_reset,
@@ -87,6 +87,15 @@ std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath&
   auto type = type_to_reset;
 
   if (load_to<llvm::GlobalVariable>(load) || load_to<llvm::AllocaInst>(load)) {
+    // if (auto* maybe_ptr_to_type = llvm::dyn_cast<llvm::DIDerivedType>(type)) {
+    //   if ((maybe_ptr_to_type->getTag() == llvm::dwarf::DW_TAG_pointer_type ||
+    //        maybe_ptr_to_type->getTag() == llvm::dwarf::DW_TAG_reference_type)) {
+    //     LOG_DEBUG("Load of pointer-like " << log::ditype_str(maybe_ptr_to_type))
+    //     if (load->getPointerOperandType()->isOpaquePointerTy()) {
+    //       return maybe_ptr_to_type->getBaseType();
+    //     }
+    //   }
+    // }
     LOG_DEBUG("Do not reset DIType based on load to global,alloca")
     return type;
   }
@@ -129,7 +138,8 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
 
   auto* derived_type = llvm::cast<llvm::DIDerivedType>(type);
 
-  if (derived_type->getTag() == llvm::dwarf::DW_TAG_member) {
+  if (derived_type->getTag() ==
+      llvm::dwarf::DW_TAG_member /*|| derived_type->getTag() == llvm::dwarf::DW_TAG_variable*/) {
     auto* member_base               = derived_type->getBaseType();
     const bool is_array_type_member = member_base->getTag() == llvm::dwarf::DW_TAG_array_type;
     // Need to look at base type for array-type member of struct. Tests w.r.t. gep:
