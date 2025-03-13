@@ -171,10 +171,16 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
         // Triggers for "heap_lhs_obj_opt.c" (llvm 14/15)
         auto composite_members = ptr_to_composite->getElements();
         assert(!composite_members.empty() && "Store to composite assumed to be store to first member!");
-        auto store_di_target = llvm::dyn_cast<llvm::DIDerivedType>(composite_members[0])->getBaseType();
-        LOG_DEBUG("Store to a 'load of a composite type', assume first member as target "
-                  << log::ditype_str(store_di_target))
-        return store_di_target;
+        // auto store_di_target = llvm::dyn_cast<llvm::DIDerivedType>(composite_members[0])->getBaseType();
+
+        for (auto* member : composite_members) {
+          auto* store_di_target = llvm::dyn_cast<llvm::DIDerivedType>(member);
+          if (store_di_target->getTag() == llvm::dwarf::DW_TAG_member) {
+            LOG_DEBUG("Store to a 'load of a composite type', assume first member as target "
+                      << log::ditype_str(store_di_target))
+            return store_di_target->getBaseType();
+          }
+        }
       }
     }
   }
