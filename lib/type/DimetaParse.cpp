@@ -317,10 +317,18 @@ class DITypeParser final : public diparser::DIParseEvents {
     }
 
     if (current_meta.is_base_class) {
-      const auto base            = helper::make_base(std::move(finalized_composite));
+      const auto base          = helper::make_base(std::move(finalized_composite));
+      const bool size_one      = base->base.type.extent == 1;
+      const bool empty_members = base->base.type.members.empty();
+      // const bool ebo_base        = base->base.type.bases.size() > 1 &&
+      // base->base.type.bases.front()->empty_base_class;
+      base->is_empty_base_class  = size_one && empty_members;
+      base->offset               = current_meta.member_offset;
       auto& containing_composite = composite_stack_.back().type;
-      containing_composite.offsets.emplace_back(current_meta.member_offset);
-      containing_composite.sizes.emplace_back(finalized_composite.type.extent);
+      // if (!base->is_empty_base_class) {
+      //   containing_composite.offsets.emplace_back(current_meta.member_offset);
+      //   containing_composite.sizes.emplace_back(finalized_composite.type.extent);
+      // }
       containing_composite.bases.emplace_back(std::move(base));
       return;
     }

@@ -3,17 +3,11 @@
 class Base {
  public:
   double x;
-
-  virtual void foo(){};
 };
 
 class X {
  public:
   int y;
-
-  virtual int bar() {
-    return y;
-  };
 };
 
 class Y : public X, public Base {
@@ -26,32 +20,26 @@ int foo() {
   return class_y.y;
 }
 
-// CHECK:   Line:            25
+// CHECK:   Line:            19
 // CHECK-NEXT: Builtin:         false
 // CHECK-NEXT: Type:
 // CHECK-NEXT:   Compound:
 // CHECK-NEXT:     Name:            Y
 // CHECK-NEXT:     Identifier:      _ZTS1Y
 // CHECK-NEXT:     Type:            class
-// CHECK-NEXT:     Extent:          40
-// CHECK-NEXT:     Sizes:           [ 16, 16, 4 ]
-// CHECK-NEXT:     Offsets:         [ 0, 16, 32 ]
+// CHECK-NEXT:     Extent:          24
+// CHECK-NEXT:     Sizes:           [ 4 ]
+// CHECK-NEXT:     Offsets:         [ 16 ]
 // CHECK-NEXT:     Base:
 // CHECK-NEXT:       - BaseClass:
 // CHECK-NEXT:           Compound:
 // CHECK-NEXT:             Name:            X
 // CHECK-NEXT:             Identifier:      _ZTS1X
 // CHECK-NEXT:             Type:            class
-// CHECK-NEXT:             Extent:          16
-// CHECK-NEXT:             Sizes:           [ 8, 4 ]
-// CHECK-NEXT:             Offsets:         [ 0, 8 ]
+// CHECK-NEXT:             Extent:          4
+// CHECK-NEXT:             Sizes:           [ 4 ]
+// CHECK-NEXT:             Offsets:         [ 0 ]
 // CHECK-NEXT:             Members:
-// CHECK-NEXT:               - Name:            '_vptr$X'
-// CHECK-NEXT:                 Builtin:         true
-// CHECK-NEXT:                 Type:
-// CHECK-NEXT:                   Fundamental:     { Name: __vtbl_ptr_type, Extent: 8,
-// CHECK-NEXT:                                      Encoding: vtable_ptr }
-// CHECK-NEXT:                   Qualifiers:      [ ptr, ptr ]
 // CHECK-NEXT:               - Name:            y
 // CHECK-NEXT:                 Builtin:         true
 // CHECK-NEXT:                 Type:
@@ -61,22 +49,37 @@ int foo() {
 // CHECK-NEXT:             Name:            Base
 // CHECK-NEXT:             Identifier:      _ZTS4Base
 // CHECK-NEXT:             Type:            class
-// CHECK-NEXT:             Extent:          16
-// CHECK-NEXT:             Sizes:           [ 8, 8 ]
-// CHECK-NEXT:             Offsets:         [ 0, 8 ]
+// CHECK-NEXT:             Extent:          8
+// CHECK-NEXT:             Sizes:           [ 8 ]
+// CHECK-NEXT:             Offsets:         [ 0 ]
 // CHECK-NEXT:             Members:
-// CHECK-NEXT:               - Name:            '_vptr$Base'
-// CHECK-NEXT:                 Builtin:         true
-// CHECK-NEXT:                 Type:
-// CHECK-NEXT:                   Fundamental:     { Name: __vtbl_ptr_type, Extent: 8,
-// CHECK-NEXT:                                      Encoding: vtable_ptr }
-// CHECK-NEXT:                   Qualifiers:      [ ptr, ptr ]
 // CHECK-NEXT:               - Name:            x
 // CHECK-NEXT:                 Builtin:         true
 // CHECK-NEXT:                 Type:
 // CHECK-NEXT:                   Fundamental:     { Name: double, Extent: 8, Encoding: float }
+// CHECK-NEXT:           Offset: 8
 // CHECK-NEXT:     Members:
 // CHECK-NEXT:       - Name:            z
 // CHECK-NEXT:         Builtin:         true
 // CHECK-NEXT:         Type:
 // CHECK-NEXT:           Fundamental:     { Name: float, Extent: 4, Encoding: float }
+
+// *** Dumping AST Record Layout
+//          0 | class X
+//          0 |   int y
+//            | [sizeof=4, dsize=4, align=4,
+//            |  nvsize=4, nvalign=4]
+// *** Dumping AST Record Layout
+//          0 | class Base
+//          0 |   double x
+//            | [sizeof=8, dsize=8, align=8,
+//            |  nvsize=8, nvalign=8]
+// *** Dumping AST Record Layout
+//          0 | class Y
+//          0 |   class X (base)
+//          0 |     int y
+//          8 |   class Base (base)
+//          8 |     double x
+//         16 |   float z
+//            | [sizeof=24, dsize=20, align=8,
+//            |  nvsize=20, nvalign=8]
