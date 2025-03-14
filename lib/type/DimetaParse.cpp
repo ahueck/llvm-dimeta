@@ -229,10 +229,15 @@ class DITypeParser final : public diparser::DIParseEvents {
                   "Wrong QualType for member.");
     assert(!composite_stack_.empty() && "Member requires composite on stack");
     auto& containing_composite = composite_stack_.back().type;
-    containing_composite.offsets.emplace_back(meta_.member_offset);
-    containing_composite.sizes.emplace_back(meta_.member_size);
-    containing_composite.members.emplace_back(
-        helper::make_member<QualType>(meta_.member_name, std::forward<QualType>(type)));
+    if (meta_.is_member_static) {
+      containing_composite.static_members.emplace_back(
+          helper::make_member<QualType>(meta_.member_name, std::forward<QualType>(type)));
+    } else {
+      containing_composite.offsets.emplace_back(meta_.member_offset);
+      containing_composite.sizes.emplace_back(meta_.member_size);
+      containing_composite.members.emplace_back(
+          helper::make_member<QualType>(meta_.member_name, std::forward<QualType>(type)));
+    }
   }
 
   void emplace_fundamental(const diparser::state::MetaData& meta_, std::string_view name,

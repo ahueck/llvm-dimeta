@@ -62,6 +62,7 @@ struct CompoundType {
   Bases bases;
   // Mapping: Member -> name, QualType<[Compound, FundamentalType, (Padding)]>
   Members members;
+  Members static_members;
 };
 
 struct FundamentalType {

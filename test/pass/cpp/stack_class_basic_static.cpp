@@ -4,9 +4,7 @@
 // CHECK-NEXT: Identifier:      _ZTS1X
 // CHECK-NEXT: Type:            class
 // CHECK-NEXT: Extent:          1
-// CHECK-NEXT: Sizes:           [ 0 ]
-// CHECK-NEXT: Offsets:         [ 0 ]
-// CHECK-NEXT: Members:
+// CHECK-NEXT: Static_Members:
 // CHECK-NEXT: - Name:            val
 // CHECK-NEXT: Builtin:         true
 // CHECK-NEXT: Type:
@@ -21,3 +19,8 @@ class X {
 void foo() {
   X x;
 }
+
+// *** Dumping AST Record Layout
+//          0 | class X (empty)
+//            | [sizeof=1, dsize=1, align=1,
+//            |  nvsize=1, nvalign=1]

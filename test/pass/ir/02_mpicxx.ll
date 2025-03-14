@@ -13,9 +13,7 @@
 ; CHECK-NEXT:     Identifier:      _ZTSN3MPI8DatatypeE
 ; CHECK-NEXT:     Type:            class
 ; CHECK-NEXT:     Extent:          16
-; CHECK-NEXT:     Sizes:           [ 0 ]
-; CHECK-NEXT:     Offsets:         [ 0 ]
-; CHECK-NEXT:     Members:
+; CHECK-NEXT:     Static_Members:
 ; CHECK-NEXT:       - Name:            cxx_extra_states_lock
 ; CHECK-NEXT:         Builtin:         false
 ; CHECK-NEXT:         Type:
