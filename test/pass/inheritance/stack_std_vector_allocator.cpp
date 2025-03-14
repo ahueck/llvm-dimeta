@@ -87,8 +87,6 @@ void foo() {
 // CHECK-NEXT:     Identifier:      _ZTSSt6vectorIiN19allocator_namespace12my_allocatorIiEEE
 // CHECK-NEXT:     Type:            class
 // CHECK-NEXT:     Extent:          32
-// CHECK-NEXT:     Sizes:           [ 32 ]
-// CHECK-NEXT:     Offsets:         [ 0 ]
 // CHECK-NEXT:     Base:
 // CHECK-NEXT:       - BaseClass:
 // CHECK-NEXT:           Compound:
@@ -96,8 +94,8 @@ void foo() {
 // CHECK-NEXT:             Identifier:      _ZTSSt12_Vector_baseIiN19allocator_namespace12my_allocatorIiEEE
 // CHECK-NEXT:             Type:            struct
 // CHECK-NEXT:             Extent:          32
-// CHECK-NEXT:             Sizes:           [ 32 ]
-// CHECK-NEXT:             Offsets:         [ 0 ]
+// CHECK-NEXT:             Sizes: [ 32 ] 
+// CHECK-NEXT:             Offsets: [ 0 ]
 // CHECK-NEXT:             Members:
 // CHECK-NEXT:               - Name:            _M_impl
 // CHECK-NEXT:                 Builtin:         false
@@ -107,8 +105,6 @@ void foo() {
 // CHECK-NEXT:                     Identifier:      _ZTSNSt12_Vector_baseIiN19allocator_namespace12my_allocatorIiEEE12_Vector_implE
 // CHECK-NEXT:                     Type:            struct
 // CHECK-NEXT:                     Extent:          32
-// CHECK-NEXT:                     Sizes:           [ 8, 24 ]
-// CHECK-NEXT:                     Offsets:         [ 0, 8 ]
 // CHECK-NEXT:                     Base:
 // CHECK-NEXT:                       - BaseClass:
 // CHECK-NEXT:                           Compound:
@@ -134,3 +130,52 @@ void foo() {
 // CHECK-NEXT:                             Extent:          24
 // CHECK-NEXT:                             Sizes:           [ 8, 8, 8 ]
 // CHECK-NEXT:                             Offsets:         [ 0, 8, 16 ]
+// CHECK:                      Offset:          8
+
+
+
+// *** Dumping AST Record Layout
+//          0 | class allocator_namespace::my_allocator<int>
+//          0 |   void * padding
+//            | [sizeof=8, dsize=8, align=8,
+//            |  nvsize=8, nvalign=8]
+// *** Dumping AST Record Layout
+//          0 | struct std::_Vector_base<int, class allocator_namespace::my_allocator<int> >::_Vector_impl_data
+//          0 |   pointer _M_start
+//          8 |   pointer _M_finish
+//         16 |   pointer _M_end_of_storage
+//            | [sizeof=24, dsize=24, align=8,
+//            |  nvsize=24, nvalign=8] 
+// *** Dumping AST Record Layout
+//          0 | struct std::_Vector_base<int, class allocator_namespace::my_allocator<int> >::_Vector_impl
+//          0 |   class allocator_namespace::my_allocator<int> (base)
+//          0 |     void * padding
+//          8 |   struct std::_Vector_base<int, class allocator_namespace::my_allocator<int> >::_Vector_impl_data (base)
+//          8 |     pointer _M_start
+//         16 |     pointer _M_finish
+//         24 |     pointer _M_end_of_storage
+//            | [sizeof=32, dsize=32, align=8,
+//            |  nvsize=32, nvalign=8]
+// *** Dumping AST Record Layout
+//          0 | struct std::_Vector_base<int, class allocator_namespace::my_allocator<int> >
+//          0 |   struct std::_Vector_base<int, class allocator_namespace::my_allocator<int> >::_Vector_impl _M_impl
+//          0 |     class allocator_namespace::my_allocator<int> (base)
+//          0 |       void * padding
+//          8 |     struct std::_Vector_base<int, class allocator_namespace::my_allocator<int> >::_Vector_impl_data (base)
+//          8 |       pointer _M_start
+//         16 |       pointer _M_finish
+//         24 |       pointer _M_end_of_storage
+//            | [sizeof=32, dsize=32, align=8,
+//            |  nvsize=32, nvalign=8]
+// *** Dumping AST Record Layout
+//          0 | class std::vector<int, class allocator_namespace::my_allocator<int> >
+//          0 |   struct std::_Vector_base<int, class allocator_namespace::my_allocator<int> > (base)
+//          0 |     struct std::_Vector_base<int, class allocator_namespace::my_allocator<int> >::_Vector_impl _M_impl
+//          0 |       class allocator_namespace::my_allocator<int> (base)
+//          0 |         void * padding
+//          8 |       struct std::_Vector_base<int, class allocator_namespace::my_allocator<int> >::_Vector_impl_data (base)
+//          8 |         pointer _M_start
+//         16 |         pointer _M_finish
+//         24 |         pointer _M_end_of_storage
+//            | [sizeof=32, dsize=32, align=8,
+//            |  nvsize=32, nvalign=8]

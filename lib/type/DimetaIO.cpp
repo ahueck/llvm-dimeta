@@ -75,6 +75,8 @@ template <>
 struct llvm::yaml::MappingTraits<std::shared_ptr<BaseClass>> {
   static void mapping(IO& io, std::shared_ptr<BaseClass>& info) {
     io.mapRequired("BaseClass", info->base);
+    map_optional_not_empty(io, "Offset", info->offset);
+    map_optional_not_empty(io, "EBO", info->is_empty_base_class);
     //    if (!io.outputting()) {
     //      Extent e{0};
     //      io.mapOptional("Vtable", e);

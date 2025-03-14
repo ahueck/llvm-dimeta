@@ -116,6 +116,9 @@ using CompileUnitTypeList = std::vector<CompileUnitTypes>;
 
 struct BaseClass {
   QualifiedCompound base{};
+  // Byte offset from start of containing class:
+  Offset offset{0};
+  bool is_empty_base_class{false};
 };
 
 struct Member {
