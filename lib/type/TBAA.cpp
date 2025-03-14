@@ -280,6 +280,7 @@ std::optional<llvm::DIType*> tbaa_resolver(llvm::DIType* root, TBAAHandle& tbaa)
       LOG_DEBUG("Did not find matching sub member: " << struct_name)
       const auto [new_base, calculated_offset] = helper::tbaa_sub_node_matches_name(struct_name, tbaa.base_ty);
       if (!new_base) {
+        LOG_DEBUG("Did not find new base, returning")
         return root;
       }
       LOG_DEBUG("New TBAA base " << log::ditype_str(new_base.value()) << " with negative offset " << calculated_offset)

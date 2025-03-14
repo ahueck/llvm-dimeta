@@ -217,12 +217,20 @@ GepIndexToType iterate_gep_index(llvm::DICompositeType* composite_type, const Ge
 
   LOG_DEBUG("Iterate over gep: " << gep_indices);
 
+  const auto is_static_member = [](const llvm::DINode* node) {
+    if (const auto* derived_type_member = llvm::dyn_cast<llvm::DIDerivedType>(node)) {
+      return derived_type_member->isStaticMember();
+    }
+    return false;
+  };
+
   for (const auto& enum_index : llvm::enumerate(gep_indices.indices())) {
-    const auto index  = enum_index.value();
+    auto index        = enum_index.value();
     const auto& elems = composite_type->getElements();
     assert(elems.size() > index);
 
     auto* element = elems[index];
+
     if (!llvm::isa<llvm::DIDerivedType>(element)) {
       LOG_DEBUG("Index shows to non-derived type: " << log::ditype_str(element))
       // TODO, if only one index, and this triggers, go first element all the way down?
@@ -233,6 +241,11 @@ GepIndexToType iterate_gep_index(llvm::DICompositeType* composite_type, const Ge
       LOG_DEBUG("Check zero-size pattern")
       auto* next_element = elems[index + 1];
       element            = select_non_zero_element(element, next_element);
+    }
+
+    while (index < elems.size() && is_static_member(element)) {
+      element = elems[++index];
+      LOG_DEBUG("Skipping static member of composite. Member " << log::ditype_str(element))
     }
 
     LOG_DEBUG(" element: " << log::ditype_str(element))
