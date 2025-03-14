@@ -116,6 +116,7 @@ struct llvm::yaml::MappingTraits<CompoundType> {
     //    io.mapOptional("Base", info.bases);
     map_optional_not_empty(io, "Base", info.bases);
     io.mapOptional("Members", info.members);
+    io.mapOptional("Static_Members", info.static_members);
   }
 };
 
