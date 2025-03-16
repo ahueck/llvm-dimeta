@@ -84,7 +84,9 @@ llvm::SmallVector<ValuePath, 4> type_for_heap_call(const llvm::CallBase* call) {
         // see test heap_lulesh_domain_mock.cpp with opt -O3
         continue;
       }
-      LOG_DEBUG("Backtracking from anchor " << *anchor_path.value())
+      if (anchor_path.value()) {
+        LOG_DEBUG("Backtracking from anchor " << **anchor_path.value())
+      }
       //      dbgs() << "Traverse " << anchor_path.value() << "\n";
       value_traversal.traverse_custom(anchor_path.value().value(), malloc_anchor_backtrack, should_search,
                                       backtrack_search_dir_fn);
