@@ -199,13 +199,10 @@ auto find_non_derived_type(llvm::DIType* root) {
 llvm::DICompositeType* skip_first_gep_access(llvm::DICompositeType* composite_type) {
   using namespace detail;
   const auto select_next_member = [&](llvm::DICompositeType* base) -> std::optional<llvm::DIType*> {
-    auto elems = base->getElements();
-    if (elems.empty()) {
-      return {};
-    }
-    auto* element = *base->getElements().begin();
-    if (elems.size() > 1) {
-      auto* next_element = *(std::next(base->getElements().begin()));
+    auto composite_elements = base->getElements();
+    auto* element           = composite_elements[0];
+    if (composite_elements.size() > 1) {
+      auto* next_element = composite_elements[1];
       element            = detail::select_non_zero_element(element, next_element);
     }
 
@@ -213,9 +210,9 @@ llvm::DICompositeType* skip_first_gep_access(llvm::DICompositeType* composite_ty
   };
 
   const auto should_iterate_next_member = [&](auto* composite_type) {
-    const auto has_members =
-        llvm::count_if(composite_type->getElements(), [](const auto& elem) { return is_non_static_member(elem); }) > 1;
-    return !static_cast<bool>(has_members);
+    const auto count_members =
+        llvm::count_if(composite_type->getElements(), [](const auto& elem) { return is_non_static_member(elem); });
+    return count_members == 1;
   };
 
   while (should_iterate_next_member(composite_type)) {
@@ -329,8 +326,14 @@ GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, 
     // member: struct A { struct B { struct C { int, int } } } -> would skip to "struct C" for gep [0 1]
     // see test gep/global_nested.c
     LOG_DEBUG("Skip single member nested of: " << log::ditype_str(composite_type))
-    composite_type = skip_first_gep_access(composite_type);
-    LOG_DEBUG("Result of skip: " << log::ditype_str(composite_type))
+    auto* new_composite_type = skip_first_gep_access(composite_type);
+    if (new_composite_type != composite_type) {
+      // required for
+      // - LLVM-18: gep/global_nested & gep/param_first_nested_padding.cpp
+      // - LLVM-19: gep/global_nested.c
+      composite_type = new_composite_type;
+      LOG_DEBUG("Result of skip: " << log::ditype_str(composite_type))
+    }
   }
 
   return iterate_gep_index(composite_type, gep_indices);

@@ -12,6 +12,7 @@
 #include "llvm/ADT/StringRef.h"
 
 #include <cstdint>
+#include <optional>
 
 namespace dimeta::memory {
 
