@@ -123,6 +123,21 @@ inline llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const GepIndices& in
 
 namespace detail {
 
+llvm::DINode* select_non_zero_element(llvm::DINode* element, llvm::DINode* next_element) {
+  // used to detect the empty base class optimization
+  auto* derived_type_member      = llvm::dyn_cast<llvm::DIDerivedType>(element);
+  auto* next_derived_type_member = llvm::dyn_cast<llvm::DIDerivedType>(next_element);
+  if (derived_type_member != nullptr && next_derived_type_member != nullptr) {
+    LOG_DEBUG("Non-null elements")
+    if (derived_type_member->getOffsetInBits() == next_derived_type_member->getOffsetInBits()) {
+      LOG_DEBUG("Same offset detected: " << log::ditype_str(derived_type_member) << " and "
+                                         << log::ditype_str(next_derived_type_member))
+      return next_element;
+    }
+  }
+  return element;
+}
+
 template <typename UnlessFn>
 auto find_non_derived_type_unless(llvm::DIType* root, UnlessFn&& unless) {
   llvm::DIType* type = root;
@@ -145,6 +160,32 @@ inline bool is_pointer_like(const llvm::DIType& di_type) {
   return false;
 }
 
+inline bool is_non_static_member(llvm::DINode* elem) {
+  return elem->getTag() == llvm::dwarf::DW_TAG_member &&
+         llvm::cast<llvm::DIType>(elem)->getFlags() != llvm::DINode::DIFlags::FlagStaticMember;
+}
+
+inline bool is_ebo_inherited_composite(llvm::DINode* dinode) {
+  if (auto* derived = llvm::dyn_cast<llvm::DIDerivedType>(dinode)) {
+    if (derived->getTag() != llvm::dwarf::DW_TAG_inheritance) {
+      return false;
+    }
+
+    LOG_DEBUG(log::ditype_str(derived))
+    auto* base = llvm::dyn_cast<llvm::DICompositeType>(derived->getBaseType());
+    if (!base) {
+      LOG_DEBUG("Is not a composite inheritance " << log::ditype_str(derived))
+      return false;
+    }
+    const bool has_sized_member =
+        llvm::any_of(base->getElements(), [](llvm::DINode* elem) { return detail::is_non_static_member(elem); });
+    LOG_DEBUG("Has sized mem " << has_sized_member)
+    return !has_sized_member;
+  }
+
+  return false;
+}
+
 }  // namespace detail
 
 auto find_non_derived_type_unless_ptr(llvm::DIType* root) {
@@ -156,27 +197,38 @@ auto find_non_derived_type(llvm::DIType* root) {
 }
 
 llvm::DICompositeType* skip_first_gep_access(llvm::DICompositeType* composite_type) {
+  using namespace detail;
   const auto select_next_member = [&](llvm::DICompositeType* base) -> std::optional<llvm::DIType*> {
     auto elems = base->getElements();
     if (elems.empty()) {
       return {};
     }
-    int index     = 0;
-    auto* element = elems[index];
-    while (element->getTag() != llvm::dwarf::DW_TAG_member) {
-      element = elems[++index];
+    auto* element = *base->getElements().begin();
+    if (elems.size() > 1) {
+      auto* next_element = *(std::next(base->getElements().begin()));
+      element            = detail::select_non_zero_element(element, next_element);
     }
 
     return find_non_derived_type_unless_ptr(llvm::dyn_cast<llvm::DIType>(element));
   };
 
-  auto next_di = select_next_member(composite_type);
+  const auto should_iterate_next_member = [&](auto* composite_type) {
+    const auto has_members =
+        llvm::count_if(composite_type->getElements(), [](const auto& elem) { return is_non_static_member(elem); }) > 1;
+    return !static_cast<bool>(has_members);
+  };
 
-  if (!next_di || !llvm::isa<llvm::DICompositeType>(next_di.value())) {
-    return composite_type;
+  while (should_iterate_next_member(composite_type)) {
+    auto next_di = select_next_member(composite_type);
+    if (!next_di || !llvm::isa<llvm::DICompositeType>(next_di.value())) {
+      LOG_DEBUG("Did not find next member")
+      break;
+    }
+    composite_type = llvm::dyn_cast<llvm::DICompositeType>(next_di.value());
+    LOG_DEBUG("Found next " << log::ditype_str(composite_type))
   }
 
-  return llvm::cast<llvm::DICompositeType>(next_di.value());
+  return composite_type;
 }
 
 GepIndexToType iterate_gep_index(llvm::DICompositeType* composite_type, const GepIndices& gep_indices) {
@@ -192,27 +244,27 @@ GepIndexToType iterate_gep_index(llvm::DICompositeType* composite_type, const Ge
   };
 
   for (const auto& enum_index : llvm::enumerate(gep_indices.indices())) {
-    LOG_DEBUG(log::ditype_str(composite_type))
-    auto index        = enum_index.value();
-    const auto& elems = composite_type->getElements();
-    LOG_DEBUG(index)
-    assert(elems.size() > index);
+    auto gep_index       = enum_index.value();
+    const auto& elements = composite_type->getElements();
+    assert(elements.size() > gep_index);
 
-    const auto inheritance_element_offset =
-        std::count_if(composite_type->getElements().begin(), composite_type->getElements().end(), [](auto* dinode) {
-          if (auto* derived = llvm::dyn_cast<llvm::DIDerivedType>(dinode)) {
-            return derived->getTag() == llvm::dwarf::DW_TAG_inheritance;
-          }
-          return false;
-        }) > 0;
+    auto* element = elements[gep_index];
 
-    if (inheritance_element_offset && (index) < elems.size()) {
-      // TODO: multiple inheritance does not add to the GEP offset, so only + 1 here? see test
-      // inheritance/ebo_heap_static_3_2.cpp
-      index += 1;
+    if (gep_index == 0 && elements.size() > 1) {
+      // e.g., LLVM-14: cpp/heap_lhs_function_opt.cpp: vector gep is [0 0 0 0 ...] -> never recurse into EBO
+      LOG_DEBUG("Check zero-size pattern for " << log::ditype_str(composite_type))
+      auto* next_element = elements[1];
+      element            = detail::select_non_zero_element(element, next_element);
     }
 
-    auto* element = elems[index];
+    const auto ebo_inheritance_offset = llvm::count_if(
+        composite_type->getElements(), [&](auto* dinode) { return detail::is_ebo_inherited_composite(dinode); });
+
+    if (gep_index > 0 && ebo_inheritance_offset > 0 && (gep_index) < elements.size()) {
+      LOG_DEBUG("EBO offset needed " << ebo_inheritance_offset)
+      gep_index += ebo_inheritance_offset;
+      element = elements[gep_index];
+    }
 
     if (!llvm::isa<llvm::DIDerivedType>(element)) {
       LOG_DEBUG("Index shows to non-derived type: " << log::ditype_str(element))
@@ -220,9 +272,9 @@ GepIndexToType iterate_gep_index(llvm::DICompositeType* composite_type, const Ge
       // maybe also check for class type (not structs etc.)
     }
 
-    while (index < elems.size() && is_static_member(element)) {
-      element = elems[++index];
-      LOG_DEBUG("Skipping static member of composite. Member " << log::ditype_str(element))
+    while (gep_index < elements.size() && is_static_member(element)) {
+      LOG_DEBUG("Skipping static member of composite " << log::ditype_str(element))
+      element = elements[++gep_index];
     }
 
     LOG_DEBUG(" element: " << log::ditype_str(element))
@@ -263,6 +315,15 @@ GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, 
     return GepIndexToType{composite_type};
   }
 
+  if (gep_indices.byte_access()) {
+    LOG_DEBUG("Trying to resolve byte access based on offset " << gep_indices.indices_[0])
+    auto result = visitor::util::resolve_byte_offset_to_member_of(composite_type, gep_indices.indices_[0]);
+    if (result) {
+      return GepIndexToType{result->type_of_member, result->member};
+    }
+    return GepIndexToType{composite_type};
+  }
+
   if (gep_indices.skipped_first() && gep_indices.indices_[0] != 0) {
     // This assumes that a single (and only single) first 0 skips through to the first element with more than one
     // member: struct A { struct B { struct C { int, int } } } -> would skip to "struct C" for gep [0 1]
@@ -270,16 +331,6 @@ GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, 
     LOG_DEBUG("Skip single member nested of: " << log::ditype_str(composite_type))
     composite_type = skip_first_gep_access(composite_type);
     LOG_DEBUG("Result of skip: " << log::ditype_str(composite_type))
-  }
-
-  if (gep_indices.byte_access()) {
-    LOG_DEBUG("Trying to resolve byte access based on offset " << gep_indices.indices_[0])
-    auto result = visitor::util::resolve_byte_offset_to_member_of(composite_type, gep_indices.indices_[0]);
-    if (result) {
-      return GepIndexToType{result->type_of_member, result->member};
-    }
-    // TODO: Should this function really return `GepIndexToType` instead of an optional?
-    return GepIndexToType{composite_type};  // visitor.result().value_or(GepIndexToType{composite_type});
   }
 
   return iterate_gep_index(composite_type, gep_indices);
