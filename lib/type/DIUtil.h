@@ -8,8 +8,8 @@
 #ifndef DIMETA_DIUTILS_H
 #define DIMETA_DIUTILS_H
 
-#include <llvm/IR/DebugInfoMetadata.h>
-#include <llvm/Support/Casting.h>
+#include "llvm/ADT/SmallVector.h"
+
 #include <optional>
 
 namespace llvm {

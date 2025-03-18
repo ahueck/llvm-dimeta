@@ -8,7 +8,6 @@
 #ifndef DIMETA_DITYPEEXTRACTOR_H
 #define DIMETA_DITYPEEXTRACTOR_H
 
-#include <llvm/IR/InstrTypes.h>
 #include <optional>
 
 namespace llvm {

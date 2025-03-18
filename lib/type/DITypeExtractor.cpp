@@ -194,9 +194,23 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dat
     return {};
   }
 
-  auto next_value = path_iter;
+  const auto& next_value = path_iter;
   LOG_DEBUG("Type to reset: " << log::ditype_str(*type));
   LOG_DEBUG(">> based on IR: " << **next_value);
+
+  if (llvm::isa<llvm::GEPOperator>(*next_value)) {
+    LOG_DEBUG("Reset based on GEP")
+    auto* gep = llvm::cast<llvm::GEPOperator>(*next_value);
+    // LOG_DEBUG("Path iter gep for extraction is currently " << *gep);
+    // TODO: Maybe we could somehow get more info on the underlying type from the dataflow path
+    //       if this returns an empty result due to forward decls?
+    const auto gep_result = gep::extract_gep_dereferenced_type(type.value(), *gep);
+    if (gep_result.member) {
+      LOG_DEBUG("Using gep member type result")
+      return gep_result.member;
+    }
+    return gep_result.type;
+  }
 
   if (const auto* load = llvm::dyn_cast<llvm::LoadInst>(*next_value)) {
     // Re-set the DIType from the gep, if presence of:
@@ -231,20 +245,6 @@ std::optional<llvm::DIType*> find_type(const dataflow::CallValuePath& call_path)
   for (auto path_iter = call_path.path.path_to_value.rbegin(); path_iter != path_end; ++path_iter) {
     if (!type) {
       break;
-    }
-    if (llvm::isa<llvm::GEPOperator>(*path_iter)) {
-      auto* gep = llvm::cast<llvm::GEPOperator>(*path_iter);
-      LOG_DEBUG("Path iter gep for extraction is currently " << *gep);
-      // TODO: Maybe we could somehow get more info on the underlying type from the dataflow path
-      //       if this returns an empty result due to forward decls?
-      const auto gep_result = gep::extract_gep_dereferenced_type(type.value(), *gep);
-      type                  = gep_result.type;
-      if (gep_result.member) {
-        LOG_DEBUG("Using gep member type result")
-        type = gep_result.member;
-      }
-      LOG_DEBUG("Gep reset type is " << log::ditype_str(type.value_or(nullptr)) << "\n")
-      continue;
     }
     LOG_DEBUG("Extracted type w.r.t. gep: " << log::ditype_str(*type));
     type = reset::reset_ditype(type.value(), call_path.path, path_iter, path_end).value_or(type.value());
