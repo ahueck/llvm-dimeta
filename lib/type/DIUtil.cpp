@@ -5,7 +5,7 @@
 //  SPDX-License-Identifier: BSD-3-Clause
 //
 
-#include "DIVisitorUtil.h"
+#include "DIUtil.h"
 
 #include "DIVisitor.h"
 #include "support/Logger.h"
@@ -15,7 +15,7 @@
 
 #include <optional>
 
-namespace dimeta::visitor::util {
+namespace dimeta::di::util {
 
 namespace printer {
 
@@ -164,4 +164,34 @@ std::optional<StructMember> resolve_byte_offset_to_member_of(llvm::DICompositeTy
   return visitor.result();
 }
 
-}  // namespace dimeta::visitor::util
+bool is_pointer_like(const llvm::DIType& di_type) {
+  if (const auto* type = llvm::dyn_cast<llvm::DIDerivedType>(&di_type)) {
+    return type->getTag() == llvm::dwarf::DW_TAG_array_type || type->getTag() == llvm::dwarf::DW_TAG_reference_type ||
+           type->getTag() == llvm::dwarf::DW_TAG_pointer_type ||
+           type->getTag() == llvm::dwarf::DW_TAG_ptr_to_member_type;
+  }
+  return false;
+}
+
+bool is_non_static_member(const llvm::DINode& elem) {
+  return elem.getTag() == llvm::dwarf::DW_TAG_member &&
+         llvm::cast<llvm::DIType>(elem).getFlags() != llvm::DINode::DIFlags::FlagStaticMember;
+}
+
+size_t get_num_composite_members(const llvm::DICompositeType& composite) {
+  const auto num_members =
+      llvm::count_if(composite.getElements(), [&](const auto* node) { return is_non_static_member(*node); });
+  return num_members;
+}
+
+llvm::SmallVector<llvm::DIDerivedType*, 4> get_composite_members(const llvm::DICompositeType& composite) {
+  llvm::SmallVector<llvm::DIDerivedType*, 4> members;
+  for (auto* member : composite.getElements()) {
+    if (is_non_static_member(*member)) {
+      members.push_back(llvm::dyn_cast<llvm::DIDerivedType>(member));
+    }
+  }
+  return members;
+}
+
+}  // namespace dimeta::di::util

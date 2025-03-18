@@ -5,10 +5,11 @@
 //  SPDX-License-Identifier: BSD-3-Clause
 //
 
-#ifndef DIMETA_DIVISITORUTILS_H
-#define DIMETA_DIVISITORUTILS_H
+#ifndef DIMETA_DIUTILS_H
+#define DIMETA_DIUTILS_H
 
 #include <llvm/IR/DebugInfoMetadata.h>
+#include <llvm/Support/Casting.h>
 #include <optional>
 
 namespace llvm {
@@ -20,7 +21,7 @@ class DIType;
 class DICompositeType;
 }  // namespace llvm
 
-namespace dimeta::visitor::util {
+namespace dimeta::di::util {
 
 void print_dinode(llvm::DINode*, llvm::raw_ostream&, llvm::Module* m = nullptr);
 
@@ -31,6 +32,11 @@ struct StructMember {
 
 std::optional<StructMember> resolve_byte_offset_to_member_of(llvm::DICompositeType* composite, unsigned byte_offset);
 
-}  // namespace dimeta::visitor::util
+bool is_pointer_like(const llvm::DIType& di_type);
+bool is_non_static_member(const llvm::DINode& elem);
+size_t get_num_composite_members(const llvm::DICompositeType& composite);
+llvm::SmallVector<llvm::DIDerivedType*, 4> get_composite_members(const llvm::DICompositeType& composite);
+
+}  // namespace dimeta::di::util
 
 #endif  // DIMETA_DIVISITORUTILS_H

@@ -7,15 +7,12 @@
 
 #include "GEP.h"
 
-#include "DIVisitor.h"
-#include "DIVisitorUtil.h"
+#include "DIUtil.h"
 #include "support/Logger.h"
 
 #include "llvm/ADT/APInt.h"
-#include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/iterator.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/IR/Constants.h"
@@ -58,23 +55,23 @@ struct GepIndices {
   bool is_byte_access{false};
   using Iter = llvm::SmallVector<uint64_t, 4>::const_iterator;
 
-  inline llvm::iterator_range<Iter> indices() const {
+  llvm::iterator_range<Iter> indices() const {
     return llvm::iterator_range<Iter>(indices_);
   }
 
-  inline size_t size() const {
+  size_t size() const {
     return indices_.size();
   }
 
-  inline bool empty() const {
+  bool empty() const {
     return size() == 0;
   }
 
-  inline bool skipped_first() const {
+  bool skipped_first() const {
     return skipped;
   }
 
-  inline bool byte_access() const {
+  bool byte_access() const {
     return is_byte_access;
   }
 
@@ -151,20 +148,6 @@ auto find_non_derived_type_unless(llvm::DIType* root, UnlessFn&& unless) {
   return type;
 }
 
-inline bool is_pointer_like(const llvm::DIType& di_type) {
-  if (const auto* type = llvm::dyn_cast<llvm::DIDerivedType>(&di_type)) {
-    return type->getTag() == llvm::dwarf::DW_TAG_array_type || type->getTag() == llvm::dwarf::DW_TAG_reference_type ||
-           type->getTag() == llvm::dwarf::DW_TAG_pointer_type ||
-           type->getTag() == llvm::dwarf::DW_TAG_ptr_to_member_type;
-  }
-  return false;
-}
-
-inline bool is_non_static_member(llvm::DINode* elem) {
-  return elem->getTag() == llvm::dwarf::DW_TAG_member &&
-         llvm::cast<llvm::DIType>(elem)->getFlags() != llvm::DINode::DIFlags::FlagStaticMember;
-}
-
 inline bool is_ebo_inherited_composite(llvm::DINode* dinode) {
   if (auto* derived = llvm::dyn_cast<llvm::DIDerivedType>(dinode)) {
     if (derived->getTag() != llvm::dwarf::DW_TAG_inheritance) {
@@ -178,7 +161,7 @@ inline bool is_ebo_inherited_composite(llvm::DINode* dinode) {
       return false;
     }
     const bool has_sized_member =
-        llvm::any_of(base->getElements(), [](llvm::DINode* elem) { return detail::is_non_static_member(elem); });
+        llvm::any_of(base->getElements(), [](llvm::DINode* elem) { return di::util::is_non_static_member(*elem); });
     LOG_DEBUG("Has sized mem " << has_sized_member)
     return !has_sized_member;
   }
@@ -189,11 +172,11 @@ inline bool is_ebo_inherited_composite(llvm::DINode* dinode) {
 }  // namespace detail
 
 auto find_non_derived_type_unless_ptr(llvm::DIType* root) {
-  return detail::find_non_derived_type_unless(root, [](auto* val) { return detail::is_pointer_like(*val); });
+  return detail::find_non_derived_type_unless(root, [](auto* val) { return di::util::is_pointer_like(*val); });
 }
 
 auto find_non_derived_type(llvm::DIType* root) {
-  return detail::find_non_derived_type_unless(root, [](auto* val) { return false; });
+  return detail::find_non_derived_type_unless(root, [](auto*) { return false; });
 }
 
 llvm::DICompositeType* skip_first_gep_access(llvm::DICompositeType* composite_type) {
@@ -210,8 +193,8 @@ llvm::DICompositeType* skip_first_gep_access(llvm::DICompositeType* composite_ty
   };
 
   const auto should_iterate_next_member = [&](auto* composite_type) {
-    const auto count_members =
-        llvm::count_if(composite_type->getElements(), [](const auto& elem) { return is_non_static_member(elem); });
+    const auto count_members = llvm::count_if(composite_type->getElements(),
+                                              [](const auto* elem) { return di::util::is_non_static_member(*elem); });
     return count_members == 1;
   };
 
@@ -314,7 +297,7 @@ GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, 
 
   if (gep_indices.byte_access()) {
     LOG_DEBUG("Trying to resolve byte access based on offset " << gep_indices.indices_[0])
-    auto result = visitor::util::resolve_byte_offset_to_member_of(composite_type, gep_indices.indices_[0]);
+    auto result = di::util::resolve_byte_offset_to_member_of(composite_type, gep_indices.indices_[0]);
     if (result) {
       return GepIndexToType{result->type_of_member, result->member};
     }

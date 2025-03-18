@@ -6,8 +6,8 @@
 //
 
 #include "support/Logger.h"
+#include "type/DIUtil.h"
 #include "type/DIVisitor.h"
-#include "type/DIVisitorUtil.h"
 #include "type/Dimeta.h"
 #include "type/DimetaData.h"
 #include "type/DimetaIO.h"
@@ -248,7 +248,7 @@ class TestPass : public llvm::PassInfoMixin<TestPass> {
 
     const auto print_di_tree = [&](const DimetaData& di_var) {
       if (util::variable_is_toggled(cl_dimeta_test_print, "DIMETA_TEST_DUMP")) {
-        visitor::util::print_dinode(std::get<DILocalVariable*>(di_var.di_variable.value()), outs(), current_module);
+        di::util::print_dinode(std::get<DILocalVariable*>(di_var.di_variable.value()), outs(), current_module);
       }
     };
 
