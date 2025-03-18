@@ -84,7 +84,7 @@ auto final_ditype(std::optional<llvm::DIType*> root_ditype) -> std::pair<std::op
   }
 
   return {type, level};
-};
+}
 
 std::optional<llvm::DIType*> type_for_malloclike(const llvm::CallBase* call) {
   const auto ditype_paths = dataflow::type_for_heap_call(call);

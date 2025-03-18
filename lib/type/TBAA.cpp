@@ -7,9 +7,8 @@
 
 #include "TBAA.h"
 
+#include "DIUtil.h"
 #include "DIVisitor.h"
-#include "DIVisitorUtil.h"
-#include "DefUseAnalysis.h"
 #include "support/Logger.h"
 
 #include "llvm/ADT/StringRef.h"
@@ -22,14 +21,13 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include <assert.h>
+#include <cassert>
 #include <cstddef>
 #include <iterator>
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/ADT/SmallVector.h>
 #include <optional>
 #include <string>
-#include <string_view>
 
 namespace dimeta::tbaa {
 
@@ -77,9 +75,9 @@ struct TBAAHandle {
 
  private:
   explicit TBAAHandle(llvm::MDNode& tbaa_node) {
-    base_ty       = llvm::dyn_cast<llvm::MDNode>(tbaa_node.getOperand(0));
-    access_ty     = llvm::dyn_cast<llvm::MDNode>(tbaa_node.getOperand(1));
-    auto value_md = llvm::dyn_cast<llvm::ValueAsMetadata>(tbaa_node.getOperand(2))->getValue();
+    base_ty        = llvm::dyn_cast<llvm::MDNode>(tbaa_node.getOperand(0));
+    access_ty      = llvm::dyn_cast<llvm::MDNode>(tbaa_node.getOperand(1));
+    auto* value_md = llvm::dyn_cast<llvm::ValueAsMetadata>(tbaa_node.getOperand(2))->getValue();
     assert(value_md && "Offset value may not be null.");
     offset       = llvm::dyn_cast<llvm::ConstantInt>(value_md);
     offset_value = offset->getLimitedValue();
@@ -87,29 +85,6 @@ struct TBAAHandle {
 };
 
 namespace helper {
-
-inline size_t num_composite_members(const llvm::DICompositeType* composite) {
-  const auto num_members = llvm::count_if(composite->getElements(), [](const auto* node) {
-    if (auto derived = llvm::dyn_cast<llvm::DIDerivedType>(node)) {
-      return derived->getTag() == llvm::dwarf::DW_TAG_member;
-    }
-    return false;
-  });
-  return num_members;
-}
-
-inline llvm::SmallVector<llvm::DIDerivedType*, 4> composite_members(const llvm::DICompositeType* composite) {
-  llvm::SmallVector<llvm::DIDerivedType*, 4> members;
-  for (auto* member : composite->getElements()) {
-    if (auto* derived = llvm::dyn_cast<llvm::DIDerivedType>(member)) {
-      if (derived->getTag() == llvm::dwarf::DW_TAG_member) {
-        members.push_back(derived);
-      }
-    }
-  }
-
-  return members;
-}
 
 class FindMatchingMember : public visitor::DINodeVisitor<FindMatchingMember> {
   llvm::StringRef composite_name_;
@@ -198,7 +173,7 @@ struct TBAADestructure {
 inline std::pair<std::optional<llvm::MDNode*>, size_t> tbaa_sub_node_matches_name(llvm::StringRef name,
                                                                                   llvm::MDNode* new_base_ty) {
   TBAADestructure tbaa{name};
-  const auto found = tbaa.traverse_tbaa_nodes(new_base_ty);
+  tbaa.traverse_tbaa_nodes(new_base_ty);
   LOG_DEBUG("Found " << log::ditype_str(tbaa.outermost_candidate_.value_or(nullptr)) << " at offset "
                      << tbaa.offset_base_)
   return {tbaa.outermost_candidate_, tbaa.offset_base_};
@@ -207,7 +182,8 @@ inline std::pair<std::optional<llvm::MDNode*>, size_t> tbaa_sub_node_matches_nam
 }  // namespace helper
 
 bool composite_fits_tbaa(const llvm::DICompositeType* composite, const TBAAHandle& tbaa) {
-  const auto num_members = helper::num_composite_members(composite);
+  assert(composite != nullptr);
+  const auto num_members = di::util::get_num_composite_members(*composite);
   const auto tbaa_count  = helper::tbaa_operand_count(tbaa.base_ty);
   if (num_members != tbaa_count) {
     return false;
@@ -215,8 +191,8 @@ bool composite_fits_tbaa(const llvm::DICompositeType* composite, const TBAAHandl
 
   LOG_DEBUG("Type element size " << num_members << " vs. TBAA " << tbaa_count)
 
-  const auto elements  = helper::composite_members(composite);
-  int element_position = 0;  // Incremented for every TBAA constant int entry
+  const auto elements     = di::util::get_composite_members(*composite);
+  size_t element_position = 0;  // Incremented for every TBAA constant int entry
   // Loop simply checks if the byte offsets are the same (TODO also compare types!)
   for (const auto& tbaa_operand : tbaa.base_ty->operands()) {
     if (auto* value_md = llvm::dyn_cast<llvm::ValueAsMetadata>(tbaa_operand)) {
@@ -269,7 +245,7 @@ std::optional<llvm::DIType*> tbaa_resolver(llvm::DIType* root, TBAAHandle& tbaa)
     if (result_composite) {
       LOG_DEBUG("Found matching sub member " << log::ditype_str(result_composite.value()))
       composite = result_composite.value();  // const_cast<llvm::DICompositeType*>(result_composite.value());
-      const auto num_members = helper::num_composite_members(composite);
+      const auto num_members = di::util::get_num_composite_members(*composite);
       const auto num_tbaa    = helper::tbaa_operand_count(tbaa.base_ty);
       if (num_members != num_tbaa) {
         LOG_DEBUG("Mismatch between sub member element count and TBAA base type count "
@@ -305,7 +281,7 @@ std::optional<llvm::DIType*> tbaa_resolver(llvm::DIType* root, TBAAHandle& tbaa)
   LOG_DEBUG("  From TBAA: " << log::ditype_str(tbaa.base_ty))
   LOG_DEBUG("  At offset: " << tbaa.offset_value)
 
-  auto result = visitor::util::resolve_byte_offset_to_member_of(composite, tbaa.offset_value);
+  auto result = di::util::resolve_byte_offset_to_member_of(composite, tbaa.offset_value);
   if (result) {
     return result->type_of_member;
   }
