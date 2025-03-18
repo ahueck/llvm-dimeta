@@ -88,18 +88,6 @@ void print_dinode(llvm::DINode* node, llvm::raw_ostream& outs, llvm::Module* mod
   printer.traverseNode(node);
 }
 
-namespace detail {
-
-inline bool is_pointer_like(const llvm::DIType& di_type) {
-  if (const auto* type = llvm::dyn_cast<llvm::DIDerivedType>(&di_type)) {
-    return type->getTag() == llvm::dwarf::DW_TAG_array_type || type->getTag() == llvm::dwarf::DW_TAG_reference_type ||
-           type->getTag() == llvm::dwarf::DW_TAG_pointer_type ||
-           type->getTag() == llvm::dwarf::DW_TAG_ptr_to_member_type;
-  }
-  return false;
-}
-}  // namespace detail
-
 struct DestructureComposite : visitor::DINodeVisitor<DestructureComposite> {
   explicit DestructureComposite(const size_t index) : byte_index_{index} {
   }
@@ -135,9 +123,9 @@ struct DestructureComposite : visitor::DINodeVisitor<DestructureComposite> {
 
       this->outermost_candidate_.emplace(StructMember{const_cast<llvm::DIDerivedType*>(derived_ty), member_base_type});
 
-      if (detail::is_pointer_like(*member_base_type) || member_base_type->getTag() == llvm::dwarf::DW_TAG_array_type) {
+      if (is_pointer_like(*member_base_type) || member_base_type->getTag() == llvm::dwarf::DW_TAG_array_type) {
         LOG_DEBUG("Terminating recursion, found pointer-like "
-                  << detail::is_pointer_like(*member_base_type) << " or array-like "
+                  << is_pointer_like(*member_base_type) << " or array-like "
                   << (member_base_type->getTag() == llvm::dwarf::DW_TAG_array_type))
         return false;  // if offset matches, and its a pointer-like, we do not need to recurse.
       }
