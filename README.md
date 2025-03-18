@@ -120,7 +120,7 @@ target_link_libraries(my_project_target PRIVATE dimeta::Types)
 
 ## 2. Building llvm-dimeta
 
-llvm-dimeta is tested with LLVM version 12, 14, 15, 18 and 19, and CMake version >= 3.20. Use CMake presets `develop` or `release` to build.
+llvm-dimeta is tested with LLVM version 13, 14, 15, 18 and 19, and CMake version >= 3.20. Use CMake presets `develop` or `release` to build.
 
 ### 2.1 Build example
 
