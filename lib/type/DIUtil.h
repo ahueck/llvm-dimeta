@@ -30,8 +30,10 @@ struct StructMember {
   std::optional<llvm::DIType*> type_of_member;
 };
 
-std::optional<StructMember> resolve_byte_offset_to_member_of(llvm::DICompositeType* composite, unsigned byte_offset);
+std::optional<StructMember> resolve_byte_offset_to_member_of(const llvm::DICompositeType* composite,
+                                                             size_t byte_offset);
 
+bool is_pointer(const llvm::DIType& di_type);
 bool is_pointer_like(const llvm::DIType& di_type);
 bool is_non_static_member(const llvm::DINode& elem);
 size_t get_num_composite_members(const llvm::DICompositeType& composite);

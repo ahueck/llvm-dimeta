@@ -8,6 +8,7 @@
 
 #include "DIFinder.h"
 #include "DIRootType.h"
+#include "DIUtil.h"
 #include "DataflowAnalysis.h"
 #include "DefUseAnalysis.h"
 #include "GEP.h"
@@ -82,9 +83,9 @@ bool load_to(const llvm::LoadInst* load) {
   return detail::get_operand_to<T>(load).has_value();
 }
 
-std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath& path, llvm::DIType* type_to_reset,
+std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath&, llvm::DIType* type_to_reset,
                                                       const llvm::LoadInst* load) {
-  auto type = type_to_reset;
+  auto* type = type_to_reset;
 
   if (load_to<llvm::GlobalVariable>(load) || load_to<llvm::AllocaInst>(load)) {
     // if (auto* maybe_ptr_to_type = llvm::dyn_cast<llvm::DIDerivedType>(type)) {
@@ -101,12 +102,11 @@ std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath&
   }
 
   if (auto* maybe_ptr_to_type = llvm::dyn_cast<llvm::DIDerivedType>(type)) {
-    if ((maybe_ptr_to_type->getTag() == llvm::dwarf::DW_TAG_pointer_type ||
-         maybe_ptr_to_type->getTag() == llvm::dwarf::DW_TAG_reference_type)) {
+    if (di::util::is_pointer(*maybe_ptr_to_type)) {
       LOG_DEBUG("Load of pointer-like " << log::ditype_str(maybe_ptr_to_type))
     }
 
-    auto base_type = maybe_ptr_to_type->getBaseType();
+    auto* base_type = maybe_ptr_to_type->getBaseType();
 
     if (auto* composite = llvm::dyn_cast<llvm::DICompositeType>(base_type)) {
       LOG_DEBUG("Have ptr to composite " << log::ditype_str(composite))
@@ -123,7 +123,7 @@ std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath&
 
 std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath&, llvm::DIType* type_to_reset,
                                                        const llvm::StoreInst* store_inst) {
-  auto type = type_to_reset;
+  auto* type = type_to_reset;
 
   if (store_to<llvm::GlobalVariable>(store_inst) || store_to<llvm::AllocaInst>(store_inst)) {
     // Relevant in "heap_lulesh_mock_char.cpp"
@@ -138,8 +138,7 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
 
   auto* derived_type = llvm::cast<llvm::DIDerivedType>(type);
 
-  if (derived_type->getTag() ==
-      llvm::dwarf::DW_TAG_member /*|| derived_type->getTag() == llvm::dwarf::DW_TAG_variable*/) {
+  if (di::util::is_non_static_member(*derived_type)) {
     auto* member_base               = derived_type->getBaseType();
     const bool is_array_type_member = member_base->getTag() == llvm::dwarf::DW_TAG_array_type;
     // Need to look at base type for array-type member of struct. Tests w.r.t. gep:
@@ -153,13 +152,10 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
     return member_base;
   }
 
-  const bool is_pointer = derived_type->getTag() == llvm::dwarf::DW_TAG_pointer_type ||
-                          derived_type->getTag() == llvm::dwarf::DW_TAG_reference_type;
-  if (is_pointer) {
+  if (di::util::is_pointer(*derived_type)) {
     if (auto* may_be_ptr_to_ptr = llvm::dyn_cast<llvm::DIDerivedType>(derived_type->getBaseType())) {
       // Pointer to pointer by default remove one level for RHS assignment type w.r.t. store:
-      const auto is_ptr_to_ptr = may_be_ptr_to_ptr->getTag() == llvm::dwarf::DW_TAG_pointer_type ||
-                                 may_be_ptr_to_ptr->getTag() == llvm::dwarf::DW_TAG_reference_type;
+      const auto is_ptr_to_ptr = di::util::is_pointer(*may_be_ptr_to_ptr);
       if (is_ptr_to_ptr) {
         LOG_DEBUG("Store to ptr-ptr, return " << log::ditype_str(may_be_ptr_to_ptr))
         return may_be_ptr_to_ptr;
@@ -174,8 +170,8 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
         // auto store_di_target = llvm::dyn_cast<llvm::DIDerivedType>(composite_members[0])->getBaseType();
 
         for (auto* member : composite_members) {
-          auto* store_di_target = llvm::dyn_cast<llvm::DIDerivedType>(member);
-          if (store_di_target->getTag() == llvm::dwarf::DW_TAG_member) {
+          if (di::util::is_non_static_member(*member)) {
+            auto* store_di_target = llvm::dyn_cast<llvm::DIDerivedType>(member);
             LOG_DEBUG("Store to a 'load of a composite type', assume first member as target "
                       << log::ditype_str(store_di_target))
             return store_di_target->getBaseType();

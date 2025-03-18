@@ -86,7 +86,7 @@ std::optional<const llvm::DbgVariableRecord*> find_intrinsic(const llvm::Instruc
 
 #endif
 
-std::optional<llvm::DILocalVariable*> find_local_variable(const llvm::Instruction* ai, bool bitcast_search) {
+std::optional<llvm::DILocalVariable*> find_local_variable(const llvm::Instruction* ai, bool) {
   using namespace llvm;
   //  DebugInfoFinder di_finder;
   const auto find_di_var = [&](auto* ai) -> std::optional<DILocalVariable*> {

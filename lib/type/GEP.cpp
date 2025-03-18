@@ -95,8 +95,8 @@ GepIndices GepIndices::create(const llvm::GEPOperator* inst, bool skip_first) {
       continue;
     }
     if (auto* const_idx = llvm::dyn_cast<llvm::ConstantInt>(index.get())) {
-      const int64_t index = const_idx->getValue().getSExtValue();
-      gep_ind.indices_.emplace_back(index);
+      const int64_t index_ = const_idx->getValue().getSExtValue();
+      gep_ind.indices_.emplace_back(index_);
     }
   }
   return gep_ind;

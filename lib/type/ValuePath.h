@@ -63,7 +63,7 @@ struct ValuePath {
     return *path_to_value.begin();
   }
 
-  [[nodiscard]] std::optional<const llvm::Value*> at(int index) const {
+  [[nodiscard]] std::optional<const llvm::Value*> at(unsigned index) const {
     if (index < path_to_value.size() && index >= 0) {
       return path_to_value[index];
     }

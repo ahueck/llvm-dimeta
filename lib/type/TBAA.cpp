@@ -75,9 +75,9 @@ struct TBAAHandle {
 
  private:
   explicit TBAAHandle(llvm::MDNode& tbaa_node) {
-    base_ty       = llvm::dyn_cast<llvm::MDNode>(tbaa_node.getOperand(0));
-    access_ty     = llvm::dyn_cast<llvm::MDNode>(tbaa_node.getOperand(1));
-    auto value_md = llvm::dyn_cast<llvm::ValueAsMetadata>(tbaa_node.getOperand(2))->getValue();
+    base_ty        = llvm::dyn_cast<llvm::MDNode>(tbaa_node.getOperand(0));
+    access_ty      = llvm::dyn_cast<llvm::MDNode>(tbaa_node.getOperand(1));
+    auto* value_md = llvm::dyn_cast<llvm::ValueAsMetadata>(tbaa_node.getOperand(2))->getValue();
     assert(value_md && "Offset value may not be null.");
     offset       = llvm::dyn_cast<llvm::ConstantInt>(value_md);
     offset_value = offset->getLimitedValue();
@@ -173,7 +173,7 @@ struct TBAADestructure {
 inline std::pair<std::optional<llvm::MDNode*>, size_t> tbaa_sub_node_matches_name(llvm::StringRef name,
                                                                                   llvm::MDNode* new_base_ty) {
   TBAADestructure tbaa{name};
-  const auto found = tbaa.traverse_tbaa_nodes(new_base_ty);
+  tbaa.traverse_tbaa_nodes(new_base_ty);
   LOG_DEBUG("Found " << log::ditype_str(tbaa.outermost_candidate_.value_or(nullptr)) << " at offset "
                      << tbaa.offset_base_)
   return {tbaa.outermost_candidate_, tbaa.offset_base_};
@@ -191,8 +191,8 @@ bool composite_fits_tbaa(const llvm::DICompositeType* composite, const TBAAHandl
 
   LOG_DEBUG("Type element size " << num_members << " vs. TBAA " << tbaa_count)
 
-  const auto elements  = di::util::get_composite_members(*composite);
-  int element_position = 0;  // Incremented for every TBAA constant int entry
+  const auto elements     = di::util::get_composite_members(*composite);
+  size_t element_position = 0;  // Incremented for every TBAA constant int entry
   // Loop simply checks if the byte offsets are the same (TODO also compare types!)
   for (const auto& tbaa_operand : tbaa.base_ty->operands()) {
     if (auto* value_md = llvm::dyn_cast<llvm::ValueAsMetadata>(tbaa_operand)) {

@@ -115,25 +115,25 @@ inline Qualifiers make_qualifiers(const llvm::SmallVector<unsigned, 8>& tag_coll
 }
 
 template <typename Type>
-inline ArraySizeList make_array_sizes(const Type& type,
+inline ArraySizeList make_array_sizes(const Type&,
                                       const std::vector<diparser::state::MetaData::ArrayData>& meta_array_data) {
   ArraySizeList list;
   if (meta_array_data.empty()) {
     return list;
   }
-  const auto array_size_calc = [&type](const diparser::state::MetaData::ArrayData& array, bool is_last) {
-    const auto array_byte_size = (array.array_size_bits / 8);
-    // is an array of pointers:
-    if (array.array_of_pointer > 0) {
-      return array_byte_size / (array.array_of_pointer / 8);
-    }
-    // is an array of the "type":
-    if (is_last && type.extent > 0) {
-      return array_byte_size / type.extent;
-    }
-    return array_byte_size;
-  };
-  const auto array_size_calc_sub = [&type](const diparser::state::MetaData::ArrayData& array, bool is_last) {
+  // const auto array_size_calc = [&type](const diparser::state::MetaData::ArrayData& array, bool is_last) {
+  //   const auto array_byte_size = (array.array_size_bits / 8);
+  //   // is an array of pointers:
+  //   if (array.array_of_pointer > 0) {
+  //     return array_byte_size / (array.array_of_pointer / 8);
+  //   }
+  //   // is an array of the "type":
+  //   if (is_last && type.extent > 0) {
+  //     return array_byte_size / type.extent;
+  //   }
+  //   return array_byte_size;
+  // };
+  const auto array_size_calc_sub = [](const diparser::state::MetaData::ArrayData& array, bool) {
     // LOG_FATAL(array.subranges.size());
     ArraySize sum =
         std::accumulate(array.subranges.begin(), array.subranges.end(), ArraySize{1}, std::multiplies<ArraySize>());

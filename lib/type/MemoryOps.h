@@ -28,7 +28,8 @@ enum class MemOpKind : uint8_t {
 namespace detail {
 template <class T>
 constexpr bool has_value(T flags, T value) {
-  return (std::underlying_type_t<T>)flags & (std::underlying_type_t<T>)value;
+  using Uty = std::underlying_type_t<T>;
+  return static_cast<Uty>(flags) & static_cast<Uty>(value);
 }
 }  // namespace detail
 

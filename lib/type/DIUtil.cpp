@@ -146,10 +146,17 @@ struct DestructureComposite : visitor::DINodeVisitor<DestructureComposite> {
   std::optional<StructMember> outermost_candidate_{};
 };
 
-std::optional<StructMember> resolve_byte_offset_to_member_of(llvm::DICompositeType* composite, unsigned offset) {
+std::optional<StructMember> resolve_byte_offset_to_member_of(const llvm::DICompositeType* composite, size_t offset) {
   DestructureComposite visitor{offset};
   visitor.traverseCompositeType(composite);
   return visitor.result();
+}
+
+bool is_pointer(const llvm::DIType& di_type) {
+  if (const auto* type = llvm::dyn_cast<llvm::DIDerivedType>(&di_type)) {
+    return type->getTag() == llvm::dwarf::DW_TAG_reference_type || type->getTag() == llvm::dwarf::DW_TAG_pointer_type;
+  }
+  return false;
 }
 
 bool is_pointer_like(const llvm::DIType& di_type) {
