@@ -325,11 +325,21 @@ GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, 
 std::optional<GepIndexToType> try_resolve_inlined_operator(const llvm::GEPOperator* gep) {
   const auto* const load = llvm::dyn_cast<llvm::Instruction>(gep->getPointerOperand());
   if (!load) {
+    LOG_DEBUG("No load for GEP found")
+    return {};
+  }
+
+  const bool is_inlined = load->getDebugLoc()->getInlinedAt() != nullptr;
+
+  if (!is_inlined) {
+    LOG_DEBUG("GEP not inlined")
     return {};
   }
 
   const auto* const sub_prog = llvm::dyn_cast<llvm::DISubprogram>(load->getDebugLoc().getScope());
   assert(sub_prog && "Scope does not represent a subprogram");
+
+  LOG_DEBUG("Looking at " << log::ditype_str(sub_prog))
 
   // see cpp/heap_vector_operator.cpp: vector::operator[] returns a reference, that we skip here:
   const auto remove_ref = [&](auto* di_type) {
@@ -344,10 +354,15 @@ std::optional<GepIndexToType> try_resolve_inlined_operator(const llvm::GEPOperat
   };
 
   if (auto* sub_program_type = sub_prog->getType()) {
-    if (sub_program_type->getTypeArray().size() > 0) {
-      return {GepIndexToType{remove_ref(*sub_program_type->getTypeArray().begin())}};
+    // Has return type (not void)?
+    if (sub_program_type->getTypeArray().size() > 0 && (*sub_program_type->getTypeArray().begin() != nullptr)) {
+      auto* result = remove_ref(*sub_program_type->getTypeArray().begin());
+      LOG_DEBUG("Found candidate " << log::ditype_str(*sub_program_type->getTypeArray().begin()) << " with final type "
+                                   << log::ditype_str(result))
+      return {GepIndexToType{result}};
     }
   }
+
   LOG_DEBUG("Could not detect inlined operator")
   return {};
 }
