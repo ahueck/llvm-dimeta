@@ -13,6 +13,7 @@
 #include "Dimeta.h"
 #include "MemoryOps.h"
 #include "Util.h"
+#include "ValuePath.h"
 #include "support/Logger.h"
 
 #include "llvm/ADT/ArrayRef.h"
@@ -40,6 +41,7 @@
 
 #include <cassert>
 #include <iterator>
+#include <optional>
 
 namespace dimeta::root {
 
@@ -109,19 +111,22 @@ std::optional<llvm::DIType*> type_of_call_argument(const dataflow::ValuePath& pa
 
 }  // namespace helper
 
-std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
+std::optional<llvm::DIType*> find_type_root(const dataflow::CallValuePath& call_path) {
   using namespace llvm;
-  const auto* root_value = path.value().value_or(nullptr);
+  const auto* root_value = call_path.path.value().value_or(nullptr);
   if (!root_value) {
     return {};
   }
   LOG_DEBUG("Root value is " << *root_value)
 
   if (const auto* ret = dyn_cast<ReturnInst>(root_value)) {
-    auto* sub_prog  = ret->getFunction()->getSubprogram();
+    auto* sub_prog = ret->getFunction()->getSubprogram();
+    if (!sub_prog) {
+      return {};
+    }
     auto type_array = sub_prog->getType()->getTypeArray();
     if (type_array.size() > 0) {
-      return {*type_array.begin()};
+      return {type_array[0]};
     }
     return {};
   }
@@ -138,7 +143,7 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
     auto paths_from_alloca = dataflow::path_from_alloca(alloca);
     for (auto& path : paths_from_alloca) {
       LOG_DEBUG("Path from alloca " << path)
-      auto type_of_alloca = find_type_root(path);
+      auto type_of_alloca = find_type_root(dataflow::CallValuePath{std::nullopt, path});
       if (type_of_alloca) {
         return type_of_alloca;
       }
@@ -160,6 +165,11 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
       // see test c/heap_tachyon_mock_images.c
       LOG_DEBUG("Root is malloc-like call")
       // TODO ask for type of newlike call here!
+      if (call_path.call && (call_inst == call_path.call.value())) {
+        // Test triggers by cpp/heap_lhs_function_opt_nofwd.cpp and ir/01_endless_recursion.ll
+        LOG_WARNING("Root value is the same as the initial malloc-like call")
+        return {};
+      }
       auto extracted_type = type_for(call_inst);
       if (!extracted_type) {
         LOG_DEBUG("Failed to collect DI data for " << called_f->getName())
@@ -169,6 +179,7 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
       return extracted_type->entry_type;
     }
 
+    const auto& path         = call_path.path;
     auto store_function_type = helper::type_of_store_to_call(path, called_f, call_inst);
     if (store_function_type) {
       return store_function_type;
@@ -204,7 +215,7 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::ValuePath& path) {
         return arg_num + 1;
       }(argument->getArgNo());
 
-      LOG_DEBUG(*subprogram << " " << *argument)
+      LOG_DEBUG(log::ditype_str(subprogram) << " -> " << *argument)
       LOG_DEBUG("Arg data: " << argument->getArgNo() << " Type num operands: " << type_array->getNumOperands())
       assert(arg_pos < type_array.size() && "Arg position greater than DI type array of subprogram!");
       return type_array[arg_pos];

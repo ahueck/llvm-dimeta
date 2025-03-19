@@ -8,8 +8,6 @@
 #ifndef DIMETA_GEP_H
 #define DIMETA_GEP_H
 
-// #include "llvm/IR/Operator.h"
-
 #include <optional>
 
 namespace llvm {
@@ -30,4 +28,3 @@ GepIndexToType extract_gep_dereferenced_type(llvm::DIType* root, const llvm::GEP
 }  // namespace dimeta::gep
 
 #endif  // DIMETA_GEP_H
-;

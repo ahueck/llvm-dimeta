@@ -9,7 +9,6 @@
 #define DIMETA_DATAFLOWANALYSIS_H
 
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/IR/Instructions.h"
 
 namespace dimeta::dataflow {
 struct ValuePath;
@@ -17,6 +16,7 @@ struct ValuePath;
 
 namespace llvm {
 class CallBase;
+class AllocaInst;
 }  // namespace llvm
 
 namespace dimeta::dataflow {

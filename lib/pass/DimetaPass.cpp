@@ -31,7 +31,7 @@ namespace dimeta {
 
 class TestPass : public PassInfoMixin<TestPass> {
  public:
-  PreservedAnalyses run(Module& M, ModuleAnalysisManager& MAM) {
+  PreservedAnalyses run(Module& M, ModuleAnalysisManager&) {
     llvm::for_each(M.functions(), [&](auto& func) { return runOnFunc(func); });
     PreservedAnalyses pa = PreservedAnalyses::all();
     return pa;
@@ -48,12 +48,12 @@ class TestPass : public PassInfoMixin<TestPass> {
     const auto ditype_tostring = [](auto* ditype) {
       llvm::DIType* type = ditype;
       while (llvm::isa<llvm::DIDerivedType>(type)) {
-        auto ditype = llvm::dyn_cast<llvm::DIDerivedType>(type);
+        auto derived = llvm::dyn_cast<llvm::DIDerivedType>(type);
         // void*-based derived types:
-        if (ditype->getBaseType() == nullptr) {
+        if (derived->getBaseType() == nullptr) {
           return type;
         }
-        type = ditype->getBaseType();
+        type = derived->getBaseType();
       }
 
       return type;
@@ -99,7 +99,7 @@ PassPluginLibraryInfo getPassPluginInfo() {
   };
 
   return {LLVM_PLUGIN_API_VERSION, DEBUG_TYPE, "0.0.1", callback};
-};
+}
 
 extern "C" LLVM_ATTRIBUTE_WEAK PassPluginLibraryInfo llvmGetPassPluginInfo() {
   return getPassPluginInfo();

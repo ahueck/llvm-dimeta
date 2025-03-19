@@ -46,7 +46,7 @@ inline void map_optional_not_empty(IO& io, std::string_view key, Value& data) {
 
 template <>
 struct llvm::yaml::SequenceTraits<Members> {
-  static size_t size(IO& io, Members& list) {
+  static size_t size(IO&, Members& list) {
     return list.size();
   }
   static Members::value_type& element(IO& io, Members& list, size_t index) {
@@ -75,6 +75,8 @@ template <>
 struct llvm::yaml::MappingTraits<std::shared_ptr<BaseClass>> {
   static void mapping(IO& io, std::shared_ptr<BaseClass>& info) {
     io.mapRequired("BaseClass", info->base);
+    map_optional_not_empty(io, "Offset", info->offset);
+    map_optional_not_empty(io, "EBO", info->is_empty_base_class);
     //    if (!io.outputting()) {
     //      Extent e{0};
     //      io.mapOptional("Vtable", e);
@@ -91,7 +93,7 @@ struct llvm::yaml::MappingTraits<std::shared_ptr<BaseClass>> {
 
 template <>
 struct llvm::yaml::SequenceTraits<Bases> {
-  static size_t size(IO& io, Bases& list) {
+  static size_t size(IO&, Bases& list) {
     return list.size();
   }
   static Bases ::value_type& element(IO& io, Bases& list, size_t index) {
@@ -116,6 +118,7 @@ struct llvm::yaml::MappingTraits<CompoundType> {
     //    io.mapOptional("Base", info.bases);
     map_optional_not_empty(io, "Base", info.bases);
     io.mapOptional("Members", info.members);
+    io.mapOptional("Static_Members", info.static_members);
   }
 };
 
@@ -163,6 +166,7 @@ struct llvm::yaml::ScalarEnumerationTraits<dimeta::Qualifier> {
     io.enumCase(info, "ptr_to_mem", dimeta::Qualifier::kPtrToMember);
     io.enumCase(info, "array", dimeta::Qualifier::kArray);
     io.enumCase(info, "vector", dimeta::Qualifier::kVector);
+    io.enumCase(info, "static", dimeta::Qualifier::kStatic);
   }
 };
 
@@ -250,10 +254,10 @@ struct llvm::yaml::MappingTraits<LocatedType> {
 
 template <>
 struct llvm::yaml::SequenceTraits<QualifiedTypeList> {
-  static size_t size(IO& io, QualifiedTypeList& seq) {
+  static size_t size(IO&, QualifiedTypeList& seq) {
     return seq.size();
   }
-  static QualifiedTypeList::value_type& element(IO& io, QualifiedTypeList& seq, size_t index) {
+  static QualifiedTypeList::value_type& element(IO&, QualifiedTypeList& seq, size_t index) {
     if (index >= seq.size()) {
       seq.resize(index + 1);
     }

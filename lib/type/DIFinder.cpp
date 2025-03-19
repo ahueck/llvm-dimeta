@@ -53,6 +53,8 @@ llvm::Value* get_alloca_for(const DbgVar* dbg_var) {
 }
 }  // namespace compat
 
+#if LLVM_VERSION_MAJOR < 19
+
 std::optional<const llvm::DbgVariableIntrinsic*> find_intrinsic(const llvm::Instruction* ai) {
   using namespace llvm;
   auto& func = *ai->getFunction();
@@ -66,7 +68,25 @@ std::optional<const llvm::DbgVariableIntrinsic*> find_intrinsic(const llvm::Inst
   return {};
 }
 
-std::optional<llvm::DILocalVariable*> find_local_variable(const llvm::Instruction* ai, bool bitcast_search) {
+#else
+
+std::optional<const llvm::DbgVariableRecord*> find_intrinsic(const llvm::Instruction* root) {
+  auto& func = *root->getFunction();
+  for (auto const& inst : llvm::instructions(func)) {
+    for (llvm::DbgVariableRecord& var : filterDbgVars(inst.getDbgRecordRange())) {
+      // LOG_DEBUG(var)
+      if (compat::get_alloca_for(&var) == root) {
+        // LOG_DEBUG(var)
+        return &var;
+      }
+    }
+  }
+  return {};
+}
+
+#endif
+
+std::optional<llvm::DILocalVariable*> find_local_variable(const llvm::Instruction* ai, bool) {
   using namespace llvm;
   //  DebugInfoFinder di_finder;
   const auto find_di_var = [&](auto* ai) -> std::optional<DILocalVariable*> {

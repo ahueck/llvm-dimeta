@@ -10,7 +10,7 @@ set(LIB_SOURCES
   SourceLocType.cpp
   DimetaParse.cpp
   DIParser.cpp
-  DIVisitorUtil.cpp
+  DIUtil.cpp
   DIFinder.cpp
   DIRootType.cpp
   DITypeExtractor.cpp

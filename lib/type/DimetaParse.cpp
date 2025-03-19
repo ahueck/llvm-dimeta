@@ -95,7 +95,7 @@ inline Qualifier dwarf2qual(unsigned tag) {
     default:
       return Qualifier::kNone;
   }
-};
+}
 
 inline Qualifiers make_qualifiers(const llvm::SmallVector<unsigned, 8>& tag_collector) {
   llvm::SmallVector<unsigned, 8> dwarf_quals;
@@ -115,25 +115,25 @@ inline Qualifiers make_qualifiers(const llvm::SmallVector<unsigned, 8>& tag_coll
 }
 
 template <typename Type>
-inline ArraySizeList make_array_sizes(const Type& type,
+inline ArraySizeList make_array_sizes(const Type&,
                                       const std::vector<diparser::state::MetaData::ArrayData>& meta_array_data) {
   ArraySizeList list;
   if (meta_array_data.empty()) {
     return list;
   }
-  const auto array_size_calc = [&type](const diparser::state::MetaData::ArrayData& array, bool is_last) {
-    const auto array_byte_size = (array.array_size_bits / 8);
-    // is an array of pointers:
-    if (array.array_of_pointer > 0) {
-      return array_byte_size / (array.array_of_pointer / 8);
-    }
-    // is an array of the "type":
-    if (is_last && type.extent > 0) {
-      return array_byte_size / type.extent;
-    }
-    return array_byte_size;
-  };
-  const auto array_size_calc_sub = [&type](const diparser::state::MetaData::ArrayData& array, bool is_last) {
+  // const auto array_size_calc = [&type](const diparser::state::MetaData::ArrayData& array, bool is_last) {
+  //   const auto array_byte_size = (array.array_size_bits / 8);
+  //   // is an array of pointers:
+  //   if (array.array_of_pointer > 0) {
+  //     return array_byte_size / (array.array_of_pointer / 8);
+  //   }
+  //   // is an array of the "type":
+  //   if (is_last && type.extent > 0) {
+  //     return array_byte_size / type.extent;
+  //   }
+  //   return array_byte_size;
+  // };
+  const auto array_size_calc_sub = [](const diparser::state::MetaData::ArrayData& array, bool) {
     // LOG_FATAL(array.subranges.size());
     ArraySize sum =
         std::accumulate(array.subranges.begin(), array.subranges.end(), ArraySize{1}, std::multiplies<ArraySize>());
@@ -155,7 +155,11 @@ template <typename T>
 inline QualType<T> make_qual_type(const T& type, const diparser::state::MetaData& meta_) {
   static_assert(std::is_same_v<T, CompoundType> || std::is_same_v<T, FundamentalType>, "Wrong type.");
 
-  const Qualifiers quals  = helper::make_qualifiers(meta_.dwarf_tags);
+  Qualifiers quals = helper::make_qualifiers(meta_.dwarf_tags);
+  if (meta_.is_member_static) {
+    // TODO should this be the last, or should it be position dependent w.r.t. dwarf_tags?
+    quals.emplace_back(Qualifier::kStatic);
+  }
   const auto array_size   = helper::make_array_sizes(type, meta_.arrays);
   const auto typedef_name = meta_.typedef_names.empty() ? std::string{} : *meta_.typedef_names.begin();
 
@@ -225,10 +229,15 @@ class DITypeParser final : public diparser::DIParseEvents {
                   "Wrong QualType for member.");
     assert(!composite_stack_.empty() && "Member requires composite on stack");
     auto& containing_composite = composite_stack_.back().type;
-    containing_composite.offsets.emplace_back(meta_.member_offset);
-    containing_composite.sizes.emplace_back(meta_.member_size);
-    containing_composite.members.emplace_back(
-        helper::make_member<QualType>(meta_.member_name, std::forward<QualType>(type)));
+    if (meta_.is_member_static) {
+      containing_composite.static_members.emplace_back(
+          helper::make_member<QualType>(meta_.member_name, std::forward<QualType>(type)));
+    } else {
+      containing_composite.offsets.emplace_back(meta_.member_offset);
+      containing_composite.sizes.emplace_back(meta_.member_size);
+      containing_composite.members.emplace_back(
+          helper::make_member<QualType>(meta_.member_name, std::forward<QualType>(type)));
+    }
   }
 
   void emplace_fundamental(const diparser::state::MetaData& meta_, std::string_view name,
@@ -308,10 +317,18 @@ class DITypeParser final : public diparser::DIParseEvents {
     }
 
     if (current_meta.is_base_class) {
-      const auto base            = helper::make_base(std::move(finalized_composite));
+      const auto base          = helper::make_base(std::move(finalized_composite));
+      const bool size_one      = base->base.type.extent == 1;
+      const bool empty_members = base->base.type.members.empty();
+      // const bool ebo_base        = base->base.type.bases.size() > 1 &&
+      // base->base.type.bases.front()->empty_base_class;
+      base->is_empty_base_class  = size_one && empty_members;
+      base->offset               = current_meta.member_offset;
       auto& containing_composite = composite_stack_.back().type;
-      containing_composite.offsets.emplace_back(current_meta.member_offset);
-      containing_composite.sizes.emplace_back(finalized_composite.type.extent);
+      // if (!base->is_empty_base_class) {
+      //   containing_composite.offsets.emplace_back(current_meta.member_offset);
+      //   containing_composite.sizes.emplace_back(finalized_composite.type.extent);
+      // }
       containing_composite.bases.emplace_back(std::move(base));
       return;
     }

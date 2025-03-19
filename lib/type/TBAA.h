@@ -8,13 +8,11 @@
 #ifndef DIMETA_TBAA_H
 #define DIMETA_TBAA_H
 
-// #include <llvm/IR/Instructions.h>
-#include <llvm/IR/Instruction.h>
 #include <optional>
 
 namespace llvm {
 class DIType;
-class LoadInst;
+class Instruction;
 }  // namespace llvm
 
 namespace dimeta::tbaa {

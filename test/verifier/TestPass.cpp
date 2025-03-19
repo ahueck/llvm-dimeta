@@ -6,8 +6,8 @@
 //
 
 #include "support/Logger.h"
+#include "type/DIUtil.h"
 #include "type/DIVisitor.h"
-#include "type/DIVisitorUtil.h"
 #include "type/Dimeta.h"
 #include "type/DimetaData.h"
 #include "type/DimetaIO.h"
@@ -87,11 +87,11 @@ inline std::string try_demangle(const T& site) {
 
 namespace util {
 
-const std::string rep_string(std::string input, int rep) {
+std::string rep_string(const std::string& input, int rep) {
   std::ostringstream os;
   std::fill_n(std::ostream_iterator<std::string>(os), rep, input);
   return os.str();
-};
+}
 
 auto to_string(dimeta::DimetaData& data, bool stack = false) {
   const std::string prefix = [&]() {
@@ -111,7 +111,7 @@ auto to_string(dimeta::DimetaData& data, bool stack = false) {
   rso << "Final Type" << prefix << ": " << log::ditype_str(data.base_type.value_or(nullptr)) << "\n";
   rso << "Pointer level: " << data.pointer_level << " (T" << rep_string("*", data.pointer_level) << ")\n";
   return rso.str();
-};
+}
 
 auto print_loc(std::optional<location::SourceLocation> loc) {
   std::string logging_message;
@@ -123,7 +123,7 @@ auto print_loc(std::optional<location::SourceLocation> loc) {
     rso << "empty";
   }
   return rso.str();
-};
+}
 
 template <typename T>
 bool variable_is_toggled(const T& var, std::string_view env_name) {
@@ -221,8 +221,8 @@ class TestPass : public llvm::PassInfoMixin<TestPass> {
     if (func.isDeclaration()) {
       return;
     }
-    const auto f_name     = try_demangle(func);
-    const auto f_name_ref = llvm::StringRef(f_name);
+    const auto f_name = try_demangle(func);
+    // const auto f_name_ref = llvm::StringRef(f_name);
 
     LOG_MSG("\nFunction: " << f_name << ":");
 
@@ -248,14 +248,14 @@ class TestPass : public llvm::PassInfoMixin<TestPass> {
 
     const auto print_di_tree = [&](const DimetaData& di_var) {
       if (util::variable_is_toggled(cl_dimeta_test_print, "DIMETA_TEST_DUMP")) {
-        visitor::util::print_dinode(std::get<DILocalVariable*>(di_var.di_variable.value()), outs(), current_module);
+        di::util::print_dinode(std::get<DILocalVariable*>(di_var.di_variable.value()), outs(), current_module);
       }
     };
 
     const auto dump_di_tree = [&](const DimetaData& di_var) {
       if (util::variable_is_toggled(cl_dimeta_test_print_tree, "DIMETA_TEST_DUMP_TREE")) {
         auto local_di_var = std::get<DILocalVariable*>(di_var.di_variable.value());
-#if LLVM_MAJOR_VERSION < 14
+#if LLVM_VERSION_MAJOR < 14
         local_di_var->print(outs(), current_module);
 #else
         local_di_var->dumpTree(current_module);

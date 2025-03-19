@@ -28,7 +28,8 @@ enum class Qualifier {
   kRef         = 0x4,
   kPtrToMember = 0x8,
   kArray       = 0x10,
-  kVector      = 0x20
+  kVector      = 0x20,
+  kStatic      = 0x40
 };
 
 struct Member;
@@ -61,6 +62,7 @@ struct CompoundType {
   Bases bases;
   // Mapping: Member -> name, QualType<[Compound, FundamentalType, (Padding)]>
   Members members;
+  Members static_members;
 };
 
 struct FundamentalType {
@@ -114,6 +116,9 @@ using CompileUnitTypeList = std::vector<CompileUnitTypes>;
 
 struct BaseClass {
   QualifiedCompound base{};
+  // Byte offset from start of containing class:
+  Offset offset{0};
+  bool is_empty_base_class{false};
 };
 
 struct Member {

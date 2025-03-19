@@ -31,15 +31,17 @@ target_link_libraries(dimeta_TestPass PRIVATE dimeta::Types)
 
 
 function(configure_dimeta_script input output)
-    if(${LLVM_VERSION_MAJOR} VERSION_GREATER_EQUAL "14")
+    if(${LLVM_VERSION_MAJOR} VERSION_GREATER_EQUAL "13")
       set(NEW_PM_REQUIRED 1)
     else()
       set(NEW_PM_REQUIRED 0)
     endif()
-
+    set(OPT_SHIM ${PROJECT_BINARY_DIR}/test/verifier/opt-shim.sh)
+    set(TESTPASS_PASS_DIR ${CMAKE_BINARY_DIR}/test/verifier)
 
     dimeta_target_generate_file(${input} ${output})
 endfunction()
 
 configure_dimeta_script(opt-shim.in opt-shim.sh)
 
+configure_dimeta_script(reduce-tester.in reduce-tester.sh)
