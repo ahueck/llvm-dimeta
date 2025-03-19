@@ -95,7 +95,7 @@ inline Qualifier dwarf2qual(unsigned tag) {
     default:
       return Qualifier::kNone;
   }
-};
+}
 
 inline Qualifiers make_qualifiers(const llvm::SmallVector<unsigned, 8>& tag_collector) {
   llvm::SmallVector<unsigned, 8> dwarf_quals;
