@@ -106,6 +106,7 @@ set(DIMETA_SUITES
   pass/ir
   pass/staging
   pass/inheritance
+  pass/call
 )
 
 include(ProcessorCount)

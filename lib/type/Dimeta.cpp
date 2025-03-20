@@ -12,6 +12,7 @@
 #include "DITypeExtractor.h"
 #include "DataflowAnalysis.h"
 #include "DefUseAnalysis.h"
+#include "DimetaData.h"
 #include "DimetaParse.h"
 #include "MemoryOps.h"
 #include "Util.h"
@@ -199,5 +200,25 @@ std::optional<CompileUnitTypeList> compile_unit_types(const llvm::Module* module
   }
   return (list.empty() ? std::optional<CompileUnitTypeList>{} : list);
 }
+
+namespace experimental {
+std::optional<QualifiedType> type_for(const llvm::Value* value) {
+  auto paths                = dataflow::experimental::path_from_value(value);
+  const auto ditypes_vector = collect_types(nullptr, paths);
+  if (ditypes_vector.empty()) {
+    return {};
+  }
+
+  for (const auto& type : ditypes_vector) {
+    auto dimeta_result = parser::make_dimetadata(type);
+    if (!dimeta_result) {
+      continue;
+    }
+    return dimeta_result->type_;
+  }
+
+  return {};
+}
+}  // namespace experimental
 
 }  // namespace dimeta
