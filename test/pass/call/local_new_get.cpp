@@ -1,7 +1,5 @@
 // RUN: %cpp-to-llvm %s | %apply-verifier -kernel-call 2>&1 | %filecheck %s
 
-// XFAIL: *
-
 struct Domain {
   float stoptime;
   float time;
