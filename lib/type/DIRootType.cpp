@@ -121,6 +121,26 @@ std::optional<llvm::DIType*> type_of_call_argument(const dataflow::ValuePath& pa
   return {};
 }
 
+std::optional<llvm::DIType*> type_of_argument(const llvm::Argument& argument) {
+  if (auto* subprogram = argument.getParent()->getSubprogram(); subprogram != nullptr) {
+    const auto type_array = subprogram->getType()->getTypeArray();
+    const auto arg_pos    = [&](const auto arg_num) {
+      if (argument.hasStructRetAttr()) {
+        // return value is passed as argument at this point
+        return arg_num;  // see test cpp/heap_lhs_function_opt_nofwd.cpp
+      }
+      return arg_num + 1;
+    }(argument.getArgNo());
+
+    LOG_DEBUG(log::ditype_str(subprogram) << " -> " << argument)
+    LOG_DEBUG("Arg data: " << argument.getArgNo() << " Type num operands: " << type_array->getNumOperands())
+    assert(arg_pos < type_array.size() && "Arg position greater than DI type array of subprogram!");
+    return type_array[arg_pos];
+  }
+
+  return {};
+}
+
 }  // namespace helper
 
 std::optional<llvm::DIType*> find_type_root(const dataflow::CallValuePath& call_path) {
@@ -147,6 +167,14 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::CallValuePath& call_
     auto local_di_var = difinder::find_local_variable(alloca);
     if (local_di_var) {
       return local_di_var.value()->getType();
+    }
+
+    for (auto user : alloca->users()) {
+      if (auto store = llvm::dyn_cast<llvm::StoreInst>(user)) {
+        if (const auto* argument = llvm::dyn_cast<llvm::Argument>(store->getValueOperand())) {
+          return helper::type_of_argument(*argument);
+        }
+      }
     }
 
     // see test heap_case_inheritance.cpp (e.g., returns several objects as base class pointer):
@@ -225,23 +253,7 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::CallValuePath& call_
   }
 
   if (const auto* argument = llvm::dyn_cast<llvm::Argument>(root_value)) {
-    if (auto* subprogram = argument->getParent()->getSubprogram(); subprogram != nullptr) {
-      const auto type_array = subprogram->getType()->getTypeArray();
-      const auto arg_pos    = [&](const auto arg_num) {
-        if (argument->hasStructRetAttr()) {
-          // return value is passed as argument at this point
-          return arg_num;  // see test cpp/heap_lhs_function_opt_nofwd.cpp
-        }
-        return arg_num + 1;
-      }(argument->getArgNo());
-
-      LOG_DEBUG(log::ditype_str(subprogram) << " -> " << *argument)
-      LOG_DEBUG("Arg data: " << argument->getArgNo() << " Type num operands: " << type_array->getNumOperands())
-      assert(arg_pos < type_array.size() && "Arg position greater than DI type array of subprogram!");
-      return type_array[arg_pos];
-    }
-
-    return {};
+    return helper::type_of_argument(*argument);
   }
 
   if (const auto* const_expr = llvm::dyn_cast<llvm::ConstantExpr>(root_value)) {

@@ -5,6 +5,7 @@
 //  SPDX-License-Identifier: BSD-3-Clause
 //
 
+#include "DIUtil.h"
 #include "Dimeta.h"
 #include "DimetaData.h"
 #include "DimetaParse.h"
@@ -94,7 +95,16 @@ std::optional<LocatedType> located_type_for(const DimetaData& type_data) {
   }
 
   assert(type_data.entry_type.has_value() && "Parsing stack type requires entry type.");
-  auto dimeta_result = parser::make_dimetadata(type_data.entry_type.value());
+
+  // If a member is the entry type, we ignore that:
+  auto* type = type_data.entry_type.value();
+  if (const auto* derived_member_maybe = llvm::dyn_cast<llvm::DIDerivedType>(type)) {
+    if (di::util::is_member(*derived_member_maybe)) {
+      type = derived_member_maybe->getBaseType();
+    }
+  }
+
+  auto dimeta_result = parser::make_dimetadata(type);
   if (!dimeta_result) {
     return {};
   }
