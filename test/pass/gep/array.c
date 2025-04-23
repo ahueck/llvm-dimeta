@@ -1,4 +1,5 @@
 // RUN: %c-to-llvm %s | %apply-verifier 2>&1 | %filecheck %s
+// RUN: %c-to-llvm %s | %opt -O2 | %apply-verifier 2>&1 | %filecheck %s
 
 #include <stdlib.h>
 

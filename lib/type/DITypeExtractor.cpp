@@ -83,7 +83,7 @@ bool load_to(const llvm::LoadInst* load) {
   return detail::get_operand_to<T>(load).has_value();
 }
 
-std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath&, llvm::DIType* type_to_reset,
+std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath& path, llvm::DIType* type_to_reset,
                                                       const llvm::LoadInst* load) {
   auto* type = type_to_reset;
 
@@ -99,6 +99,25 @@ std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath&
     // }
     LOG_DEBUG("Do not reset DIType based on load to global,alloca")
     return type;
+  }
+
+  // a (last?) load to a GEP of a composite likely loads the first member in an optimized context:
+  const bool last_load = path.start_value().value_or(nullptr) == load;
+  if (last_load && load_to<llvm::GetElementPtrInst>(load)) {
+    if (auto* may_be_member_type = llvm::dyn_cast<llvm::DIDerivedType>(type)) {
+      LOG_DEBUG("Load on GEP, return basetype " << log::ditype_str(may_be_member_type->getBaseType()))
+      if (di::util::is_member(*may_be_member_type)) {
+        auto type_of_member = may_be_member_type->getBaseType();
+        if (auto member = llvm::dyn_cast<llvm::DIDerivedType>(type_of_member)) {
+          may_be_member_type = member;
+          if (auto* member_composite_type = llvm::dyn_cast<llvm::DICompositeType>(member->getBaseType())) {
+            auto members_of_composite_type = di::util::get_composite_members(*member_composite_type);
+            assert(members_of_composite_type.size() > 0 && "Load to composite expects at least one member");
+            return (*members_of_composite_type.begin());
+          }
+        }
+      }
+    }
   }
 
   if (auto* maybe_ptr_to_type = llvm::dyn_cast<llvm::DIDerivedType>(type)) {

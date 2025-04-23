@@ -253,6 +253,7 @@ std::optional<QualifiedType> type_for(const llvm::Value* value) {
 
   return {};
 }
+
 }  // namespace experimental
 
 }  // namespace dimeta
