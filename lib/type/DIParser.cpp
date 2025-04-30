@@ -11,8 +11,11 @@
 #include "DimetaData.h"
 #include "support/Logger.h"
 
+#include <cassert>
 #include <cstdlib>
 #include <llvm/BinaryFormat/Dwarf.h>
+#include <llvm/IR/DebugInfoMetadata.h>
+#include <llvm/Support/Casting.h>
 
 namespace dimeta::diparser {
 
@@ -39,6 +42,7 @@ class DIEventVisitor : public visitor::DINodeVisitor<DIEventVisitor> {
   bool visitCompositeType(const llvm::DICompositeType*);
 
   bool visitNode(const llvm::DINode* node);
+  void leaveNode(const llvm::DINode* node);
 
   bool visitRecurringCompositeType(const llvm::DICompositeType*);
 
@@ -87,6 +91,8 @@ bool DIEventVisitor::visitDerivedType(const llvm::DIDerivedType* derived_type) {
     current_.member_size      = derived_type->getSizeInBits() / 8;
     current_.is_member_static = derived->isStaticMember();
   };
+
+  current_.derived_size = derived_type->getSizeInBits() / 8;
 
   const auto tag = derived_type->getTag();
   switch (tag) {
@@ -145,6 +151,7 @@ bool DIEventVisitor::visitDerivedType(const llvm::DIDerivedType* derived_type) {
 }
 
 bool DIEventVisitor::visitNode(const llvm::DINode* node) {
+  LOG_FATAL(*node);
   if (const auto* enumerator = llvm::dyn_cast<llvm::DIEnumerator>(node)) {
     assert(enum_data_.enum_base != nullptr && "Enumerator needs a base type.");
     current_.member_name   = enumerator->getName();
@@ -168,6 +175,10 @@ bool DIEventVisitor::visitNode(const llvm::DINode* node) {
       }
       // LOG_FATAL(range_count);
     }
+  } else if (const auto* sub_routine = llvm::dyn_cast<llvm::DISubroutineType>(node)) {
+    // LOG_FATAL(sub_routine);
+    current_.type = const_cast<llvm::DISubroutineType*>(sub_routine);
+    events_.make_function_ptr(current_);
   }
   return true;
 }
@@ -241,6 +252,12 @@ void DIEventVisitor::leaveCompositeType(const llvm::DICompositeType* composite_t
 
 void DIEventVisitor::leaveBasicType(const llvm::DIBasicType*) {
   current_ = state::MetaData{};
+}
+
+void DIEventVisitor::leaveNode(const llvm::DINode* node) {
+  if (const auto* sub_routine = llvm::dyn_cast<llvm::DISubroutineType>(node)) {
+    current_ = state::MetaData{};
+  }
 }
 
 bool DIEventVisitor::visitRecurringCompositeType(const llvm::DICompositeType* recurring_composite) {
