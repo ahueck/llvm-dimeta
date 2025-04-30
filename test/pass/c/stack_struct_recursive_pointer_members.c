@@ -56,7 +56,6 @@ int main(void) {
 // CHECK-NEXT:              Sizes:           [ 16, 8, 8 ]
 // CHECK-NEXT:              Offsets:         [ 0, 16, 24 ]
 //                        ...
-// CHECK:            Array:           [ 3 ]
-// CHECK-NEXT:       Qualifiers:      [ array, ptr ]
+// CHECK:       Qualifiers:      [ array, ptr ]
 // CHECK-NEXT:            Typedef:         s2
 // CHECK-NEXT:    Typedef:         s3

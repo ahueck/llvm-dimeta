@@ -198,6 +198,7 @@ class DINodeVisitor {
     ++depth_composite_;
     const auto exit = dimeta::util::create_scope_exit([&]() {
       get().leaveCompositeType(composite_type);
+      visited_dinodes_.erase(composite_type);
       assert(depth_composite_ > 0);
       --depth_composite_;
     });
