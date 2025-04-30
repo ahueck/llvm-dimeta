@@ -151,7 +151,6 @@ bool DIEventVisitor::visitDerivedType(const llvm::DIDerivedType* derived_type) {
 }
 
 bool DIEventVisitor::visitNode(const llvm::DINode* node) {
-  LOG_FATAL(*node);
   if (const auto* enumerator = llvm::dyn_cast<llvm::DIEnumerator>(node)) {
     assert(enum_data_.enum_base != nullptr && "Enumerator needs a base type.");
     current_.member_name   = enumerator->getName();
@@ -255,7 +254,7 @@ void DIEventVisitor::leaveBasicType(const llvm::DIBasicType*) {
 }
 
 void DIEventVisitor::leaveNode(const llvm::DINode* node) {
-  if (const auto* sub_routine = llvm::dyn_cast<llvm::DISubroutineType>(node)) {
+  if (llvm::isa<llvm::DISubroutineType>(node)) {
     current_ = state::MetaData{};
   }
 }
