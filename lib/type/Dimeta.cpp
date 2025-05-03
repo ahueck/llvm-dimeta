@@ -93,6 +93,20 @@ auto final_ditype(std::optional<llvm::DIType*> root_ditype) -> std::pair<std::op
 }
 
 std::optional<llvm::DIType*> type_for_malloclike(const llvm::CallBase* call) {
+  auto local = difinder::get_array_access_assignment(call);
+  if (local) {
+    LOG_DEBUG("Call has local variable " << *call)
+    // LOG_DEBUG("Call type " << log::ditype_str(local.value()->getType()))
+    auto base_type = local.value().var->getType();
+    if (local.value().array_access) {
+      if (auto* array_type = llvm::dyn_cast<llvm::DICompositeType>(base_type)) {
+        LOG_DEBUG("Returning type of access to array " << log::ditype_str(array_type))
+        return array_type->getBaseType();
+      }
+    }
+    return base_type;
+  }
+
   const auto ditype_paths = dataflow::type_for_heap_call(call);
 
   LOG_DEBUG("Found paths, now collecting types")
