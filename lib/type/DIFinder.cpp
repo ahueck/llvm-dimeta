@@ -35,6 +35,7 @@
 
 #include <cassert>
 #include <iterator>
+#include <optional>
 
 namespace llvm {
 class DbgVariableIntrinsic;
@@ -49,6 +50,15 @@ llvm::Value* get_alloca_for(const DbgVar* dbg_var) {
   return dbg_var->getVariableLocation();
 #else
   return dbg_var->getVariableLocationOp(0);
+#endif
+}
+
+template <typename DbgVar>
+llvm::DIExpression* get_expr_for(const DbgVar* dbg_var) {
+#if LLVM_VERSION_MAJOR < 13
+  return dbg_var->getExpression();
+#else
+  return dbg_var->getExpression();
 #endif
 }
 }  // namespace compat
@@ -126,6 +136,20 @@ std::optional<llvm::DILocation*> find_location(const llvm::Instruction* inst) {
     return dbg_intrinsic.value()->getDebugLoc().get();
   }
 
+  return {};
+}
+
+std::optional<LocalAccessData> get_array_access_assignment(const llvm::CallBase* call) {
+  auto intrinsic = find_intrinsic(call);
+  if (intrinsic) {
+    auto* expr = compat::get_expr_for(intrinsic.value());
+    if (auto* array = llvm::dyn_cast<llvm::DIExpression>(expr)) {
+      if (array->isFragment()) {
+        return {LocalAccessData{intrinsic.value()->getVariable(), array}};
+      }
+    }
+    return {LocalAccessData{intrinsic.value()->getVariable(), {}}};
+  }
   return {};
 }
 

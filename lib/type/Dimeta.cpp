@@ -65,9 +65,8 @@ llvm::SmallVector<llvm::DIType*, 4> collect_types(const llvm::CallBase* call,
                                                   llvm::ArrayRef<dataflow::ValuePath> paths_to_type) {
   using namespace llvm;
   SmallVector<llvm::DIType*, 4> di_types;
-  llvm::transform(paths_to_type, dimeta::util::optional_back_inserter(di_types), [&](const auto& path) {
-    return type::find_type(dataflow::CallValuePath{call, path});
-  });
+  llvm::transform(paths_to_type, dimeta::util::optional_back_inserter(di_types),
+                  [&](const auto& path) { return type::find_type(dataflow::CallValuePath{call, path}); });
   return di_types;
 }
 
@@ -93,6 +92,20 @@ auto final_ditype(std::optional<llvm::DIType*> root_ditype) -> std::pair<std::op
 }
 
 std::optional<llvm::DIType*> type_for_malloclike(const llvm::CallBase* call) {
+  auto local = difinder::get_array_access_assignment(call);
+  if (local) {
+    LOG_DEBUG("Call has local variable " << *call)
+    // LOG_DEBUG("Call type " << log::ditype_str(local.value()->getType()))
+    auto base_type = local.value().var->getType();
+    if (local.value().array_access) {
+      if (auto* array_type = llvm::dyn_cast<llvm::DICompositeType>(base_type)) {
+        LOG_DEBUG("Returning type of access to array " << log::ditype_str(array_type))
+        return array_type->getBaseType();
+      }
+    }
+    return base_type;
+  }
+
   const auto ditype_paths = dataflow::type_for_heap_call(call);
 
   LOG_DEBUG("Found paths, now collecting types")
