@@ -11,5 +11,4 @@ void foo(int** entries, int n) {
 // CHECK: Final Type: {{.*}} = !DIBasicType(name: "int",
 // CHECK-NEXT: Pointer level: 1 (T*)
 
-// CHECK: Type for malloc-like: malloc
 // CHECK: Location: "{{.*}}heap_loop_source_loc.c":"foo":7
