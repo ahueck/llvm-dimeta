@@ -173,6 +173,12 @@ bool is_non_static_member(const llvm::DINode& elem) {
          llvm::cast<llvm::DIType>(elem).getFlags() != llvm::DINode::DIFlags::FlagStaticMember;
 }
 
+bool is_member(const llvm::DINode& elem) {
+  const auto* type = llvm::dyn_cast<llvm::DIType>(&elem);
+  return elem.getTag() == llvm::dwarf::DW_TAG_member ||
+         ((type != nullptr) && (type->getFlags() == llvm::DINode::DIFlags::FlagStaticMember));
+}
+
 size_t get_num_composite_members(const llvm::DICompositeType& composite) {
   const auto num_members =
       llvm::count_if(composite.getElements(), [&](const auto* node) { return is_non_static_member(*node); });

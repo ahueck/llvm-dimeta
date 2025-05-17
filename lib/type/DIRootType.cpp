@@ -47,6 +47,30 @@ namespace dimeta::root {
 
 namespace helper {
 
+std::optional<llvm::DIType*> get_return_type_of(const llvm::Function* called_function,
+                                                const llvm::CallBase* call_instruction) {
+  if (auto* sub_program = called_function->getSubprogram(); sub_program != nullptr) {
+    auto types_of_subprog = sub_program->getType()->getTypeArray();
+    assert(types_of_subprog.size() > 0 && "Need the return type of the function");
+    auto* return_type = types_of_subprog[0];
+    LOG_DEBUG("Found return type " << log::ditype_str(return_type))
+    return return_type;
+  }
+  LOG_DEBUG("Function has no subProgram to query, trying di_local finder")
+  auto di_local = difinder::find_local_variable(call_instruction);
+  if (di_local) {
+    // TODO: for now we ignore local vars with name "this", as these are auto generated
+    auto is_this_var = di_local.value()->getName() == "this";
+    if (is_this_var) {
+      LOG_DEBUG("'this' local variable as store target unsupported.")
+      return {};
+    }
+    LOG_DEBUG("Found local variable " << log::ditype_str(di_local.value()))
+    return di_local.value()->getType();
+  }
+  return {};
+}
+
 std::optional<llvm::DIType*> type_of_store_to_call(const dataflow::ValuePath& path, const llvm::Function* called_f,
                                                    const llvm::CallBase* call_inst) {
   if (auto* leaf_value = path.start_value().value_or(nullptr); leaf_value != nullptr) {
@@ -55,26 +79,7 @@ std::optional<llvm::DIType*> type_of_store_to_call(const dataflow::ValuePath& pa
     // indicating return of call is the type we need:
     if (auto* store = llvm::dyn_cast<llvm::StoreInst>(leaf_value)) {
       // We have a final store and root w.r.t. call, hence, assume return type is the relevant root DIType:
-      if (auto* sub_program = called_f->getSubprogram(); sub_program != nullptr) {
-        auto types_of_subprog = sub_program->getType()->getTypeArray();
-        assert(types_of_subprog.size() > 0 && "Need the return type of the function");
-        auto* return_type = types_of_subprog[0];
-        LOG_DEBUG("Found return type " << log::ditype_str(return_type))
-        return return_type;
-      }
-
-      LOG_DEBUG("Function has no subProgram to query, trying di_local finder")
-      auto di_local = difinder::find_local_variable(call_inst);
-      if (di_local) {
-        // TODO: for now we ignore local vars with name "this", as these are auto generated
-        auto is_this_var = di_local.value()->getName() == "this";
-        if (is_this_var) {
-          LOG_DEBUG("'this' local variable as store target unsupported.")
-          return {};
-        }
-        LOG_DEBUG("Found local variable " << log::ditype_str(di_local.value()))
-        return di_local.value()->getType();
-      }
+      return get_return_type_of(called_f, call_inst);
     }
   }
   return {};
@@ -84,6 +89,12 @@ std::optional<llvm::DIType*> type_of_call_argument(const dataflow::ValuePath& pa
                                                    const llvm::CallBase* call_inst) {
   // Argument passed to current call:
   const auto* arg_val = path.previous_value().value_or(nullptr);
+
+  // if (arg_val == nullptr) {
+  //   LOG_DEBUG("Previous value should be argument to some function!")
+  //   return {};
+  // }
+
   assert(arg_val != nullptr && "Previous value should be argument to some function!");
   // Argument number:
   const auto* const arg_pos =
@@ -93,6 +104,7 @@ std::optional<llvm::DIType*> type_of_call_argument(const dataflow::ValuePath& pa
     LOG_DEBUG("Could not find arg position for " << *arg_val)
     return {};
   }
+
   auto arg_num = std::distance(call_inst->arg_begin(), arg_pos);
   LOG_DEBUG("Looking at arg pos " << arg_num)
   // Extract debug info from function at arg_num:
@@ -106,6 +118,26 @@ std::optional<llvm::DIType*> type_of_call_argument(const dataflow::ValuePath& pa
     return type;
   }
   LOG_DEBUG("Did not find arg pos")
+  return {};
+}
+
+std::optional<llvm::DIType*> type_of_argument(const llvm::Argument& argument) {
+  if (auto* subprogram = argument.getParent()->getSubprogram(); subprogram != nullptr) {
+    const auto type_array = subprogram->getType()->getTypeArray();
+    const auto arg_pos    = [&](const auto arg_num) {
+      if (argument.hasStructRetAttr()) {
+        // return value is passed as argument at this point
+        return arg_num;  // see test cpp/heap_lhs_function_opt_nofwd.cpp
+      }
+      return arg_num + 1;
+    }(argument.getArgNo());
+
+    LOG_DEBUG(log::ditype_str(subprogram) << " -> " << argument)
+    LOG_DEBUG("Arg data: " << argument.getArgNo() << " Type num operands: " << type_array->getNumOperands())
+    assert(arg_pos < type_array.size() && "Arg position greater than DI type array of subprogram!");
+    return type_array[arg_pos];
+  }
+
   return {};
 }
 
@@ -135,6 +167,14 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::CallValuePath& call_
     auto local_di_var = difinder::find_local_variable(alloca);
     if (local_di_var) {
       return local_di_var.value()->getType();
+    }
+
+    for (auto user : alloca->users()) {
+      if (auto store = llvm::dyn_cast<llvm::StoreInst>(user)) {
+        if (const auto* argument = llvm::dyn_cast<llvm::Argument>(store->getValueOperand())) {
+          return helper::type_of_argument(*argument);
+        }
+      }
     }
 
     // see test heap_case_inheritance.cpp (e.g., returns several objects as base class pointer):
@@ -179,18 +219,26 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::CallValuePath& call_
       return extracted_type->entry_type;
     }
 
-    const auto& path         = call_path.path;
+    const auto& path = call_path.path;
+
+    // "a = malloc;", "store a, get_pointer();" -> look at return type of get_pointer()
     auto store_function_type = helper::type_of_store_to_call(path, called_f, call_inst);
     if (store_function_type) {
       return store_function_type;
     }
 
-    auto type_of_call_arg = helper::type_of_call_argument(path, called_f, call_inst);
-    if (!type_of_call_arg) {
-      LOG_DEBUG("Did not find arg pos")
-      return {};
+    if (path.previous_value()) {
+      // foo(malloc(...)); -> look at foo args
+      auto type_of_call_arg = helper::type_of_call_argument(path, called_f, call_inst);
+      if (!type_of_call_arg) {
+        LOG_DEBUG("Did not find arg pos")
+        return {};
+      }
+      return type_of_call_arg;
     }
-    return type_of_call_arg;
+
+    LOG_DEBUG("Trying return type of function " << *called_f)
+    return helper::get_return_type_of(called_f, call_inst);
   }
 
   if (const auto* global_variable = llvm::dyn_cast<llvm::GlobalVariable>(root_value)) {
@@ -205,23 +253,7 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::CallValuePath& call_
   }
 
   if (const auto* argument = llvm::dyn_cast<llvm::Argument>(root_value)) {
-    if (auto* subprogram = argument->getParent()->getSubprogram(); subprogram != nullptr) {
-      const auto type_array = subprogram->getType()->getTypeArray();
-      const auto arg_pos    = [&](const auto arg_num) {
-        if (argument->hasStructRetAttr()) {
-          // return value is passed as argument at this point
-          return arg_num;  // see test cpp/heap_lhs_function_opt_nofwd.cpp
-        }
-        return arg_num + 1;
-      }(argument->getArgNo());
-
-      LOG_DEBUG(log::ditype_str(subprogram) << " -> " << *argument)
-      LOG_DEBUG("Arg data: " << argument->getArgNo() << " Type num operands: " << type_array->getNumOperands())
-      assert(arg_pos < type_array.size() && "Arg position greater than DI type array of subprogram!");
-      return type_array[arg_pos];
-    }
-
-    return {};
+    return helper::type_of_argument(*argument);
   }
 
   if (const auto* const_expr = llvm::dyn_cast<llvm::ConstantExpr>(root_value)) {

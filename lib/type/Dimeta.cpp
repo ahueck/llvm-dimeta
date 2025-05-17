@@ -12,6 +12,7 @@
 #include "DITypeExtractor.h"
 #include "DataflowAnalysis.h"
 #include "DefUseAnalysis.h"
+#include "DimetaData.h"
 #include "DimetaParse.h"
 #include "MemoryOps.h"
 #include "Util.h"
@@ -43,6 +44,7 @@
 
 #include <cassert>
 #include <iterator>
+#include <string>
 
 namespace llvm {
 class DbgVariableIntrinsic;
@@ -54,6 +56,10 @@ class DbgVariableIntrinsic;
 #endif
 
 namespace dimeta {
+
+namespace experimental {
+std::optional<llvm::DIType*> di_type_for(const llvm::Value* value);
+}
 
 llvm::SmallVector<llvm::DIType*, 4> collect_types(const llvm::CallBase* call,
                                                   llvm::ArrayRef<dataflow::ValuePath> paths_to_type) {
@@ -87,6 +93,20 @@ auto final_ditype(std::optional<llvm::DIType*> root_ditype) -> std::pair<std::op
 }
 
 std::optional<llvm::DIType*> type_for_malloclike(const llvm::CallBase* call) {
+  auto local = difinder::get_array_access_assignment(call);
+  if (local) {
+    LOG_DEBUG("Call has local variable " << *call)
+    // LOG_DEBUG("Call type " << log::ditype_str(local.value()->getType()))
+    auto base_type = local.value().var->getType();
+    if (local.value().array_access) {
+      if (auto* array_type = llvm::dyn_cast<llvm::DICompositeType>(base_type)) {
+        LOG_DEBUG("Returning type of access to array " << log::ditype_str(array_type))
+        return array_type->getBaseType();
+      }
+    }
+    return base_type;
+  }
+
   const auto ditype_paths = dataflow::type_for_heap_call(call);
 
   LOG_DEBUG("Found paths, now collecting types")
@@ -123,10 +143,29 @@ std::optional<DimetaData> type_for(const llvm::CallBase* call) {
     return {};
   }
 
-  const auto is_cxx_new = mem_ops.isNewLike(cb_fun->getName());
   std::optional<llvm::DIType*> extracted_type{};
-
   int pointer_level_offset{0};
+
+  const auto is_cuda_like = mem_ops.isCudaLike(cb_fun->getName());
+  if (is_cuda_like) {
+    LOG_DEBUG("Type for cuda-like " << cb_fun->getName())
+    extracted_type = experimental::di_type_for(call->getOperand(0));
+
+    // when wrapped in, e.g., cudaMalloc<float>(float**, ...), we remove one pointer level:
+    // auto* parent    = call->getFunction();
+    // const auto name = std::string{cb_fun->getName()} + "<";
+    // LOG_DEBUG(name << " vs. " << util::try_demangle(*makeparent))
+    // if (extracted_type && util::try_demangle(*parent).find(name) != std::string::npos) {
+    //   LOG_DEBUG("Reset cuda-like pointer level")
+    //   auto ditype = llvm::dyn_cast<llvm::DIDerivedType>(extracted_type.value());
+    //   if (ditype->getTag() == llvm::dwarf::DW_TAG_pointer_type) {
+    //     extracted_type = ditype->getBaseType();
+    //   }
+    // }
+  }
+
+  const auto is_cxx_new = mem_ops.isNewLike(cb_fun->getName());
+
 #ifdef DIMETA_USE_HEAPALLOCSITE
   if (is_cxx_new) {
     if (call->getMetadata("heapallocsite")) {
@@ -199,5 +238,36 @@ std::optional<CompileUnitTypeList> compile_unit_types(const llvm::Module* module
   }
   return (list.empty() ? std::optional<CompileUnitTypeList>{} : list);
 }
+
+namespace experimental {
+std::optional<llvm::DIType*> di_type_for(const llvm::Value* value) {
+  auto paths                = dataflow::experimental::path_from_value(value);
+  const auto ditypes_vector = collect_types(nullptr, paths);
+  if (ditypes_vector.empty()) {
+    return {};
+  }
+
+  return *ditypes_vector.begin();
+}
+
+std::optional<QualifiedType> type_for(const llvm::Value* value) {
+  auto paths                = dataflow::experimental::path_from_value(value);
+  const auto ditypes_vector = collect_types(nullptr, paths);
+  if (ditypes_vector.empty()) {
+    return {};
+  }
+
+  for (const auto& type : ditypes_vector) {
+    auto dimeta_result = parser::make_dimetadata(type);
+    if (!dimeta_result) {
+      continue;
+    }
+    return dimeta_result->type_;
+  }
+
+  return {};
+}
+
+}  // namespace experimental
 
 }  // namespace dimeta

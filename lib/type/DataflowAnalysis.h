@@ -17,6 +17,7 @@ struct ValuePath;
 namespace llvm {
 class CallBase;
 class AllocaInst;
+class Value;
 }  // namespace llvm
 
 namespace dimeta::dataflow {
@@ -24,6 +25,10 @@ namespace dimeta::dataflow {
 llvm::SmallVector<dataflow::ValuePath, 4> type_for_heap_call(const llvm::CallBase* call);
 
 llvm::SmallVector<dataflow::ValuePath, 4> path_from_alloca(const llvm::AllocaInst* alloca);
+
+namespace experimental {
+llvm::SmallVector<dataflow::ValuePath, 4> path_from_value(const llvm::Value*);
+}  // namespace experimental
 
 }  // namespace dimeta::dataflow
 

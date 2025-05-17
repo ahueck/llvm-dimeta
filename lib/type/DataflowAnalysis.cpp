@@ -326,4 +326,20 @@ auto MallocAnchorMatcher::operator()(const ValuePath& path) -> decltype(DefUseCh
   return DefUseChain::kContinue;
 }
 
+namespace experimental {
+llvm::SmallVector<dataflow::ValuePath, 4> path_from_value(const llvm::Value* start) {
+  llvm::SmallVector<ValuePath, 4> ditype_paths;
+  auto should_search = [&](const ValuePath&) -> bool { return true; };
+  DefUseChain value_traversal;
+  MallocTargetMatcher malloc_anchor_backtrack;
+  MallocBacktrackSearch backtrack_search_dir_fn;
+  value_traversal.traverse_custom(start, malloc_anchor_backtrack, should_search, backtrack_search_dir_fn);
+  for (const auto& backtrack_path : malloc_anchor_backtrack.types_path) {
+    LOG_DEBUG("Found backtrack path " << backtrack_path)
+    ditype_paths.emplace_back(backtrack_path);
+  }
+  return ditype_paths;
+}
+}  // namespace experimental
+
 }  // namespace dimeta::dataflow
