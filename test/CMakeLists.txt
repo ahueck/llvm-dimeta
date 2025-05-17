@@ -96,7 +96,7 @@ function(dimeta_add_lit_target)
   endforeach()
 endfunction()
 
-set(DIMETA_TEST_DEPENDS dimeta::AnalysisPass dimeta::Types dimeta::TestPass)
+set(DIMETA_TEST_DEPENDS dimeta::Types dimeta::TestPass)
 
 set(DIMETA_SUITES
   all

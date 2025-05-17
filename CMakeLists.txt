@@ -6,8 +6,17 @@ project(dimeta
   LANGUAGES C CXX
 )
 
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_VERBOSE_MAKEFILE OFF)
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+  # CMake 3.21 offers PROJECT_IS_TOP_LEVEL
+  set(DIMETA_IS_TOP_LEVEL true)
+else()
+  set(DIMETA_IS_TOP_LEVEL false)
+endif()
+
+if(DIMETA_IS_TOP_LEVEL)
+  set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+  set(CMAKE_VERBOSE_MAKEFILE OFF)
+endif()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -28,7 +37,9 @@ dimeta_target_format(
 )
 
 add_subdirectory(lib)
-add_subdirectory(script)
 
-enable_testing()
-add_subdirectory(test)
+if(DIMETA_IS_TOP_LEVEL)
+  enable_testing()
+  add_subdirectory(script)
+  add_subdirectory(test)
+endif()
