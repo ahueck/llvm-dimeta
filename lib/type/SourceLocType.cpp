@@ -5,6 +5,7 @@
 //  SPDX-License-Identifier: BSD-3-Clause
 //
 
+#include "DIUtil.h"
 #include "Dimeta.h"
 #include "DimetaData.h"
 #include "DimetaParse.h"
@@ -17,11 +18,28 @@
 
 namespace dimeta {
 
+namespace scope {
+
+std::optional<llvm::DILocalScope*> get_parent_function(const llvm::DILocation& loc) {
+  auto start_scope = loc.getScope();
+  return start_scope->getSubprogram();
+}
+
+std::string get_parent_function_name(const llvm::DILocation& loc) {
+  auto sub_prog = scope::get_parent_function(loc);
+  if (sub_prog) {
+    return std::string{sub_prog.value()->getName()};
+  }
+  return std::string{};
+}
+
+}  // namespace scope
+
 std::optional<location::SourceLocation> location_for(const DimetaData& data) {
   if (data.di_location) {
     auto loc = data.di_location.value();
-    return location::SourceLocation{std::string{loc->getFilename()},          //
-                                    std::string{loc->getScope()->getName()},  //
+    return location::SourceLocation{std::string{loc->getFilename()},        //
+                                    scope::get_parent_function_name(*loc),  //
                                     loc->getLine()};
   }
   if (!data.di_variable) {
@@ -94,7 +112,16 @@ std::optional<LocatedType> located_type_for(const DimetaData& type_data) {
   }
 
   assert(type_data.entry_type.has_value() && "Parsing stack type requires entry type.");
-  auto dimeta_result = parser::make_dimetadata(type_data.entry_type.value());
+
+  // If a member is the entry type, we ignore that:
+  auto* type = type_data.entry_type.value();
+  if (const auto* derived_member_maybe = llvm::dyn_cast<llvm::DIDerivedType>(type)) {
+    if (di::util::is_member(*derived_member_maybe)) {
+      type = derived_member_maybe->getBaseType();
+    }
+  }
+
+  auto dimeta_result = parser::make_dimetadata(type);
   if (!dimeta_result) {
     return {};
   }

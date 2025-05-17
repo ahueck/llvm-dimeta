@@ -195,9 +195,10 @@ QualifiedFundamental make_qualified_fundamental(const diparser::state::MetaData&
   const auto size = [&]() {
     auto size = (meta_.type->getSizeInBits() / 8);
     if (size == 0) {
-      if (encoding == FundamentalType::Encoding::kNullptr) {
+      if (encoding == FundamentalType::Encoding::kNullptr || encoding == FundamentalType::Encoding::kFunctionPtr) {
         // sizeof std::nullptr == sizeof void*
-        size = meta_.member_size > 0 ? meta_.member_size : sizeof(void*);
+        size =
+            meta_.member_size > 0 ? meta_.member_size : (meta_.derived_size > 0 ? meta_.derived_size : sizeof(void*));
       }
     }
     return size;
@@ -262,6 +263,10 @@ class DITypeParser final : public diparser::DIParseEvents {
                               : helper::dwarf2encoding(basic_type->getEncoding());
 
     emplace_fundamental(meta_, basic_type->getName(), encoding);
+  }
+
+  void make_function_ptr(const diparser::state::MetaData& meta_) override {
+    emplace_fundamental(meta_, "", FundamentalType::kFunctionPtr);
   }
 
   void make_void_ptr(const diparser::state::MetaData& meta_) override {

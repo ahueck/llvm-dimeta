@@ -143,6 +143,7 @@ struct llvm::yaml::ScalarEnumerationTraits<dimeta::FundamentalType::Encoding> {
     io.enumCase(value, "nullptr", dimeta::FundamentalType::Encoding::kNullptr);
     io.enumCase(value, "utf_char", dimeta::FundamentalType::Encoding::kUTFChar);
     io.enumCase(value, "complex", dimeta::FundamentalType::Encoding::kComplex);
+    io.enumCase(value, "function_ptr", dimeta::FundamentalType::Encoding::kFunctionPtr);
   }
 };
 

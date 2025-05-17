@@ -27,12 +27,12 @@ class Module;
 
 namespace dimeta {
 
-using DimetaDIVar = std::variant<llvm::DILocalVariable*, llvm::DIGlobalVariable*>;
+using DimetaDIVariable = std::variant<llvm::DILocalVariable*, llvm::DIGlobalVariable*>;
 
 struct DimetaData {
   enum MemLoc { kStack = 0, kHeap, kGlobal };
   MemLoc memory_location{kStack};
-  std::optional<DimetaDIVar> di_variable{};        // if existing the named variable w.r.t. allocation
+  std::optional<DimetaDIVariable> di_variable{};   // if existing the named variable w.r.t. allocation
   std::optional<llvm::DIType*> entry_type{};       // determined to be the allocation including "pointer" DITypes
   std::optional<llvm::DIType*> base_type{};        // The base type (int, struct X...) of the allocated memory
   std::optional<llvm::DILocation*> di_location{};  // Loc of call (malloc etc.)/alloca. Not set for global
@@ -59,7 +59,8 @@ std::optional<CompileUnitTypeList> compile_unit_types(const llvm::Module*);
 
 namespace experimental {
 std::optional<QualifiedType> type_for(const llvm::Value*);
-}
+
+}  // namespace experimental
 
 }  // namespace dimeta
 
