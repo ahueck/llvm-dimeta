@@ -16,7 +16,7 @@ function(configure_dimeta_script input output)
     dimeta_target_generate_file(${input} ${output})
 endfunction()
 
-configure_dimeta_script(apply.tmpl apply.sh)
+# configure_dimeta_script(apply.tmpl apply.sh)
 
 configure_dimeta_script(apply.tmpl apply-test.sh
   TEST_MODE ON

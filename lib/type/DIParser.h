@@ -58,6 +58,8 @@ struct MetaData {
   bool is_void_ptr{false};
   bool is_vector{false};
   bool is_forward_decl{false};
+
+  Extent derived_size{0};
 };
 
 using MetaStack = llvm::SmallVector<MetaData, 4>;
@@ -67,6 +69,7 @@ using MetaStack = llvm::SmallVector<MetaData, 4>;
 class DIParseEvents {
  public:
   virtual void make_fundamental(const state::MetaData&)   = 0;
+  virtual void make_function_ptr(const state::MetaData&)  = 0;
   virtual void make_void_ptr(const state::MetaData&)      = 0;
   virtual void make_vtable(const state::MetaData&)        = 0;
   virtual void make_enum_member(const state::MetaData&)   = 0;

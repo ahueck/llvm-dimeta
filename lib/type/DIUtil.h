@@ -36,6 +36,7 @@ std::optional<StructMember> resolve_byte_offset_to_member_of(const llvm::DICompo
 bool is_pointer(const llvm::DIType& di_type);
 bool is_pointer_like(const llvm::DIType& di_type);
 bool is_non_static_member(const llvm::DINode& elem);
+bool is_member(const llvm::DINode& elem);
 size_t get_num_composite_members(const llvm::DICompositeType& composite);
 llvm::SmallVector<llvm::DIDerivedType*, 4> get_composite_members(const llvm::DICompositeType& composite);
 

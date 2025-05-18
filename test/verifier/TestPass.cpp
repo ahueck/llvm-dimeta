@@ -36,6 +36,8 @@
 
 #include <iomanip>
 #include <iterator>
+#include <llvm/IR/Instruction.h>
+#include <llvm/Support/YAMLTraits.h>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -52,8 +54,16 @@ static cl::opt<bool> cl_dimeta_test_print_yaml_retained("yaml-retained", cl::ini
 static cl::opt<bool> cl_dimeta_test_print_tree("dump-tree", cl::init(false));
 static cl::opt<bool> cl_dimeta_test_stack_pointer("stack-pointer-skip", cl::init(false));
 static cl::opt<bool> cl_dimeta_test_print("dump", cl::init(false));
+static cl::opt<bool> cl_dimeta_test_kernel_call("kernel-call", cl::init(false));
 
 namespace dimeta::test {
+
+template <class... Ts>
+struct overload : Ts... {
+  using Ts::operator()...;
+};
+template <class... Ts>
+overload(Ts...) -> overload<Ts...>;
 
 template <typename String>
 inline std::string demangle(String&& s) {
@@ -263,6 +273,13 @@ class TestPass : public llvm::PassInfoMixin<TestPass> {
       }
     };
 
+    const bool kernel_call_analysis = util::variable_is_toggled(cl_dimeta_test_kernel_call, "DIMETA_TEST_KERNEL_CALL");
+
+    if (kernel_call_analysis) {
+      check_kernel_call(func);
+      return;
+    }
+
     for (auto& inst : llvm::instructions(func)) {
       if (auto* call_inst = dyn_cast<CallBase>(&inst)) {
         auto ditype_meta = type_for(call_inst);
@@ -289,6 +306,36 @@ class TestPass : public llvm::PassInfoMixin<TestPass> {
           dump_di_tree(di_var.value());
           print_di_tree(di_var.value());
           serialize_yaml(alloca_inst);
+        }
+      }
+    }
+  }
+
+  void check_kernel_call(Function& func) {
+    for (auto& inst : llvm::instructions(func)) {
+      if (auto* call_inst = dyn_cast<CallBase>(&inst)) {
+        auto name = try_demangle(*call_inst);
+        LOG_DEBUG(name)
+        if (name.find("kernel") == std::string::npos) {
+          continue;
+        }
+        LOG_DEBUG("kernel found");
+        for (auto& operand : call_inst->operands()) {
+          if (llvm::isa<Instruction>(operand.get())) {
+            LOG_DEBUG("Call operand: " << *operand.get());
+            auto result = experimental::type_for(operand.get());
+            if (result) {
+              std::string initial_oss_string;
+              llvm::raw_string_ostream initial_oss(initial_oss_string);
+              std::visit(
+                  overload{
+                      [&](auto&& f) -> void { io::emit(initial_oss, f); },
+                  },
+                  result.value());
+              LOG_DEBUG("Final value type: " << *operand.get())
+              LOG_DEBUG("\n" << initial_oss.str())
+            }
+          }
         }
       }
     }

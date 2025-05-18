@@ -24,8 +24,6 @@ fi
 opt_tool="@DIMETA_OPT_EXEC@ @DIMETA_OPT_ARGS@"
 if [[ "@DIMETA_TEST_MODE@__" == "1__" ]]; then
   dimeta_pass_plugin="$<TARGET_FILE:dimeta::TestPass> -dimeta-test"
-else
-  dimeta_pass_plugin="$<TARGET_FILE:dimeta::AnalysisPass> -dimeta"
 fi
 
 function to_llvm() {

@@ -22,7 +22,8 @@ enum class MemOpKind : uint8_t {
   kAlignedAllocLike = 1 << 2,  // allocates aligned, maybe null
   kCallocLike       = 1 << 3,  // allocates zeroed
   kReallocLike      = 1 << 4,  // re-allocated (existing) memory
-  kNewCppLike       = ((1 << 5) | kNewLike)
+  kNewCppLike       = ((1 << 5) | kNewLike),
+  kCudaMallocLike   = 1 << 6,
 };
 
 namespace detail {
@@ -48,6 +49,15 @@ struct MemOps {
     }
     const auto value = kind.value();
     return detail::has_value(value, MemOpKind::kNewCppLike);
+  }
+
+  [[nodiscard]] inline bool isCudaLike(llvm::StringRef function) const {
+    auto kind = allocKind(function);
+    if (!kind) {
+      return false;
+    }
+    const auto value = kind.value();
+    return detail::has_value(value, MemOpKind::kCudaMallocLike);
   }
 
   [[nodiscard]] inline bool isAlloc(llvm::StringRef function) const {
@@ -77,6 +87,17 @@ struct MemOps {
       {"_ZnajSt11align_val_tRKSt9nothrow_t", MemOpKind::kNewCppLike}, /*new[](unsigned int, align_val_t, nothrow)*/
       {"_ZnamSt11align_val_t", MemOpKind::kNewLike},                  /*new[](unsigned long, align_val_t)*/
       {"_ZnamSt11align_val_tRKSt9nothrow_t", MemOpKind::kNewCppLike}, /*new[](unsigned long, align_val_t, nothrow)*/
+      {"cudaMalloc", MemOpKind::kCudaMallocLike},
+      {"cudaHostAlloc", MemOpKind::kCudaMallocLike},
+      {"cudaMallocHost", MemOpKind::kCudaMallocLike},
+      {"cudaMallocPitch", MemOpKind::kCudaMallocLike},
+      {"cudaMallocArray", MemOpKind::kCudaMallocLike},
+      {"cudaMalloc3D", MemOpKind::kCudaMallocLike},
+      {"cudaMalloc3DArray", MemOpKind::kCudaMallocLike},
+      {"cudaMallocManaged", MemOpKind::kCudaMallocLike},
+      {"cudaMallocFromPoolAsync", MemOpKind::kCudaMallocLike},
+      {"cudaMallocAsync", MemOpKind::kCudaMallocLike},
+
   };
 };
 

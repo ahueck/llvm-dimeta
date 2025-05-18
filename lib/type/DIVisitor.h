@@ -47,8 +47,8 @@ class DINodeVisitor {
            invoke_if<DILocalVariable>(&DINodeVisitor::traverseVariable, std::forward<T>(type)) ||
            invoke_if<DIGlobalVariable>(&DINodeVisitor::traverseVariable, std::forward<T>(type)) ||
            invoke_if<DIEnumerator>(&DINodeVisitor::traverseNode, std::forward<T>(type)) ||
-           invoke_if<DISubrange>(&DINodeVisitor::traverseNode, std::forward<T>(type));
-    ;
+           invoke_if<DISubrange>(&DINodeVisitor::traverseNode, std::forward<T>(type)) ||
+           invoke_if<DISubroutineType>(&DINodeVisitor::traverseNode, std::forward<T>(type));
   }
 
  protected:
@@ -74,14 +74,13 @@ class DINodeVisitor {
   }
 
   bool traverseNode(const llvm::DINode* node) {
-    //    assert(
-    //        (llvm::isa<llvm::DIVariable>(node) || llvm::isa<llvm::DIType>(node) ||
-    //        llvm::isa<llvm::DIEnumerator>(node)) && "Can only visit variables or types");
-    if (const auto* type = llvm::dyn_cast<llvm::DIType>(node)) {
-      return traverseType(type);
-    }
-    if (const auto* var = llvm::dyn_cast<llvm::DIVariable>(node)) {
-      return traverseVariable(var);
+    if (!llvm::isa<llvm::DISubroutineType>(node)) {  // TODO give subroutine types their own iteration funcs
+      if (const auto* type = llvm::dyn_cast<llvm::DIType>(node)) {
+        return traverseType(type);
+      }
+      if (const auto* var = llvm::dyn_cast<llvm::DIVariable>(node)) {
+        return traverseVariable(var);
+      }
     }
 
     const auto exit = dimeta::util::create_scope_exit([&]() { get().leaveNode(node); });
@@ -198,6 +197,7 @@ class DINodeVisitor {
     ++depth_composite_;
     const auto exit = dimeta::util::create_scope_exit([&]() {
       get().leaveCompositeType(composite_type);
+      visited_dinodes_.erase(composite_type);
       assert(depth_composite_ > 0);
       --depth_composite_;
     });

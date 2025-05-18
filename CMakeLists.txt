@@ -1,17 +1,10 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(dimeta
-  VERSION 0.2.0
+  VERSION 0.3.0
   HOMEPAGE_URL https://github.com/ahueck/llvm-dimeta
   LANGUAGES C CXX
 )
-
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_VERBOSE_MAKEFILE OFF)
-
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
 
 list(
   APPEND
@@ -21,6 +14,15 @@ list(
 
 include(dimetaToolchain)
 
+if(DIMETA_IS_TOP_LEVEL)
+  set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+  set(CMAKE_VERBOSE_MAKEFILE OFF)
+endif()
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
 dimeta_target_format(
   format-dimeta-sources "Formats project source files"
   TARGETS lib/*/*.cpp
@@ -28,7 +30,9 @@ dimeta_target_format(
 )
 
 add_subdirectory(lib)
-add_subdirectory(script)
 
-enable_testing()
-add_subdirectory(test)
+if(DIMETA_IS_TOP_LEVEL)
+  enable_testing()
+  add_subdirectory(script)
+  add_subdirectory(test)
+endif()

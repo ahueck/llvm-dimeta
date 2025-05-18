@@ -41,6 +41,14 @@ function dimeta_test_parse_cmd_line_fn() {
       fi
       shift
     ;;
+    -kernel-call)
+      if [ "@NEW_PM_REQUIRED@" ==  "1" ]; then
+        export DIMETA_TEST_KERNEL_CALL="1"
+      else
+        dimeta_test_pass_wrapper_more_args+=" $1"    
+      fi
+      shift
+    ;;
     -instcombine)
       if [ "@NEW_PM_REQUIRED@" ==  "1" ]; then
         dimeta_test_pass_wrapper_more_args+=" -passes=instcombine"    
