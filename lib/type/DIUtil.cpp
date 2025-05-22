@@ -13,6 +13,7 @@
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/Metadata.h"
 
+#include <llvm/BinaryFormat/Dwarf.h>
 #include <optional>
 
 namespace dimeta::di::util {
@@ -193,6 +194,36 @@ llvm::SmallVector<llvm::DIDerivedType*, 4> get_composite_members(const llvm::DIC
     }
   }
   return members;
+}
+
+std::optional<llvm::DICompositeType*> desugar(llvm::DIType& qualified_composite, int pointer_level) {
+  llvm::DIType* type = &qualified_composite;
+  int reached_level{0};
+  while (type && llvm::isa<llvm::DIDerivedType>(type)) {
+    if (reached_level > pointer_level) {
+      break;
+    }
+    auto* ditype = llvm::dyn_cast<llvm::DIDerivedType>(type);
+    if (is_pointer(*ditype)) {
+      reached_level++;
+    }
+    type = ditype->getBaseType();
+  }
+
+  if (auto* comp = llvm::dyn_cast_or_null<llvm::DICompositeType>(type)) {
+    return comp;
+  }
+  return {};
+}
+
+// bool has_tbaa(const llvm::Instruction& inst) {
+//   auto* access = inst.getMetadata(llvm::StringRef{"tbaa"});
+//   return access != nullptr;
+// }
+
+bool is_array_member(const llvm::DINode& elem) {
+  return is_member(elem) &&
+         llvm::dyn_cast<llvm::DIDerivedType>(&elem)->getBaseType()->getTag() == llvm::dwarf::DW_TAG_array_type;
 }
 
 }  // namespace dimeta::di::util

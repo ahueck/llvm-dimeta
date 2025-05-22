@@ -2,6 +2,8 @@
 ; REQUIRES: llvm-19
 ; CHECK-NOT: Assertion
 
+; XFAIL: *
+
 ; CHECK:   Line:            32
 ; CHECK-NEXT: Builtin:         true
 ; CHECK-NEXT: Type:

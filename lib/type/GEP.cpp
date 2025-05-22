@@ -84,6 +84,8 @@ GepIndices GepIndices::create(const llvm::GEPOperator* inst, bool skip_first) {
   gep_ind.skipped        = skip_first;
   gep_ind.is_byte_access = util::is_byte_indexing(gep_ind.gep);
 
+  bool use_zero{true};
+
 #if LLVM_VERSION_MAJOR > 12
   for (const auto& index : inst->indices()) {
 #else
@@ -99,6 +101,12 @@ GepIndices GepIndices::create(const llvm::GEPOperator* inst, bool skip_first) {
       gep_ind.indices_.emplace_back(index_);
     }
   }
+
+  if (!inst->indices().empty() && gep_ind.empty()) {
+    // based on heap_milc_mrecv_mock.c with optim:
+    // gep_ind.indices_.push_back(0);
+  }
+
   return gep_ind;
 }
 
@@ -257,7 +265,7 @@ GepIndexToType iterate_gep_index(llvm::DICompositeType* composite_type, const Ge
       element = elements[++gep_index];
     }
 
-    LOG_DEBUG(" element: " << log::ditype_str(element))
+    LOG_DEBUG(" element[" << gep_index << "]: " << log::ditype_str(element))
 
     if (auto* derived_type_member = llvm::dyn_cast<llvm::DIDerivedType>(element)) {
       auto* member_type = find_non_derived_type_unless_ptr(derived_type_member->getBaseType());
@@ -275,8 +283,12 @@ GepIndexToType iterate_gep_index(llvm::DICompositeType* composite_type, const Ge
         }
         if (composite_member_type->getTag() == llvm::dwarf::DW_TAG_array_type) {
           if (has_next_gep_idx(enum_index.index())) {
+            LOG_DEBUG("Found array that is indexed with next index")
             // At end of gep instruction, return basetype:
-            return GepIndexToType{composite_member_type->getBaseType(), derived_type_member};
+            return GepIndexToType{
+                composite_member_type->getBaseType(),
+                derived_type_member,
+            };
           }
           // maybe need to recurse into tag_array_type (of non-basic type...)
         }
@@ -386,7 +398,7 @@ GepIndexToType extract_gep_dereferenced_type(llvm::DIType* root, const llvm::GEP
     if (composite_type != nullptr) {
       auto* base_type = composite_type->getBaseType();
       LOG_DEBUG("Gep to array of DI composite, with base type " << log::ditype_str(base_type));
-      return GepIndexToType{base_type};
+      // return GepIndexToType{composite_type};
     }
     LOG_DEBUG("Gep to array " << log::ditype_str(root));
     return GepIndexToType{root};

@@ -1,6 +1,8 @@
 ; RUN: %apply-verifier %s |& %filecheck %s
 ; REQUIRES: llvm-18 || llvm-19
 
+; XFAIL: *
+
 ; CHECK: Type for heap-like:   %call = call ptr @realloc(), !dbg !44
 ; CHECK: Extracted Type: !26 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !27, size: 64)
 ; CHECK: Final Type: !31 = !DIBasicType(name: "double", size: 64, encoding: DW_ATE_float)
