@@ -43,6 +43,7 @@ llvm::SmallVector<llvm::DIDerivedType*, 4> get_composite_members(const llvm::DIC
 std::optional<llvm::DICompositeType*> desugar(llvm::DIType& qualified_composite, int pointer_level = 1);
 // bool has_tbaa(const llvm::Instruction&);
 bool is_array_member(const llvm::DINode& elem);
+bool is_array(const llvm::DINode& elem);
 
 }  // namespace dimeta::di::util
 

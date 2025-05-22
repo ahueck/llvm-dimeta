@@ -117,10 +117,13 @@ bool load_of_array_gep(const llvm::LoadInst* load) {
   return detail::is_array_gep(llvm::dyn_cast<llvm::GetElementPtrInst>(load->getPointerOperand()));
 }
 
-// bool store_to_array_gep(const llvm::StoreInst* store) {
-//   return detail::is_array_gep_with_non_const_indices(
-//       llvm::dyn_cast<llvm::GetElementPtrInst>(store->getPointerOperand()));
-// }
+bool store_to_array_gep(const llvm::StoreInst* store) {
+  auto gep = detail::get_operand_to<llvm::GetElementPtrInst>(store);
+  if (!gep) {
+    return false;
+  }
+  return detail::is_array_gep_with_non_const_indices(gep.value());
+}
 
 std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath& path, llvm::DIType* type_to_reset,
                                                       const llvm::LoadInst* load) {
@@ -163,6 +166,8 @@ std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath&
     }
   }
 
+  // if()
+
   // a (last?) load to a GEP of a composite likely loads the first member in an optimized context:
   const bool last_load = path.start_value().value_or(nullptr) == load;
   if (last_load && load_to<llvm::GetElementPtrInst>(load)) {
@@ -188,6 +193,13 @@ std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath&
     }
 
     auto* base_type = maybe_ptr_to_type->getBaseType();
+    if (di::util::is_array_member(*type)) {
+      LOG_DEBUG("Load of array-like " << log::ditype_str(base_type))
+      // auto type_de = di::util::desugar(*base_type, 1);
+      if (auto underlying_type = llvm::dyn_cast<llvm::DICompositeType>(base_type)->getBaseType()) {
+        return underlying_type;
+      }
+    }
 
 #if DIMETA_USE_TBAA == 1
     if (auto* composite = llvm::dyn_cast<llvm::DICompositeType>(base_type)) {
@@ -215,9 +227,21 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
   }
 
   if (!di::util::is_array_member(*type)) {
+    // !di::util::is_array(*type) &&
+    if (di::util::is_array(*type)) {
+      return llvm::cast<llvm::DICompositeType>(type)->getBaseType();
+    }
+
+    const auto is_non_pointer_member = [&](auto& type_) {
+      return di::util::is_non_static_member(type_) &&
+             !di::util::is_pointer_like(*llvm::cast<llvm::DIDerivedType>(&type_)->getBaseType());
+    };
+
     auto comp = di::util::desugar(*type);
     LOG_DEBUG("Desugared " << log::ditype_str(comp.value_or(nullptr)))
-    if (comp) {  // && !store_to_array_gep(store_inst)) {
+    if (comp && (store_to<llvm::LoadInst>(store_inst) || store_to<llvm::Argument>(store_inst) ||
+                 store_to_array_gep(store_inst) || is_non_pointer_member(*type))) {
+      //&& store_to<llvm::LoadInst>(store_inst)  // && !store_to_array_gep(store_inst)) {
       LOG_DEBUG("Storing to first pointer member?")
       auto result = di::util::resolve_byte_offset_to_member_of(comp.value(), 0);
       if (result) {

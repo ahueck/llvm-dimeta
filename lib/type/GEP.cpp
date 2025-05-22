@@ -30,6 +30,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
+#include <llvm/IR/Instruction.h>
+#include <llvm/IR/Instructions.h>
 #include <optional>
 
 namespace dimeta::gep {
@@ -334,21 +336,36 @@ GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, 
   return iterate_gep_index(composite_type, gep_indices);
 }
 
-std::optional<GepIndexToType> try_resolve_inlined_operator(const llvm::GEPOperator* gep) {
-  const auto* const load = llvm::dyn_cast<llvm::Instruction>(gep->getPointerOperand());
-  if (!load) {
-    LOG_DEBUG("No load for GEP found")
-    return {};
+std::optional<llvm::DebugLoc> try_resolve_inlined_debug_loc(const llvm::GEPOperator* gep) {
+  auto gep_ptr = llvm::dyn_cast<llvm::Instruction>(gep);
+
+  if (!gep_ptr) {
+    gep_ptr = llvm::dyn_cast<llvm::Instruction>(gep->getPointerOperand());
+    if (!gep_ptr) {
+      LOG_DEBUG("No load for GEP found")
+      return {};
+    }
   }
 
-  const bool is_inlined = load->getDebugLoc()->getInlinedAt() != nullptr;
-
+  if (!gep_ptr->getDebugLoc()) {
+    return {};
+  }
+  const bool is_inlined = gep_ptr->getDebugLoc()->getInlinedAt() != nullptr;
   if (!is_inlined) {
     LOG_DEBUG("GEP not inlined")
     return {};
   }
+  return gep_ptr->getDebugLoc();
+}
 
-  const auto* const sub_prog = llvm::dyn_cast<llvm::DISubprogram>(load->getDebugLoc().getScope());
+std::optional<GepIndexToType> try_resolve_inlined_operator(const llvm::GEPOperator* gep) {
+  auto debug_loc = try_resolve_inlined_debug_loc(gep);
+
+  if (!debug_loc) {
+    return {};
+  }
+
+  const auto* const sub_prog = llvm::dyn_cast<llvm::DISubprogram>(debug_loc->getScope());
   assert(sub_prog && "Scope does not represent a subprogram");
 
   LOG_DEBUG("Looking at " << log::ditype_str(sub_prog))
@@ -389,6 +406,11 @@ GepIndexToType extract_gep_dereferenced_type(llvm::DIType* root, const llvm::GEP
   // see test cpp/heap_vector_opt.cpp: GEP on pointer (of inlined operator[])
   const bool may_be_inlined_operator = (composite_type != nullptr) && composite_type->isForwardDecl();
 
+  auto debug_loc = try_resolve_inlined_operator(&inst);
+  if (debug_loc) {
+    return debug_loc.value();
+  }
+
   if (gep_src->isPointerTy() && !may_be_inlined_operator) {
     LOG_DEBUG("Gep to ptr " << log::ditype_str(root));
     return GepIndexToType{root};
@@ -398,7 +420,9 @@ GepIndexToType extract_gep_dereferenced_type(llvm::DIType* root, const llvm::GEP
     if (composite_type != nullptr) {
       auto* base_type = composite_type->getBaseType();
       LOG_DEBUG("Gep to array of DI composite, with base type " << log::ditype_str(base_type));
-      // return GepIndexToType{composite_type};
+      if (composite_type->getTag() == llvm::dwarf::DW_TAG_array_type) {
+        // return GepIndexToType{base_type};
+      }
     }
     LOG_DEBUG("Gep to array " << log::ditype_str(root));
     return GepIndexToType{root};

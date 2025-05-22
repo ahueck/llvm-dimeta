@@ -226,4 +226,9 @@ bool is_array_member(const llvm::DINode& elem) {
          llvm::dyn_cast<llvm::DIDerivedType>(&elem)->getBaseType()->getTag() == llvm::dwarf::DW_TAG_array_type;
 }
 
+bool is_array(const llvm::DINode& elem) {
+  auto comp = llvm::dyn_cast<llvm::DICompositeType>(&elem);
+  return (comp != nullptr) && comp->getTag() == llvm::dwarf::DW_TAG_array_type;
+}
+
 }  // namespace dimeta::di::util
