@@ -1,8 +1,6 @@
 ; RUN: %apply-verifier %s |& %filecheck %s
-; REQUIRES: llvm-19
+; REQUIRES: llvm-19 && tbaa
 ; CHECK-NOT: Assertion
-
-; XFAIL: *
 
 ; CHECK:   Line:            32
 ; CHECK-NEXT: Builtin:         true

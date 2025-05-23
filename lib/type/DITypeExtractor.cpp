@@ -129,60 +129,44 @@ std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath&
                                                       const llvm::LoadInst* load) {
   auto* type = type_to_reset;
 
-  // if (auto* member_composite_type = llvm::dyn_cast<llvm::DICompositeType>(type)) {
-  //   auto result = di::util::resolve_byte_offset_to_member_of(member_composite_type, 0);
-  //   if (result) {
-  //     LOG_DEBUG("Return type of load " << log::ditype_str(result->type_of_member.value_or(nullptr)))
-  //     return result->type_of_member;
-  //   }
-  // }
-
   if (load_to<llvm::GlobalVariable>(load) || load_to<llvm::AllocaInst>(load)) {
-    // if (auto* maybe_ptr_to_type = llvm::dyn_cast<llvm::DIDerivedType>(type)) {
-    //   if ((maybe_ptr_to_type->getTag() == llvm::dwarf::DW_TAG_pointer_type ||
-    //        maybe_ptr_to_type->getTag() == llvm::dwarf::DW_TAG_reference_type)) {
-    //     LOG_DEBUG("Load of pointer-like " << log::ditype_str(maybe_ptr_to_type))
-    //     if (load->getPointerOperandType()->isOpaquePointerTy()) {
-    //       return maybe_ptr_to_type->getBaseType();
-    //     }
-    //   }
-    // }
-
     LOG_DEBUG("Do not reset DIType based on load to global,alloca")
     return type;
   }
 
-  if (!di::util::is_member(*type)) {
-    auto comp = di::util::desugar(*type);
-    LOG_DEBUG("Desugared load to " << log::ditype_str(comp.value_or(nullptr)))
-    if (comp && !load_to<llvm::Argument>(load) && !load_of_array_gep(load) && !load_for_array_gep(load)) {
-      LOG_DEBUG("Loading first pointer member?")
-
-      auto result = di::util::resolve_byte_offset_to_member_of(comp.value(), 0);
-      if (result) {
-        LOG_DEBUG("Return type of load " << log::ditype_str(result->type_of_member.value_or(nullptr)))
-        return result->type_of_member;
-      }
+  if (di::util::is_array_member(*type)) {
+    auto* base_type = llvm::dyn_cast<llvm::DIDerivedType>(type)->getBaseType();
+    LOG_DEBUG("Load of array-like " << log::ditype_str(base_type))
+    // auto type_de = di::util::desugar(*base_type, 1);
+    if (auto underlying_type = llvm::dyn_cast<llvm::DICompositeType>(base_type)->getBaseType()) {
+      return underlying_type;
     }
   }
 
-  // if()
+  const auto try_resolve_to_first_member = [&](llvm::DIType* candidate_type) -> std::optional<llvm::DIType*> {
+    auto comp = di::util::desugar(*candidate_type);
+    LOG_DEBUG("Desugared load to " << log::ditype_str(comp.value_or(nullptr)));
+    if (!comp) {
+      return {};
+    }
+    LOG_DEBUG("Loading first pointer member?");
+    auto result = di::util::resolve_byte_offset_to_member_of(comp.value(), 0);
+    if (result) {
+      LOG_DEBUG("Return type of load " << log::ditype_str(result->type_of_member.value_or(nullptr)));
+      return result->type_of_member;
+    }
+    return {};
+  };
 
   // a (last?) load to a GEP of a composite likely loads the first member in an optimized context:
-  const bool last_load = path.start_value().value_or(nullptr) == load;
-  if (last_load && load_to<llvm::GetElementPtrInst>(load)) {
-    if (auto* may_be_member_type = llvm::dyn_cast<llvm::DIDerivedType>(type)) {
-      LOG_DEBUG("Load on GEP, return basetype " << log::ditype_str(may_be_member_type->getBaseType()))
-      if (di::util::is_member(*may_be_member_type)) {
-        auto type_of_member = may_be_member_type->getBaseType();
-        if (auto member = llvm::dyn_cast<llvm::DIDerivedType>(type_of_member)) {
-          may_be_member_type = member;
-          if (auto* member_composite_type = llvm::dyn_cast<llvm::DICompositeType>(member->getBaseType())) {
-            auto members_of_composite_type = di::util::get_composite_members(*member_composite_type);
-            assert(members_of_composite_type.size() > 0 && "Load to composite expects at least one member");
-            return (*members_of_composite_type.begin());
-          }
-        }
+  const bool last_load     = path.start_value().value_or(nullptr) == load;
+  const bool is_not_member = !di::util::is_member(*type);
+  if (is_not_member || last_load) {
+    const bool is_not_arg_load  = !load_to<llvm::Argument>(load);
+    const bool is_not_array_gep = !load_of_array_gep(load) && !load_for_array_gep(load);
+    if (is_not_array_gep && (is_not_arg_load || last_load)) {
+      if (auto resolved = try_resolve_to_first_member(type)) {
+        return resolved.value();
       }
     }
   }
@@ -191,15 +175,7 @@ std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath&
     if (di::util::is_pointer(*maybe_ptr_to_type)) {
       LOG_DEBUG("Load of pointer-like " << log::ditype_str(maybe_ptr_to_type))
     }
-
     auto* base_type = maybe_ptr_to_type->getBaseType();
-    if (di::util::is_array_member(*type)) {
-      LOG_DEBUG("Load of array-like " << log::ditype_str(base_type))
-      // auto type_de = di::util::desugar(*base_type, 1);
-      if (auto underlying_type = llvm::dyn_cast<llvm::DICompositeType>(base_type)->getBaseType()) {
-        return underlying_type;
-      }
-    }
 
 #if DIMETA_USE_TBAA == 1
     if (auto* composite = llvm::dyn_cast<llvm::DICompositeType>(base_type)) {
@@ -226,25 +202,35 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
     return type;
   }
 
+  if (di::util::is_array(*type)) {
+    return llvm::cast<llvm::DICompositeType>(type)->getBaseType();
+  }
+
   if (!di::util::is_array_member(*type)) {
     // !di::util::is_array(*type) &&
-    if (di::util::is_array(*type)) {
-      return llvm::cast<llvm::DICompositeType>(type)->getBaseType();
-    }
-
     const auto is_non_pointer_member = [&](auto& type_) {
       return di::util::is_non_static_member(type_) &&
              !di::util::is_pointer_like(*llvm::cast<llvm::DIDerivedType>(&type_)->getBaseType());
     };
 
-    auto comp = di::util::desugar(*type);
-    LOG_DEBUG("Desugared " << log::ditype_str(comp.value_or(nullptr)))
-    if (comp && (store_to<llvm::LoadInst>(store_inst) || store_to<llvm::Argument>(store_inst) ||
-                 store_to_array_gep(store_inst) || is_non_pointer_member(*type))) {
-      //&& store_to<llvm::LoadInst>(store_inst)  // && !store_to_array_gep(store_inst)) {
+    auto desugared_composite = di::util::desugar(*type);
+    LOG_DEBUG("Desugared " << log::ditype_str(desugared_composite.value_or(nullptr)))
+
+    const bool is_load_target     = store_to<llvm::LoadInst>(store_inst);
+    const bool is_arg_target      = store_to<llvm::Argument>(store_inst);
+    const bool is_array_gep_store = store_to_array_gep(store_inst);
+    const bool is_non_ptr_member  = is_non_pointer_member(*type);
+
+    if (desugared_composite && (is_non_ptr_member || is_array_gep_store || is_arg_target || is_load_target)) {
       LOG_DEBUG("Storing to first pointer member?")
-      auto result = di::util::resolve_byte_offset_to_member_of(comp.value(), 0);
+      auto result = di::util::resolve_byte_offset_to_member_of(desugared_composite.value(), 0);
       if (result) {
+#if DIMETA_USE_TBAA == 1
+        if (result->member && result->member.value()->getName().starts_with("_vptr")) {
+          // Let this be handled by TBAA is available, see test 10_lulesh_ad_tbaa_static_member.ll
+          return type;
+        }
+#endif
         LOG_DEBUG("Return type of store " << log::ditype_str(result->type_of_member.value_or(nullptr)))
         return result->type_of_member;
       }
@@ -258,17 +244,16 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
 
   auto* derived_type = llvm::cast<llvm::DIDerivedType>(type);
 
-  if (di::util::is_non_static_member(*derived_type)) {
+  if (di::util::is_array_member(*type)) {
     auto* member_base               = derived_type->getBaseType();
     const bool is_array_type_member = member_base->getTag() == llvm::dwarf::DW_TAG_array_type;
-    // Need to look at base type for array-type member of struct. Tests w.r.t. gep:
-    // 1. array_composite.c
-    // 2. array_composite_offset_zero.c
-    // 3. array_composite_sub_offset_zero.c
-    // 4. global_nested.c
     if (is_array_type_member) {
       return llvm::cast<llvm::DICompositeType>(member_base)->getBaseType();
     }
+  }
+
+  if (di::util::is_non_static_member(*derived_type)) {
+    auto* member_base = derived_type->getBaseType();
     return member_base;
   }
 
@@ -281,24 +266,6 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
         return may_be_ptr_to_ptr;
       }
     }
-
-    // if (auto* ptr_to_composite = llvm::dyn_cast<llvm::DICompositeType>(derived_type->getBaseType())) {
-    //   if (store_to<llvm::LoadInst>(store_inst)) {
-    //     // Triggers for "heap_lhs_obj_opt.c" (llvm 14/15)
-    //     auto composite_members = ptr_to_composite->getElements();
-    //     assert(!composite_members.empty() && "Store to composite assumed to be store to first member!");
-    //     // auto store_di_target = llvm::dyn_cast<llvm::DIDerivedType>(composite_members[0])->getBaseType();
-
-    //     for (auto* member : composite_members) {
-    //       if (di::util::is_non_static_member(*member)) {
-    //         auto* store_di_target = llvm::dyn_cast<llvm::DIDerivedType>(member);
-    //         LOG_DEBUG("Store to a 'load of a composite type', assume first member as target "
-    //                   << log::ditype_str(store_di_target))
-    //         return store_di_target->getBaseType();
-    //       }
-    //     }
-    //   }
-    // }
   }
 
   LOG_DEBUG("Store resolved, return " << log::ditype_str(type))
