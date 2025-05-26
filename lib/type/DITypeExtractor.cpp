@@ -44,6 +44,7 @@
 #include <iterator>
 #include <type_traits>
 #include <unordered_map>
+#include <utility>
 
 namespace dimeta::type {
 
@@ -124,6 +125,66 @@ bool store_to_array_gep(const llvm::StoreInst* store) {
   }
   return detail::is_array_gep_with_non_const_indices(gep.value());
 }
+
+namespace dipath {
+
+struct IRMapping {
+  const llvm::Value* value{nullptr};
+  llvm::DIType* mapped{nullptr};
+  std::string reason;
+};
+
+struct ValueToDiPath {
+  llvm::SmallVector<IRMapping, 8> path_to_ditype;
+
+  void emplace_back(const llvm::Value* val, llvm::DIType* mapped_di_type, const std::string reason = "") {
+    path_to_ditype.emplace_back(IRMapping{val, mapped_di_type, std::move(reason)});
+  }
+};
+
+llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const ValueToDiPath& vdp) {
+  const auto& mappings = vdp.path_to_ditype;
+  // os << "ValueToDiPath: ";  // Prefix to identify the type being printed
+  if (mappings.empty()) {
+    os << "[]";
+    return os;
+  }
+  const auto mapping_to_string = [](const IRMapping& mapping) -> std::string {
+    std::string str_buffer;
+    llvm::raw_string_ostream stream(str_buffer);
+
+    stream << "{IR: ";
+    if (mapping.value) {
+      // mapping.value->printAsOperand(stream, true);
+      mapping.value->print(stream, true);
+    } else {
+      stream << "null";
+    }
+
+    stream << "; DI: ";
+    if (mapping.mapped) {
+      stream << log::ditype_str(mapping.mapped);
+    } else {
+      stream << "null";
+    }
+
+    if (!mapping.reason.empty()) {
+      stream << ", Reason: \"" << mapping.reason << "\"}";
+    }
+    return stream.str();
+  };
+
+  os << "[" << mapping_to_string(mappings.front());
+  std::for_each(std::next(mappings.begin()), mappings.end(), [&](const IRMapping& mapping_item) {
+    os << " --> ";
+    os << mapping_to_string(mapping_item);
+  });
+
+  os << "]";
+  return os;
+}
+
+}  // namespace dipath
 
 std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath& path, llvm::DIType* type_to_reset,
                                                       const llvm::LoadInst* load) {
@@ -272,48 +333,42 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
   return type;
 }
 
-template <typename Iter, typename Iter2>
+template <typename Iter>
 std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dataflow::ValuePath& path,
-                                          const Iter& path_iter, const Iter2&) {
+                                          const Iter& path_iter, dipath::ValueToDiPath& logged_dipath) {
   std::optional<llvm::DIType*> type = type_to_reset;
-  if (!type) {
-    LOG_DEBUG("No type to reset!")
-    return {};
-  }
+  // if (!type) {
+  //   LOG_DEBUG("No type to reset!")
+  //   return {};
+  // }
 
-  const auto& next_value = path_iter;
+  const auto& current_value = path_iter;
   LOG_DEBUG("Type to reset: " << log::ditype_str(*type));
-  LOG_DEBUG(">> based on IR: " << **next_value);
+  LOG_DEBUG(">> based on IR: " << **current_value);
 
-  if (llvm::isa<llvm::GEPOperator>(*next_value)) {
+  if (llvm::isa<llvm::GEPOperator>(*current_value)) {
     LOG_DEBUG("Reset based on GEP")
-    auto* gep = llvm::cast<llvm::GEPOperator>(*next_value);
-    // LOG_DEBUG("Path iter gep for extraction is currently " << *gep);
-    // TODO: Maybe we could somehow get more info on the underlying type from the dataflow path
-    //       if this returns an empty result due to forward decls?
+    auto* gep             = llvm::cast<llvm::GEPOperator>(*current_value);
     const auto gep_result = gep::extract_gep_dereferenced_type(type.value(), *gep);
     if (gep_result.member && !gep_result.use_type) {
       LOG_DEBUG("Using gep member type result")
-      return gep_result.member;
+      type = gep_result.member;
+    } else {
+      type = gep_result.type;
     }
-    return gep_result.type;
-  }
-
-  if (const auto* load = llvm::dyn_cast<llvm::LoadInst>(*next_value)) {
-    // Re-set the DIType from the gep, if presence of:
-    // - a load after a gep is likely the first element of the composite type
-    // - a load also resolves to the basetype w.r.t. an array composite
+  } else if (const auto* load = llvm::dyn_cast<llvm::LoadInst>(*current_value)) {
     LOG_DEBUG("Reset based on load")
-    return reset::reset_load_related_basic(path, type.value(), load);
-  }
-
-  if (const auto* store_inst = llvm::dyn_cast<llvm::StoreInst>(*next_value)) {
-    // - a store with a ditype(array) is likely the first element of the array
+    type = reset::reset_load_related_basic(path, type.value(), load);
+  } else if (const auto* store_inst = llvm::dyn_cast<llvm::StoreInst>(*current_value)) {
     LOG_DEBUG("Reset based on store")
-    return reset::reset_store_related_basic(path, type.value(), store_inst);
+    type = reset::reset_store_related_basic(path, type.value(), store_inst);
+  } else {
+    LOG_DEBUG(">> skipping");
+    logged_dipath.emplace_back(*current_value, type.value_or(nullptr));
+    return type;
   }
 
-  LOG_DEBUG(">> skipping");
+  logged_dipath.emplace_back(*current_value, type.value_or(nullptr));
 
   return type;
 }
@@ -328,13 +383,15 @@ std::optional<llvm::DIType*> find_type(const dataflow::CallValuePath& call_path)
     return {};
   }
 
+  reset::dipath::ValueToDiPath dipath;
+
   const auto path_end = call_path.path.path_to_value.rend();
   for (auto path_iter = call_path.path.path_to_value.rbegin(); path_iter != path_end; ++path_iter) {
     if (!type) {
       break;
     }
-    LOG_DEBUG("Extracted type w.r.t. gep: " << log::ditype_str(*type));
-    type = reset::reset_ditype(type.value(), call_path.path, path_iter, path_end).value_or(type.value());
+    LOG_DEBUG("Extracted type: " << log::ditype_str(*type));
+    type = reset::reset_ditype(type.value(), call_path.path, path_iter, dipath).value_or(type.value());
     LOG_DEBUG("reset_ditype result " << log::ditype_str(type.value_or(nullptr)) << "\n")
   }
 
@@ -346,10 +403,14 @@ std::optional<llvm::DIType*> find_type(const dataflow::CallValuePath& call_path)
       auto type_tbaa = tbaa::resolve_tbaa(type.value(), *llvm::dyn_cast<llvm::Instruction>(start_node));
       if (type_tbaa) {
         type = type_tbaa.value();
+        dipath.emplace_back(start_node, type.value(), "TBAA");
       }
     }
   }
 #endif
+
+  LOG_DEBUG("Final mapping\n" << dipath)
+
   return type;
 }
 }  // namespace dimeta::type
