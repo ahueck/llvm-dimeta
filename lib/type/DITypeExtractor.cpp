@@ -42,6 +42,7 @@
 
 #include <cassert>
 #include <iterator>
+#include <optional>
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
@@ -140,9 +141,18 @@ struct ValueToDiPath {
   void emplace_back(const llvm::Value* val, llvm::DIType* mapped_di_type, const std::string reason = "") {
     path_to_ditype.emplace_back(IRMapping{val, mapped_di_type, std::move(reason)});
   }
+
+  std::optional<llvm::DIType*> final_type() const {
+    if (path_to_ditype.empty()) {
+      return {};
+    }
+    const auto& ditype = path_to_ditype.back();
+    return ditype.mapped != nullptr ? std::optional{ditype.mapped} : std::nullopt;
+  }
 };
 
 llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const ValueToDiPath& vdp) {
+#if DIMETA_LOG_LEVEL > 2  // FIXME: For coverage
   const auto& mappings = vdp.path_to_ditype;
   // os << "ValueToDiPath: ";  // Prefix to identify the type being printed
   if (mappings.empty()) {
@@ -181,6 +191,7 @@ llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const ValueToDiPath& vdp) {
   });
 
   os << "]";
+#endif
   return os;
 }
 
@@ -337,10 +348,6 @@ template <typename Iter>
 std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dataflow::ValuePath& path,
                                           const Iter& path_iter, dipath::ValueToDiPath& logged_dipath) {
   std::optional<llvm::DIType*> type = type_to_reset;
-  // if (!type) {
-  //   LOG_DEBUG("No type to reset!")
-  //   return {};
-  // }
 
   const auto& current_value = path_iter;
   LOG_DEBUG("Type to reset: " << log::ditype_str(*type));
@@ -387,12 +394,12 @@ std::optional<llvm::DIType*> find_type(const dataflow::CallValuePath& call_path)
 
   const auto path_end = call_path.path.path_to_value.rend();
   for (auto path_iter = call_path.path.path_to_value.rbegin(); path_iter != path_end; ++path_iter) {
-    if (!type) {
-      break;
-    }
     LOG_DEBUG("Extracted type: " << log::ditype_str(*type));
     type = reset::reset_ditype(type.value(), call_path.path, path_iter, dipath).value_or(type.value());
     LOG_DEBUG("reset_ditype result " << log::ditype_str(type.value_or(nullptr)) << "\n")
+    if (!type) {
+      break;
+    }
   }
 
 #if DIMETA_USE_TBAA == 1
@@ -402,8 +409,7 @@ std::optional<llvm::DIType*> find_type(const dataflow::CallValuePath& call_path)
     if (start_node) {
       auto type_tbaa = tbaa::resolve_tbaa(type.value(), *llvm::dyn_cast<llvm::Instruction>(start_node));
       if (type_tbaa) {
-        type = type_tbaa.value();
-        dipath.emplace_back(start_node, type.value(), "TBAA");
+        dipath.emplace_back(start_node, type_tbaa.value(), "TBAA");
       }
     }
   }
@@ -411,6 +417,6 @@ std::optional<llvm::DIType*> find_type(const dataflow::CallValuePath& call_path)
 
   LOG_DEBUG("Final mapping\n" << dipath)
 
-  return type;
+  return dipath.final_type();
 }
 }  // namespace dimeta::type
