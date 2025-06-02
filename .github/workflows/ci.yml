@@ -53,9 +53,17 @@ jobs:
           - llvm-version: 18
             os: ubuntu-24.04
             preset: coverage
+          - llvm-version: 18
+            os: ubuntu-24.04
+            preset: coverage
+            use-tbaa: true
           - llvm-version: 19
             os: ubuntu-24.04
             preset: coverage
+          - llvm-version: 19
+            os: ubuntu-24.04
+            preset: coverage
+            use-tbaa: true
 
     runs-on: ${{ matrix.os }}
 
@@ -86,9 +94,14 @@ jobs:
           sudo ln -f -s /usr/bin/clang++-${{ matrix.llvm-version }} /usr/bin/clang++
           echo "LLVM_CMAKE_DIR=/usr/lib/llvm-${{ matrix.llvm-version }}/cmake" >> $GITHUB_ENV
           echo "EXTERNAL_LIT=/usr/lib/llvm-${{ matrix.llvm-version }}/build/utils/lit/lit.py" >> $GITHUB_ENV
+          echo "USE_TBAA=${{ matrix.use-tbaa == true && 'ON' || 'OFF' }}" >> $GITHUB_ENV
 
       - name: Configure Dimeta
-        run: cmake -B build --preset ${{ matrix.preset }} -DLLVM_DIR=${LLVM_CMAKE_DIR} -DLLVM_EXTERNAL_LIT=${EXTERNAL_LIT}
+        run: |
+          cmake -B build --preset ${{ matrix.preset }} \
+            -DLLVM_DIR=${LLVM_CMAKE_DIR} \
+            -DLLVM_EXTERNAL_LIT=${EXTERNAL_LIT} \
+            -DDIMETA_USE_TBAA=${USE_TBAA}
 
       - name: Build Dimeta
         run: cmake --build build --parallel 2
