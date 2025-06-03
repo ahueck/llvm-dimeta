@@ -40,6 +40,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        preset: [coverage]
+        llvm-version: [18, 19, 20]
+        os: [ubuntu-24.04]
+        use-tbaa: [true, false]
         include:
           - llvm-version: 13
             os: ubuntu-22.04
@@ -50,20 +54,6 @@ jobs:
           - llvm-version: 15
             os: ubuntu-22.04
             preset: coverage
-          - llvm-version: 18
-            os: ubuntu-24.04
-            preset: coverage
-          - llvm-version: 18
-            os: ubuntu-24.04
-            preset: coverage
-            use-tbaa: true
-          - llvm-version: 19
-            os: ubuntu-24.04
-            preset: coverage
-          - llvm-version: 19
-            os: ubuntu-24.04
-            preset: coverage
-            use-tbaa: true
 
     runs-on: ${{ matrix.os }}
 
@@ -71,10 +61,10 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: LLVM apt
-        if: ${{ matrix.llvm-version == 19 }}
+        if: ${{ matrix.llvm-version > 19 }}
         run: |
           wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-19 main" | sudo tee /etc/apt/sources.list.d/llvm-19.list
+          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-${{ matrix.llvm-version }} main" | sudo tee /etc/apt/sources.list.d/llvm-${{ matrix.llvm-version }}.list
 
       - name: Update apt
         run: sudo apt-get update
@@ -93,7 +83,7 @@ jobs:
           sudo ln -f -s /usr/bin/clang-${{ matrix.llvm-version }} /usr/bin/clang
           sudo ln -f -s /usr/bin/clang++-${{ matrix.llvm-version }} /usr/bin/clang++
           echo "LLVM_CMAKE_DIR=/usr/lib/llvm-${{ matrix.llvm-version }}/cmake" >> $GITHUB_ENV
-          echo "EXTERNAL_LIT=/usr/lib/llvm-${{ matrix.llvm-version }}/build/utils/lit/lit.py" >> $GITHUB_ENV
+          echo "EXTERNAL_LIT=/usr/lib/llvm-${{ matrix.llvm-version == 20 && 18 || matrix.llvm-version }}/build/utils/lit/lit.py" >> $GITHUB_ENV
           echo "USE_TBAA=${{ matrix.use-tbaa == true && 'ON' || 'OFF' }}" >> $GITHUB_ENV
 
       - name: Configure Dimeta
