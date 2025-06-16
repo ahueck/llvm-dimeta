@@ -35,6 +35,7 @@
 
 #include <cassert>
 #include <iterator>
+#include <llvm/IR/DebugInfo.h>
 #include <optional>
 
 namespace llvm {
@@ -44,11 +45,49 @@ class DbgVariableIntrinsic;
 namespace dimeta::difinder {
 
 namespace compat {
+
 template <typename DbgVar>
-llvm::Value* get_alloca_for(const DbgVar* dbg_var) {
+inline bool is_dbg_assign(const DbgVar* dbg_var) {
+  bool is_dbg_assign = false;
+#if LLVM_VERSION_MAJOR > 16
+#if LLVM_VERSION_MAJOR < 19
+  is_dbg_assign = (dbg_var->getIntrinsicID() == llvm::Intrinsic::dbg_assign);
+#else
+  is_dbg_assign = (dbg_var->getType() == llvm::DbgVariableRecord::LocationType::Assign);
+#endif
+#endif
+  return is_dbg_assign;
+}
+
+template <typename DbgVar>
+std::optional<llvm::Value*> get_alloca_from_dbg_assign(const DbgVar* dbg_var) {
+#if LLVM_VERSION_MAJOR > 16
+#if LLVM_VERSION_MAJOR < 19
+  auto assigns = llvm::at::getAssignmentInsts(llvm::dyn_cast<llvm::DbgAssignIntrinsic>(dbg_var));
+#else
+  auto assigns  = llvm::at::getAssignmentInsts(llvm::dyn_cast<llvm::DbgVariableRecord>(dbg_var));
+#endif
+  for (llvm::Value* assign : assigns) {
+    if (auto* store = llvm::dyn_cast<llvm::StoreInst>(assign)) {
+      return store->getPointerOperand();
+    }
+  }
+#endif
+  return {};
+}
+
+template <typename DbgVar>
+const llvm::Value* get_alloca_for(const DbgVar* dbg_var) {
 #if LLVM_VERSION_MAJOR < 13
   return dbg_var->getVariableLocation();
+
+#elif LLVM_VERSION_MAJOR <= 16
+  return dbg_var->getVariableLocationOp(0);
 #else
+
+  if (is_dbg_assign(dbg_var)) {
+    return get_alloca_from_dbg_assign(dbg_var).value_or(nullptr);
+  }
   return dbg_var->getVariableLocationOp(0);
 #endif
 }
@@ -61,6 +100,7 @@ llvm::DIExpression* get_expr_for(const DbgVar* dbg_var) {
   return dbg_var->getExpression();
 #endif
 }
+
 }  // namespace compat
 
 #if LLVM_VERSION_MAJOR < 19
