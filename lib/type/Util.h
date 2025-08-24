@@ -9,9 +9,19 @@
 #define DIMETA_UTIL_H
 
 #include <functional>
+#include <llvm/ADT/StringRef.h>
 #include <optional>
 
 namespace dimeta::util {
+
+template <typename... StringTy>
+inline bool starts_with_any_of(llvm::StringRef lhs, StringTy... rhs) {
+#if LLVM_VERSION_MAJOR > 15
+  return !lhs.empty() && ((lhs.starts_with(rhs)) || ...);
+#else
+  return !lhs.empty() && ((lhs.startswith(rhs)) || ...);
+#endif
+}
 
 template <typename Fn>
 class ScopeExit {

@@ -298,9 +298,13 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
       auto result = di::util::resolve_byte_offset_to_member_of(desugared_composite.value(), 0);
       if (result) {
 #if DIMETA_USE_TBAA == 1
-        if (result->member && result->member.value()->getName().starts_with("_vptr")) {
+        if (result->member) {
+          const auto member_name = result->member.value()->getName();
+          const bool is_vptr     = dimeta::util::starts_with_any_of(member_name, "_vptr");
           // Let this be handled by TBAA is available, see test 10_lulesh_ad_tbaa_static_member.ll
-          return type;
+          if (is_vptr) {
+            return type;
+          }
         }
 #endif
         LOG_DEBUG("Return type of store " << log::ditype_str(result->type_of_member.value_or(nullptr)))
