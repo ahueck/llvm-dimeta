@@ -28,6 +28,9 @@ add_library(dimeta::Types ALIAS dimeta_Types)
 dimeta_target_define_file_basename(dimeta_Types)
 
 set_property(TARGET dimeta_Types PROPERTY POSITION_INDEPENDENT_CODE ON)
+set_property(TARGET ${targetname} APPEND_STRING PROPERTY
+          COMPILE_FLAGS "-fno-exceptions -fno-rtti")
+dimeta_target_compile_opts(dimeta_Types)
 
 target_include_directories(dimeta_Types SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
 
@@ -41,8 +44,6 @@ target_compile_definitions(dimeta_Types
         $<$<BOOL:${DIMETA_USE_TBAA}>:DIMETA_USE_TBAA=1>
         )
 
-dimeta_target_compile_opts(dimeta_Types)
-
 target_include_directories(
   dimeta_Types
   PRIVATE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/lib/>
@@ -55,7 +56,6 @@ set_target_properties(
   OUTPUT_NAME "dimetaTypes"
   EXPORT_NAME "Types"
 )
-
 
 set(CONFIG_NAME dimetaTypes)
 set(TARGETS_EXPORT_NAME ${CONFIG_NAME}Targets)

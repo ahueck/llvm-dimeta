@@ -14,6 +14,8 @@ set_target_properties(
         EXPORT_NAME "TestPass"
 )
 
+dimeta_target_compile_opts(dimeta_TestPass)
+
 add_library(dimeta::TestPass ALIAS dimeta_TestPass)
 
 target_include_directories(dimeta_TestPass
