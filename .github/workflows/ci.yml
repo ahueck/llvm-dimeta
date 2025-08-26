@@ -11,7 +11,7 @@ env:
 
 jobs:
   format-check:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v5
@@ -22,7 +22,7 @@ jobs:
             -type f \
             -a \( -name "*.c" -o -name "*.cpp" -o -name "*.h" \) \
             -print0 \
-            | xargs -0 clang-format-14 -i
+            | xargs -0 clang-format-18 -i
 
       - name: Format check
         run: |
@@ -107,7 +107,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path-to-lcov: build/coverage.info
-          flag-name: ${{ matrix.llvm-version }}-${{ matrix.os }}
+          flag-name: ${{ matrix.llvm-version }}-${{ matrix.use-tbaa }}-${{ matrix.os }}
           parallel: true
 
   finish-coverage:
