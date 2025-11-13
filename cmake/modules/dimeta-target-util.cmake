@@ -20,8 +20,10 @@ function(dimeta_target_define_file_basename targetname)
 endfunction()
 
 function(dimeta_target_compile_opts targetname)
-  set_property(TARGET ${targetname} APPEND_STRING PROPERTY
-          COMPILE_FLAGS "-fno-exceptions -fno-rtti")
+  target_compile_features(${targetname} PUBLIC cxx_std_17)
+  set_target_properties(${targetname} PROPERTIES 
+          CXX_EXTENSIONS OFF
+          CXX_STANDARD_REQUIRED OFF)
 endfunction()
 
 function (dimeta_target_generate_file input output)

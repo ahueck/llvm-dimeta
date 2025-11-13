@@ -26,8 +26,10 @@
 #include <iterator>
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/ADT/SmallVector.h>
+#include <llvm/Support/GlobPattern.h>
 #include <optional>
 #include <string>
+#include <utility>
 
 namespace dimeta::tbaa {
 
@@ -43,7 +45,18 @@ struct TBAAHandle {
       return {};
     }
 
-    return TBAAHandle(*access);
+    std::optional<llvm::GlobPattern> glob_pointer_pattern = []() -> std::optional<llvm::GlobPattern> {
+#if LLVM_VERSION_MAJOR > 18
+      auto pattern = llvm::GlobPattern::create("p[1-9] *");
+      if (pattern) {
+        return pattern.get();
+      }
+      LOG_WARNING("Glob pattern to match TBAA strings failed.")
+#endif
+      return std::nullopt;
+    }();
+
+    return TBAAHandle(*access, glob_pointer_pattern);
   }
 
   llvm::StringRef base_name() const {
@@ -55,13 +68,12 @@ struct TBAAHandle {
   }
 
   bool access_is_ptr() const {
-    return access_name() == "any pointer";
+    return check_if_pointer_type(access_name());
   }
 
   bool base_is_ptr() const {
-    return base_name() == "any pointer";
+    return check_if_pointer_type(base_name());
   }
-
   void reset_base(llvm::MDNode* new_base_ty) {
     LOG_DEBUG("Reset base_type " << log::ditype_str(base_ty) << " to " << log::ditype_str(new_base_ty))
     base_ty = new_base_ty;
@@ -74,7 +86,8 @@ struct TBAAHandle {
   }
 
  private:
-  explicit TBAAHandle(llvm::MDNode& tbaa_node) {
+  explicit TBAAHandle(llvm::MDNode& tbaa_node, std::optional<llvm::GlobPattern> pattern)
+      : glob_pointer_pattern_(std::move(pattern)) {
     base_ty        = llvm::dyn_cast<llvm::MDNode>(tbaa_node.getOperand(0));
     access_ty      = llvm::dyn_cast<llvm::MDNode>(tbaa_node.getOperand(1));
     auto* value_md = llvm::dyn_cast<llvm::ValueAsMetadata>(tbaa_node.getOperand(2))->getValue();
@@ -82,6 +95,19 @@ struct TBAAHandle {
     offset       = llvm::dyn_cast<llvm::ConstantInt>(value_md);
     offset_value = offset->getLimitedValue();
   }
+
+  bool check_if_pointer_type(llvm::StringRef name) const {
+    bool matches_glob = false;
+#if LLVM_VERSION_MAJOR > 18
+    if (glob_pointer_pattern_) {
+      // Corrected: assign to matches_glob
+      matches_glob = glob_pointer_pattern_->match(name);
+    }
+#endif
+    return name == "any pointer" || matches_glob;
+  }
+
+  std::optional<llvm::GlobPattern> glob_pointer_pattern_;
 };
 
 namespace helper {

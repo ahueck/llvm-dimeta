@@ -1,8 +1,8 @@
 ; RUN: %apply-verifier %s |& %filecheck %s
 ; REQUIRES: llvm-18 || llvm-19
 
-; CHECK:   Function:        'cudaMalloc<float>'
-; CHECK-NEXT:   Line:            684
+;    Function:        'cudaMalloc<float>'
+; CHECK:   Line:            684
 ; CHECK-NEXT: Builtin:         true
 ; CHECK-NEXT: Type:
 ; CHECK-NEXT:   Fundamental:     { Name: float, Extent: 4, Encoding: float }
