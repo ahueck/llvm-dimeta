@@ -69,7 +69,18 @@ llvm::SmallVector<ValuePath, 4> type_for_heap_call(const llvm::CallBase* call) {
   LOG_DEBUG("Find heap-call to anchor w.r.t. " << *call)
   // Anchor can be anything like function call "malloc -> .. -> foo(malloc)" or "malloc -> .. -> store" etc.
   MallocAnchorMatcher malloc_forward_anchor_finder;
-  value_traversal.traverse(call, malloc_forward_anchor_finder, should_search);
+  // value_traversal.traverse(call, malloc_forward_anchor_finder, should_search);
+  value_traversal.traverse_custom(call, malloc_forward_anchor_finder, should_search,
+                                  [](const ValuePath& val) -> std::optional<decltype(val.value().value()->users())> {
+                                    const auto value = val.value();
+                                    if (!value) {
+                                      return {};
+                                    }
+                                    if (auto* store = llvm::dyn_cast<llvm::StoreInst>(value.value())) {
+                                      return store->getPointerOperand()->users();
+                                    }
+                                    return value.value()->users();
+                                  });
 
   // backward: find paths from anchor (store) to alloca/argument/global etc.
   MallocTargetMatcher malloc_anchor_backtrack;
@@ -83,6 +94,7 @@ llvm::SmallVector<ValuePath, 4> type_for_heap_call(const llvm::CallBase* call) {
     if (auto* store_inst = dyn_cast_or_null<StoreInst>(anchor_path.value().value_or(nullptr))) {
       if (store_inst->getPointerOperand() == call) {
         // see test heap_lulesh_domain_mock.cpp with opt -O3
+        LOG_DEBUG("Continue with " << *store_inst)
         continue;
       }
       if (anchor_path.value()) {
@@ -97,6 +109,17 @@ llvm::SmallVector<ValuePath, 4> type_for_heap_call(const llvm::CallBase* call) {
       }
       continue;
     }
+
+    if (auto* store_inst = dyn_cast_or_null<MemIntrinsic>(anchor_path.value().value_or(nullptr))) {
+      value_traversal.traverse_custom(anchor_path.value().value(), malloc_anchor_backtrack, should_search,
+                                      backtrack_search_dir_fn);
+      for (const auto& backtrack_path : malloc_anchor_backtrack.types_path) {
+        LOG_DEBUG("Found backtrack path for memintrinsic " << backtrack_path)
+        ditype_paths.emplace_back(backtrack_path);
+      }
+      continue;
+    }
+
     ditype_paths.emplace_back(anchor_path);
   }
 
@@ -175,11 +198,14 @@ auto MallocBacktrackSearch::operator()(const ValuePath& path) -> std::optional<V
       }
       return result;
     }
-      //    case Instruction::Call: {
-      //      LOG_DEBUG("Handle call inst")
-      //      result.push_back(inst);
-      //      return result;
-      //    }
+    case Instruction::Call: {
+      LOG_DEBUG("Handle call inst")
+      if (auto memcpy = llvm::dyn_cast<IntrinsicInst>(inst)) {
+        result.push_back(inst->getOperand(0));
+      }
+
+      return result;
+    }
   }
   return {};
 }
@@ -200,6 +226,9 @@ auto MallocTargetMatcher::operator()(const ValuePath& path) -> decltype(DefUseCh
   // Handle path to alloca -> can extract type
   if (const auto* inst = dyn_cast<Instruction>(value)) {
     if (isa<IntrinsicInst>(inst)) {
+      if (isa<MemIntrinsic>(inst)) {
+        return DefUseChain::kContinue;
+      }
       return DefUseChain::kSkip;
     }
     if (isa<AllocaInst>(inst)) {
@@ -257,6 +286,11 @@ auto MallocAnchorMatcher::operator()(const ValuePath& path) -> decltype(DefUseCh
   }
 
   if (llvm::isa<IntrinsicInst>(inst)) {
+    if (const auto memcpy = llvm::dyn_cast<MemIntrinsic>(inst)) {
+      anchors.push_back(path);
+      LOG_DEBUG("Found memintrinsic " << *memcpy)
+      return DefUseChain::kSkip;
+    }
     return DefUseChain::kSkip;
   }
 
@@ -268,6 +302,12 @@ auto MallocAnchorMatcher::operator()(const ValuePath& path) -> decltype(DefUseCh
     case Instruction::Store: {
       const auto* store = cast<StoreInst>(inst);
       if (store->getPointerOperand() != path.start_value()) {
+        for (auto user : store->getPointerOperand()->users()) {
+          if (const auto memcpy = llvm::dyn_cast<MemIntrinsic>(user)) {
+            LOG_DEBUG("Store to target for memintrinsic " << *memcpy)
+            return DefUseChain::kContinue;
+          }
+        }
         anchors.push_back(path);
       } else {
         LOG_DEBUG("Store to allocated object, skipping. " << *store)
