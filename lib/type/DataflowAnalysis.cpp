@@ -8,6 +8,7 @@
 #include "DataflowAnalysis.h"
 
 #include "DefUseAnalysis.h"
+#include "Dimeta.h"
 #include "support/Logger.h"
 
 #include "llvm/ADT/TinyPtrVector.h"
@@ -327,26 +328,41 @@ auto MallocAnchorMatcher::operator()(const ValuePath& path) -> decltype(DefUseCh
 }
 
 namespace fortran {
-std::optional<llvm::Value*> shape_from_value(const llvm::Value* start) {
+inline std::int64_t get_as_int(llvm::Value* shape) {
+  auto* constant_int = llvm::dyn_cast<llvm::ConstantInt>(shape);
+  assert(constant_int && "Expected llvm::ConstantInt");
+  if (constant_int == nullptr) {
+    return -1;
+  }
+  assert(constant_int->getBitWidth() <= 64 && "Value is too wide");
+  const auto type_id = static_cast<std::int64_t>(constant_int->getSExtValue());
+  return type_id;
+}
+std::optional<ShapeData> shape_from_value(const llvm::Value* start) {
   DefUseChain value_traversal;
 
-  std::optional<llvm::Value*> shape;
+  ShapeData data;
   value_traversal.traverse(
       start,
       [&](const ValuePath& path) {
         if (auto call = llvm::dyn_cast<llvm::CallBase>(*path.value())) {
           if ((call->getCalledFunction() != nullptr) &&
               call->getCalledFunction()->getName().contains("_FortranAAllocatableSetBounds")) {
-            shape = call->getOperand(3);
-            LOG_DEBUG("Found shape: " << *shape.value())
-            return DefUseChain::kCancel;
+            // shape = call->getOperand(3);
+            // LOG_DEBUG("Found shape: " << *shape.value())
+            data.shapes.emplace_back(
+                ShapeData::IndexDim{get_as_int(call->getOperand(1)), get_as_int(call->getOperand(3))});
+            return DefUseChain::kContinue;
           }
         }
         return DefUseChain::kContinue;
       },
       [&](const ValuePath&) -> bool { return true; });
 
-  return shape;
+  if (data.shapes.empty()) {
+    return {};
+  }
+  return data;
 }
 
 bool passed_to_fortran_helper(const llvm::Value* start) {
