@@ -13,7 +13,10 @@
 
 #include "llvm/IR/DebugInfoMetadata.h"
 
+#include <cstddef>
+#include <cstdint>
 #include <llvm/ADT/STLExtras.h>
+#include <llvm/IR/Value.h>
 #include <optional>
 
 namespace dimeta {
@@ -96,6 +99,27 @@ void reset_pointer_qualifier(Type& type, int ptr_level) {
                       [&](dimeta::QualifiedCompound& q) -> void { add_pointer(q); }},
              type);
 }
+inline std::int64_t get_as_int(llvm::Value* shape) {
+  auto* constant_int = llvm::dyn_cast<llvm::ConstantInt>(shape);
+  assert(constant_int && "Expected llvm::ConstantInt");
+  if (constant_int == nullptr) {
+    return -1;
+  }
+  assert(constant_int->getBitWidth() <= 64 && "Value is too wide");
+  const std::int64_t type_id = static_cast<std::int64_t>(constant_int->getSExtValue());
+  return type_id;
+}
+
+template <typename Type>
+void reset_shape_qualifier(Type& type, llvm::Value* shape) {
+  const auto add_shape = [&](auto& f) {
+    f.array_size.clear();
+    f.array_size.push_back(get_as_int(shape));
+  };
+  std::visit(overload{[&](dimeta::QualifiedFundamental& f) -> void { add_shape(f); },
+                      [&](dimeta::QualifiedCompound& q) -> void { add_shape(q); }},
+             type);
+}
 
 }  // namespace detail
 
@@ -127,6 +151,11 @@ std::optional<LocatedType> located_type_for(const DimetaData& type_data) {
   }
 
   detail::reset_pointer_qualifier(dimeta_result->type_, type_data.pointer_level);
+  // Fortran:
+  if (type_data.shape_descriptor) {
+    LOG_DEBUG("Reset shape of array")
+    detail::reset_shape_qualifier(dimeta_result->type_, type_data.shape_descriptor.value());
+  }
   return LocatedType{dimeta_result->type_, loc.value()};
 }
 

@@ -17,13 +17,14 @@
 namespace dimeta::memory {
 
 enum class MemOpKind : uint8_t {
-  kNewLike          = 1 << 0,  // allocates, never null
-  kMallocLike       = 1 << 1,  // allocates, maybe null
-  kAlignedAllocLike = 1 << 2,  // allocates aligned, maybe null
-  kCallocLike       = 1 << 3,  // allocates zeroed
-  kReallocLike      = 1 << 4,  // re-allocated (existing) memory
-  kNewCppLike       = ((1 << 5) | kNewLike),
-  kCudaMallocLike   = 1 << 6,
+  kNewLike           = 1 << 0,  // allocates, never null
+  kMallocLike        = 1 << 1,  // allocates, maybe null
+  kAlignedAllocLike  = 1 << 2,  // allocates aligned, maybe null
+  kCallocLike        = 1 << 3,  // allocates zeroed
+  kReallocLike       = 1 << 4,  // re-allocated (existing) memory
+  kNewCppLike        = ((1 << 5) | kNewLike),
+  kCudaMallocLike    = 1 << 6,
+  kFortranMallocLike = 1 << 7,
 };
 
 namespace detail {
@@ -65,6 +66,15 @@ struct MemOps {
     return static_cast<bool>(kind);
   }
 
+  [[nodiscard]] inline bool isFortranLike(llvm::StringRef function) const {
+    auto kind = allocKind(function);
+    if (!kind) {
+      return false;
+    }
+    const auto value = kind.value();
+    return detail::has_value(value, MemOpKind::kFortranMallocLike);
+  }
+
  private:
   const llvm::StringMap<MemOpKind> alloc_map_{
       {"malloc", MemOpKind::kMallocLike},
@@ -97,6 +107,7 @@ struct MemOps {
       {"cudaMallocManaged", MemOpKind::kCudaMallocLike},
       {"cudaMallocFromPoolAsync", MemOpKind::kCudaMallocLike},
       {"cudaMallocAsync", MemOpKind::kCudaMallocLike},
+      {"_FortranAAllocatableAllocate", MemOpKind::kFortranMallocLike},
 
   };
 };

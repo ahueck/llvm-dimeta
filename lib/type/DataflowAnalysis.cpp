@@ -326,6 +326,51 @@ auto MallocAnchorMatcher::operator()(const ValuePath& path) -> decltype(DefUseCh
   return DefUseChain::kContinue;
 }
 
+namespace fortran {
+std::optional<llvm::Value*> shape_from_value(const llvm::Value* start) {
+  DefUseChain value_traversal;
+
+  std::optional<llvm::Value*> shape;
+  value_traversal.traverse(
+      start,
+      [&](const ValuePath& path) {
+        if (auto call = llvm::dyn_cast<llvm::CallBase>(*path.value())) {
+          if ((call->getCalledFunction() != nullptr) &&
+              call->getCalledFunction()->getName().contains("_FortranAAllocatableSetBounds")) {
+            shape = call->getOperand(3);
+            LOG_DEBUG("Found shape: " << *shape.value())
+            return DefUseChain::kCancel;
+          }
+        }
+        return DefUseChain::kContinue;
+      },
+      [&](const ValuePath&) -> bool { return true; });
+
+  return shape;
+}
+
+bool passed_to_fortran_helper(const llvm::Value* start) {
+  DefUseChain value_traversal;
+
+  bool passed{false};
+  value_traversal.traverse(
+      start,
+      [&](const ValuePath& path) {
+        if (auto call = llvm::dyn_cast<llvm::CallBase>(*path.value())) {
+          if ((call->getCalledFunction() != nullptr) && call->getCalledFunction()->getName().contains("_FortranA")) {
+            passed = true;
+            return DefUseChain::kCancel;
+          }
+        }
+        return DefUseChain::kContinue;
+      },
+      [&](const ValuePath&) -> bool { return true; });
+
+  return passed;
+}
+
+}  // namespace fortran
+
 namespace experimental {
 llvm::SmallVector<dataflow::ValuePath, 4> path_from_value(const llvm::Value* start) {
   llvm::SmallVector<ValuePath, 4> ditype_paths;
