@@ -44,6 +44,7 @@
 
 #include <cassert>
 #include <iterator>
+#include <optional>
 #include <string>
 
 namespace llvm {
@@ -62,7 +63,7 @@ struct FortranType {
   llvm::DIType* type{nullptr};
   std::optional<ShapeData> shape_argument;
 };
-std::optional<FortranType> di_type_for(const llvm::Value* value);
+std::optional<FortranType> di_type_for(const llvm::Value* value, const llvm::CallBase* call = nullptr);
 }  // namespace fortran
 
 namespace experimental {
@@ -157,7 +158,7 @@ std::optional<DimetaData> type_for(const llvm::CallBase* call) {
   const auto is_fortran_like = mem_ops.isFortranLike(cb_fun->getName());
   if (is_fortran_like) {
     LOG_DEBUG("Type for fortran-like " << cb_fun->getName())
-    auto fortran_type = fortran::di_type_for(call->getOperand(0));
+    auto fortran_type = fortran::di_type_for(call->getOperand(0), call);
     if (fortran_type) {
       extracted_type = fortran_type->type;
       if (fortran_type->shape_argument) {
@@ -267,12 +268,17 @@ std::optional<CompileUnitTypeList> compile_unit_types(const llvm::Module* module
 }
 
 namespace fortran {
-std::optional<FortranType> di_type_for(const llvm::Value* value) {
+std::optional<FortranType> di_type_for(const llvm::Value* value, const llvm::CallBase* call) {
   assert(value != nullptr);
-
   auto shape = dataflow::fortran::shape_from_value(value);
 
-  return FortranType{experimental::di_type_for(value).value_or(nullptr), shape};
+  auto paths                = dataflow::experimental::path_from_value(value);
+  const auto ditypes_vector = collect_types(call, paths);
+  if (ditypes_vector.empty()) {
+    return {};
+  }
+
+  return FortranType{*ditypes_vector.begin(), shape};
 }
 }  // namespace fortran
 
