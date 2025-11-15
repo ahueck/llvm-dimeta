@@ -31,6 +31,7 @@ struct ShapeData {
   struct IndexDim {
     std::int64_t index{-1};
     std::int64_t dim{0};
+    llvm::Value* dim_value{nullptr};
   };
   std::vector<IndexDim> shapes;
 };

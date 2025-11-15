@@ -31,6 +31,8 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <cassert>
+#include <cstdint>
+#include <llvm/IR/GlobalValue.h>
 #include <optional>
 
 namespace llvm {
@@ -200,10 +202,16 @@ auto MallocBacktrackSearch::operator()(const ValuePath& path) -> std::optional<V
     }
     case Instruction::Call: {
       LOG_DEBUG("Handle call inst")
-      if (auto memcpy = llvm::dyn_cast<IntrinsicInst>(inst)) {
+      if (MemCpyInst::classof(inst)) {
         result.push_back(inst->getOperand(0));
       }
 
+      return result;
+    }
+    case Instruction::SExt: {
+      // Used by fortran/07_bounds.f90
+      LOG_DEBUG("Handle SExt inst")
+      result.push_back(llvm::dyn_cast<llvm::SExtInst>(inst)->getOperand(0));
       return result;
     }
   }
@@ -226,7 +234,7 @@ auto MallocTargetMatcher::operator()(const ValuePath& path) -> decltype(DefUseCh
   // Handle path to alloca -> can extract type
   if (const auto* inst = dyn_cast<Instruction>(value)) {
     if (isa<IntrinsicInst>(inst)) {
-      if (isa<MemIntrinsic>(inst)) {
+      if (llvm::MemCpyInst::classof(inst)) {
         return DefUseChain::kContinue;
       }
       return DefUseChain::kSkip;
@@ -368,16 +376,51 @@ auto MallocAnchorMatcher::operator()(const ValuePath& path) -> decltype(DefUseCh
 }
 
 namespace fortran {
+
 inline std::int64_t get_as_int(llvm::Value* shape) {
-  auto* constant_int = llvm::dyn_cast<llvm::ConstantInt>(shape);
-  assert(constant_int && "Expected llvm::ConstantInt");
-  if (constant_int == nullptr) {
-    return -1;
+  const auto to_int = [](const llvm::Value* shape) -> std::optional<std::int64_t> {
+    if (shape == nullptr) {
+      return {};
+    }
+    auto* constant_int = llvm::dyn_cast<llvm::ConstantInt>(shape);
+    // assert(constant_int && "Expected llvm::ConstantInt");
+    if (constant_int) {
+      assert(constant_int->getBitWidth() <= 64 && "Value is too wide");
+      const auto type_id = static_cast<std::int64_t>(constant_int->getSExtValue());
+      return {type_id};
+    }
+    return {};
+  };
+
+  const auto int_value = to_int(shape);
+  if (int_value) {
+    return int_value.value();
   }
-  assert(constant_int->getBitWidth() <= 64 && "Value is too wide");
-  const auto type_id = static_cast<std::int64_t>(constant_int->getSExtValue());
-  return type_id;
+
+  std::optional<std::int64_t> global_value;
+  {
+    DefUseChain value_traversal;
+    MallocBacktrackSearch backtrack_search_dir_fn;
+    value_traversal.traverse_custom(
+        shape,
+        [&](const ValuePath& path) {
+          LOG_DEBUG("Global value for shape: " << **path.value())
+          if (auto global = llvm::dyn_cast<llvm::GlobalVariable>(*path.value())) {
+            const auto int_value = to_int(global->getInitializer());
+
+            if (int_value) {
+              LOG_DEBUG("Global int for shape: " << int_value.value())
+              global_value = int_value;
+            }
+            return DefUseChain::kCancel;
+          }
+          return DefUseChain::kContinue;
+        },
+        [&](const ValuePath&) -> bool { return true; }, backtrack_search_dir_fn);
+  }
+  return global_value.value_or(-1);
 }
+
 std::optional<ShapeData> shape_from_value(const llvm::Value* start) {
   DefUseChain value_traversal;
 
@@ -390,8 +433,8 @@ std::optional<ShapeData> shape_from_value(const llvm::Value* start) {
               call->getCalledFunction()->getName().contains("_FortranAAllocatableSetBounds")) {
             // shape = call->getOperand(3);
             // LOG_DEBUG("Found shape: " << *shape.value())
-            data.shapes.emplace_back(
-                ShapeData::IndexDim{get_as_int(call->getOperand(1)), get_as_int(call->getOperand(3))});
+            const auto dim = get_as_int(call->getOperand(3));
+            data.shapes.emplace_back(ShapeData::IndexDim{get_as_int(call->getOperand(1)), dim});
             return DefUseChain::kContinue;
           }
         }
