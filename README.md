@@ -125,7 +125,7 @@ entry:
 
 ## 2. Building llvm-dimeta
 
-llvm-dimeta is tested with LLVM version 13--15 and 18--20, and CMake version >= 3.20. Use CMake presets `develop` or `release` to build.
+llvm-dimeta is tested with LLVM version 13--15 and 18--21, and CMake version >= 3.20. Use CMake presets `develop` or `release` to build.
 
 ### 2.1 Build example
 
