@@ -1,6 +1,6 @@
 # llvm-dimeta  &middot; [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause) [![Coverage Status](https://coveralls.io/repos/github/ahueck/llvm-dimeta/badge.svg?branch=main)](https://coveralls.io/github/ahueck/llvm-dimeta)
 
-llvm-dimeta is library to determine the type of stack (`AllocaInst`), globals (`GlobalVariables`) and heap allocations in LLVM IR based only on the LLVM debug information and metadata.
+llvm-dimeta \[[DI25](#ref-llvm-dimeta-2025)\] is library to determine the type of stack (`AllocaInst`), globals (`GlobalVariables`) and heap allocations in LLVM IR based only on the LLVM debug information and metadata.
 
 To that end, [Dimeta.h](lib/type/Dimeta.h) defines an API to
 (a) query the LLVM debug metadata entry (`DIType`) for an allocation, or (b) query source location-specific type information with a custom type serialization as defined in [DimetaData.h](lib/type/DimetaData.h).
@@ -80,7 +80,7 @@ entry:
 ...
 ```
 
-1. Calling `located_type_for` on the `AllocaInst` `%a_struct` results in: 
+1. Calling `located_type_for` on the `llvm::AllocaInst` `%a_struct` results in: 
 
     ```yaml
     SourceLoc:
@@ -105,7 +105,7 @@ entry:
 
     The library searches the function `@foo` for the `#dbg_declare` debug record of the `alloca` and parses the layout of `!15`.
 
-2. Calling `located_type_for` on the `CallBase` for `@malloc` results in:
+2. Calling `located_type_for` on the `llvm::CallBase` for `@malloc` results in:
 
     ```yaml
     SourceLoc:
@@ -118,14 +118,14 @@ entry:
         Qualifiers:      [ ptr ]
     ```
    
-   Since there is no debug record for the call, we use dataflow analysis starting from the `malloc` call to resolve the type:
+   Since there is no debug type metadata mapping for the call, we use dataflow analysis starting from the `malloc` call to resolve the type:
    The process starts with a forward data flow search from the `malloc` call, finding the store instruction. A subsequent backward search of the store target identifies the alloca `%a_struct` as the root node. The type of the root is identified as `struct A` through the debug record (`!16`). 
    Using the root type, we analyze the rest of the instruction to refine the `DIType`: The `getelementptr` instruction determines the LHS of the assignment. By using the access indices `0 0`, we trace through the debug metadata of the root node (`!16`) and identify that it points to the member pointer `!18`, which has the base type `int` (`!19`).
 
 
 ## 2. Building llvm-dimeta
 
-llvm-dimeta is tested with LLVM version 13--15 and 18--21, and CMake version >= 3.20. Use CMake presets `develop` or `release` to build.
+llvm-dimeta is tested with LLVM version 13-15 and 18-21, and CMake version >= 3.20. Use CMake presets `develop` or `release` to build.
 
 ### 2.1 Build example
 
@@ -138,10 +138,34 @@ $> cmake --preset release
 $> cmake --build build --target install --parallel
 ```
 
-### 2.2 Testing
+### 2.2 Main build flags
+
+| Option                     | Default | Description                                                              |
+|----------------------------|:-------:|--------------------------------------------------------------------------|
+| `DIMETA_USE_HEAPALLOCSITE` |  `ON`   | Use `!heapallocsite` metadata to type the allocation                     |
+| `DIMETA_USE_TBAA`          |  `OFF`  | Use C/C++ type-based alias analysis data to type the allocation          |
+| `DIMETA_TEST_CONFIG`       |  `OFF`  | Enable test config, see Section [2.3](#23-testing) (sets log level etc.) |
+| `DIMETA_LOG_LEVEL`         |   `1`   | Granularity of pass logger. 3 is most verbose, 0 is least                |
+| `DIMETA_ENABLE_COVERAGE`   |  `OFF`  | Enable collecting (test) coverage information                            |
+
+
+### 2.3 Testing
 For testing we require `lit` and `FileCheck`.
 To execute the lit test suite:
 
 ```sh
 $> cmake --build build --target check-dimeta
 ```
+
+## References
+
+<table style="border:0px">
+<tr>
+    <td valign="top"><a name="ref-llvm-dimeta-2025"></a>[DI25]</td>
+    <td>Hück, Alexander and Kreutzer, Sebastian and Bischof, Christian.
+    <b>llvm-dimeta: A library for extracting source-level type information in LLVM IR using debug metadata</b>.
+    In <i>2025 IEEE International Conference on Source Code Analysis & Manipulation (SCAM)</i>,
+    pages 116-121. IEEE, 2025. DOI: <a href="https://doi.org/10.1109/SCAM67354.2025.00019">10.1109/SCAM67354.2025.00019</a></td>
+</tr>
+</table>
+
