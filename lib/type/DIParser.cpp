@@ -14,8 +14,10 @@
 #include <cassert>
 #include <cstdlib>
 #include <llvm/BinaryFormat/Dwarf.h>
+#include <llvm/IR/Constants.h>
 #include <llvm/IR/DebugInfoMetadata.h>
 #include <llvm/Support/Casting.h>
+#include <optional>
 
 namespace dimeta::diparser {
 
@@ -161,8 +163,24 @@ bool DIEventVisitor::visitNode(const llvm::DINode* node) {
     events_.make_enum_member(current_);
   } else if (const auto* sub_range = llvm::dyn_cast<llvm::DISubrange>(node)) {
     assert(!current_.arrays.empty() && "Subrange requires array composite on stack");
-    if (sub_range->getCount().is<llvm::ConstantInt*>()) {
-      const auto* count = sub_range->getCount().get<llvm::ConstantInt*>();
+
+    const auto subrange_constant = [&sub_range]() -> std::optional<const llvm::ConstantInt*> {
+#if LLVM_VERSION_MAJOR > 19
+      if (llvm::isa<llvm::ConstantInt*>(sub_range->getCount())) {
+        auto* count = llvm::cast<llvm::ConstantInt*>(sub_range->getCount());
+        return count;
+      }
+#else
+      if (sub_range->getCount().is<llvm::ConstantInt*>()) {
+        auto* count = sub_range->getCount().get<llvm::ConstantInt*>();
+        return count;
+      }
+#endif
+      return {};
+    }();
+
+    if (subrange_constant.has_value()) {
+      const auto* count = subrange_constant.value();
       auto& array       = current_.arrays.back();
       if (!count->getValue().isNegative()) {
         auto range_count = count->getValue().getLimitedValue();

@@ -25,6 +25,9 @@ string(COMPARE EQUAL "${CMAKE_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}"
   DIMETA_IS_TOP_LEVEL
 )
 
+option(DIMETA_USE_TBAA "Use TBAA metadata if present." OFF)
+mark_as_advanced(DIMETA_USE_TBAA)
+
 option(DIMETA_PASS_PLUGIN "Compile LLVM pass plugin." OFF)
 mark_as_advanced(DIMETA_PASS_PLUGIN)
 

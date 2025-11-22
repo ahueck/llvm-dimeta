@@ -4,7 +4,6 @@ set(LIB_SOURCES
   Dimeta.h
   DimetaIO.h
   DimetaParse.h
-  TBAA.cpp
   DataflowAnalysis.cpp
   GEP.cpp
   SourceLocType.cpp
@@ -16,6 +15,10 @@ set(LIB_SOURCES
   DITypeExtractor.cpp
 )
 
+if(DIMETA_USE_TBAA)
+  set(LIB_SOURCES ${LIB_SOURCES} TBAA.cpp)
+endif()
+
 add_library(dimeta_Types STATIC
   "${LIB_SOURCES}"
 )
@@ -25,10 +28,11 @@ add_library(dimeta::Types ALIAS dimeta_Types)
 dimeta_target_define_file_basename(dimeta_Types)
 
 set_property(TARGET dimeta_Types PROPERTY POSITION_INDEPENDENT_CODE ON)
+set_property(TARGET ${targetname} APPEND_STRING PROPERTY
+          COMPILE_FLAGS "-fno-exceptions -fno-rtti")
+dimeta_target_compile_opts(dimeta_Types)
 
 target_include_directories(dimeta_Types SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
-
-target_compile_definitions(dimeta_Types PRIVATE $<$<BOOL:${DIMETA_USE_HEAPALLOCSITE}>:DIMETA_USE_HEAPALLOCSITE=1>)
 
 #target_link_libraries(dimeta_Types PRIVATE LLVMCore)
 
@@ -36,9 +40,9 @@ target_compile_definitions(dimeta_Types
         PRIVATE
         LLVM_VERSION_MAJOR=${LLVM_VERSION_MAJOR}
         DIMETA_LOG_LEVEL=${DIMETA_LOG_LEVEL}
+        $<$<BOOL:${DIMETA_USE_HEAPALLOCSITE}>:DIMETA_USE_HEAPALLOCSITE=1>
+        $<$<BOOL:${DIMETA_USE_TBAA}>:DIMETA_USE_TBAA=1>
         )
-
-dimeta_target_compile_opts(dimeta_Types)
 
 target_include_directories(
   dimeta_Types
@@ -52,7 +56,6 @@ set_target_properties(
   OUTPUT_NAME "dimetaTypes"
   EXPORT_NAME "Types"
 )
-
 
 set(CONFIG_NAME dimetaTypes)
 set(TARGETS_EXPORT_NAME ${CONFIG_NAME}Targets)
