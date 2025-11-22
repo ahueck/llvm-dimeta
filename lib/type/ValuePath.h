@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <functional>
+#include <llvm/ADT/STLExtras.h>
 #include <llvm/IR/InstrTypes.h>
 #include <optional>
 
@@ -32,6 +33,10 @@ struct ValuePath {
   ValuePath() = default;
 
   explicit ValuePath(const llvm::Value* start) : path_to_value(1, start) {
+  }
+
+  bool contains(const llvm::Value* value) const {
+    return llvm::is_contained(path_to_value, value);
   }
 
   [[nodiscard]] inline bool empty() const {

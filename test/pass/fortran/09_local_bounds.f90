@@ -1,4 +1,5 @@
 ! RUN: %fortran-to-llvm %s | %apply-verifier 2>&1 | %filecheck %s
+! RUN: %fortran-to-llvm %s | %opt -O2 | %apply-verifier 2>&1 | %filecheck %s
 
 ! REQUIRES: hasflang
 
@@ -13,7 +14,7 @@ MODULE tea_module
       INTEGER :: halo_exchange_depth = 0
    END TYPE ChunkType
 
-   TYPE(ChunkType) :: chunk
+   ! TYPE(ChunkType) :: chunk
    INTEGER :: tiles_per_task = 3
 
 CONTAINS
@@ -26,7 +27,7 @@ CONTAINS
 
 END MODULE tea_module
 
-! CHECK:   Line:            24
+! CHECK:   Line:            25
 ! CHECK-NEXT: Builtin:         false
 ! CHECK-NEXT: Type:
 ! CHECK-NEXT:   Compound:

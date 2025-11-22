@@ -7,6 +7,7 @@
 //
 
 #include "DIFinder.h"
+#include "DIFortranTypeExtractor.h"
 #include "DIRootType.h"
 #include "DIUtil.h"
 #include "DataflowAnalysis.h"
@@ -395,6 +396,17 @@ std::optional<llvm::DIType*> find_type(const dataflow::CallValuePath& call_path)
     return {};
   }
 
+  LOG_DEBUG("IR path to analyze " << call_path.path)
+
+  if (call_path.call) {
+    const auto function       = call_path.call.value()->getCalledFunction();
+    const auto fortran_handle = function ? function->getName().contains("_FortranAAllocatableAllocate") : false;
+    if (fortran_handle) {
+      LOG_DEBUG("Fortran handle found " << function->getName())
+      return fortran::extract(call_path, type);
+    }
+  }
+
   reset::dipath::ValueToDiPath dipath;
 
   const auto path_end = call_path.path.path_to_value.rend();
@@ -404,33 +416,6 @@ std::optional<llvm::DIType*> find_type(const dataflow::CallValuePath& call_path)
     LOG_DEBUG("reset_ditype result " << log::ditype_str(type.value_or(nullptr)) << "\n")
     if (!type) {
       break;
-    }
-  }
-
-  {
-    // Fortran workaround:
-    // If _FortranAAllocatableAllocate called on a global directly, assume first member is actually allocated, see test
-    // 08_bounds_nogep.f90 vs. 08_bounds.f90:
-    // @_QMtea_moduleEchunk = global %_QMtea_moduleTchunktype
-    // call i32 @_FortranAAllocatableAllocate(ptr @_QMtea_moduleEchunk, ...), !dbg !30
-    if (call_path.call.has_value() && dipath.final_type().has_value()) {
-      const auto function       = call_path.call.value()->getCalledFunction();
-      const auto fortran_handle = function ? function->getName().contains("_FortranAAllocatableAllocate") : false;
-
-      const bool only_global = llvm::isa<llvm::GlobalVariable>(*call_path.path.value()) && call_path.path.size() == 1;
-
-      auto ditype_final = dipath.final_type().value();
-
-      if (only_global && fortran_handle && llvm::isa<llvm::DICompositeType>(ditype_final)) {
-        // dipath.emplace_back(call_path.path.value(), type.value()->get)
-        LOG_FATAL("Reset fortran allocated type " << *ditype_final)
-        auto struct_mem =
-            di::util::resolve_byte_offset_to_member_of(llvm::cast<llvm::DICompositeType>(ditype_final), 0);
-        if (struct_mem) {
-          dipath.emplace_back(*call_path.path.value(), struct_mem->type_of_member.value_or(ditype_final),
-                              "Fortran global reset");
-        }
-      }
     }
   }
 

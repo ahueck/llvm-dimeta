@@ -1,4 +1,5 @@
 ! RUN: %fortran-to-llvm %s | %apply-verifier 2>&1 | %filecheck %s
+! RUN: %fortran-to-llvm %s | %opt -O2 | %apply-verifier 2>&1 | %filecheck %s
 
 ! REQUIRES: hasflang
 
@@ -13,7 +14,7 @@ FUNCTION foo(n)
    END DO
 END FUNCTION foo
 
-! CHECK:  Line:            10
+! CHECK:  Line:            11
 ! CHECK-NEXT: Builtin:         true
 ! CHECK-NEXT: Type:
 ! CHECK-NEXT: Fundamental:     { Name: real, Extent: 8, Encoding: float }

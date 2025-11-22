@@ -199,6 +199,44 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::CallValuePath& call_
       LOG_DEBUG("Called function not found for call base " << *call_inst)
       return {};
     }
+    {
+      // Fortran extension
+      // TODO: handle memcpy indirection
+      if (MemCpyInst::classof(call_inst)) {
+        LOG_DEBUG("Found memcpy, take source " << *call_inst->getArgOperand(1))
+        if (auto alloca = llvm::dyn_cast<llvm::AllocaInst>(call_inst->getArgOperand(1))) {
+          // auto type_of_alloca = find_type_root(dataflow::CallValuePath{std::nullopt, call_path.path});
+          auto local_di_var = difinder::find_local_variable(alloca);
+          if (local_di_var) {
+            LOG_DEBUG("Found type through memcpy")
+            return local_di_var.value()->getType();
+          }
+
+          for (auto user : alloca->users()) {
+            if (auto store = llvm::dyn_cast<llvm::StoreInst>(user)) {
+              if (const auto* argument = llvm::dyn_cast<llvm::Argument>(store->getValueOperand())) {
+                LOG_DEBUG("Found type through memcpy (argument)")
+                return helper::type_of_argument(*argument);
+              }
+            }
+          }
+          if (call_path.path.contains(alloca)) {
+            LOG_DEBUG("Alloca contained in path, skipping further analysis")
+            return {};
+          }
+
+          LOG_DEBUG("Dataflow analysis of alloca")
+          auto paths_from_alloca = dataflow::path_from_alloca(alloca);
+          for (auto& path : paths_from_alloca) {
+            LOG_DEBUG("Path from alloca " << path)
+            auto type_of_alloca = find_type_root(dataflow::CallValuePath{std::nullopt, path});
+            if (type_of_alloca) {
+              return type_of_alloca;
+            }
+          }
+        }
+      }
+    }
 
     dimeta::memory::MemOps ops;
     if (ops.allocKind(called_f->getName())) {

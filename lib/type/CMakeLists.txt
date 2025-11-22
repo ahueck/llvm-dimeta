@@ -13,6 +13,7 @@ set(LIB_SOURCES
   DIFinder.cpp
   DIRootType.cpp
   DITypeExtractor.cpp
+  DIFortranTypeExtractor.cpp
 )
 
 if(DIMETA_USE_TBAA)

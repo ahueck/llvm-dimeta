@@ -1,4 +1,5 @@
 ! RUN: %fortran-to-llvm %s | %apply-verifier 2>&1 | %filecheck %s
+! RUN: %fortran-to-llvm %s | %opt -O2 | %apply-verifier 2>&1 | %filecheck %s
 
 ! REQUIRES: hasflang
 
@@ -27,7 +28,7 @@ CONTAINS
 
 END MODULE tea_module
 
-! CHECK:   Line:            25
+! CHECK:   Line:            26
 ! CHECK-NEXT: Builtin:         false
 ! CHECK-NEXT: Type:
 ! CHECK-NEXT:   Compound:
