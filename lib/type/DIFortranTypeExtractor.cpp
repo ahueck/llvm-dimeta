@@ -31,12 +31,22 @@ struct TypeDescritor {
 };
 
 bool is_fortran_descriptor(llvm::Type* type) {
+  LOG_DEBUG("Analyzing " << *type)
   // Detects if the given type is a Fortran descriptor structure.
-  // Expected pattern: { ptr, i64, i32, i8, i8, i8, i8, [n x [3 x i64]], ptr, [n x i64] }
+  // Expected pattern:
+  // - Array: { ptr, i64, i32, i8, i8, i8, i8, [n x [3 x i64]], ptr, [n x i64] } (10 elements)
+  // - Scalar: { ptr, i64, i32, i8, i8, i8, i8, ptr, [n x i64] } (9 elements)
   auto* struct_type = llvm::dyn_cast_or_null<llvm::StructType>(type);
-  if (!struct_type || struct_type->getNumElements() != 10) {
+  if (!struct_type) {
     return false;
   }
+
+  const auto num_elements = struct_type->getNumElements();
+  if (num_elements != 10 && num_elements != 9) {
+    return false;
+  }
+
+  const bool is_scalar = (num_elements == 9);
 
   // 0: ptr (base_addr)
   if (!struct_type->getElementType(0)->isPointerTy()) {
@@ -56,27 +66,33 @@ bool is_fortran_descriptor(llvm::Type* type) {
       return false;
     }
   }
-  // 7: [n x [3 x i64]] (dimensions)
-  auto* dim_arr = llvm::dyn_cast<llvm::ArrayType>(struct_type->getElementType(7));
-  if (!dim_arr) {
+
+  unsigned current_idx     = 7;
+  llvm::ArrayType* dim_arr = nullptr;
+  if (!is_scalar) {
+    // 7: [n x [3 x i64]] (dimensions)
+    dim_arr = llvm::dyn_cast<llvm::ArrayType>(struct_type->getElementType(current_idx++));
+    if (!dim_arr) {
+      return false;
+    }
+    auto* inner_dim_arr = llvm::dyn_cast<llvm::ArrayType>(dim_arr->getElementType());
+    if (!inner_dim_arr || inner_dim_arr->getNumElements() != 3 || !inner_dim_arr->getElementType()->isIntegerTy(64)) {
+      return false;
+    }
+  }
+
+  // 8 (or 7): ptr (type descriptor pointer)
+  if (!struct_type->getElementType(current_idx++)->isPointerTy()) {
     return false;
   }
-  auto* inner_dim_arr = llvm::dyn_cast<llvm::ArrayType>(dim_arr->getElementType());
-  if (!inner_dim_arr || inner_dim_arr->getNumElements() != 3 || !inner_dim_arr->getElementType()->isIntegerTy(64)) {
-    return false;
-  }
-  // 8: ptr (type descriptor pointer)
-  if (!struct_type->getElementType(8)->isPointerTy()) {
-    return false;
-  }
-  // 9: [n x i64] (addendum)
-  auto* addendum_arr = llvm::dyn_cast<llvm::ArrayType>(struct_type->getElementType(9));
+
+  // 9 (or 8): [n x i64] (addendum)
+  auto* addendum_arr = llvm::dyn_cast<llvm::ArrayType>(struct_type->getElementType(current_idx++));
   if (!addendum_arr || !addendum_arr->getElementType()->isIntegerTy(64)) {
     return false;
   }
 
-  // Rank n should match
-  if (dim_arr->getNumElements() != addendum_arr->getNumElements()) {
+  if (dim_arr && dim_arr->getNumElements() != addendum_arr->getNumElements()) {
     return false;
   }
 

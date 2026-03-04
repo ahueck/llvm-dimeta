@@ -208,6 +208,14 @@ std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath&
     return type;
   }
 
+  // Fortran test 11_...F90:
+  if (auto gep = detail::get_operand_to<llvm::GetElementPtrInst>(load)) {
+    const bool fortran_descriptor = fortran::is_fortran_descriptor(gep.value()->getSourceElementType());
+    if (fortran_descriptor) {
+      return type;
+    }
+  }
+
   if (di::util::is_array_member(*type)) {
     auto* base_type = llvm::dyn_cast<llvm::DIDerivedType>(type)->getBaseType();
     LOG_DEBUG("Load of array-like " << log::ditype_str(base_type))
@@ -361,13 +369,19 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dat
 
   if (llvm::isa<llvm::GEPOperator>(*current_value)) {
     LOG_DEBUG("Reset based on GEP")
-    auto* gep             = llvm::cast<llvm::GEPOperator>(*current_value);
-    const auto gep_result = gep::extract_gep_dereferenced_type(type.value(), *gep);
-    if (gep_result.member && !gep_result.use_type) {
-      LOG_DEBUG("Using gep member type result")
-      type = gep_result.member;
+    const llvm::GEPOperator* gep_op = llvm::cast<llvm::GEPOperator>(*current_value);
+    const bool fortran_descriptor   = fortran::is_fortran_descriptor(gep_op->getSourceElementType());
+    if (!fortran_descriptor) {
+      const auto gep_result = gep::extract_gep_dereferenced_type(type.value(), *gep_op);
+      if (gep_result.member && !gep_result.use_type) {
+        LOG_DEBUG("Using gep member type result")
+        type = gep_result.member;
+      } else {
+        type = gep_result.type;
+      }
     } else {
-      type = gep_result.type;
+      // Fortran test 11_...F90:
+      LOG_DEBUG("Skipping GEP, Fortran descriptor")
     }
   } else if (const auto* load = llvm::dyn_cast<llvm::LoadInst>(*current_value)) {
     LOG_DEBUG("Reset based on load")

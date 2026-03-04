@@ -141,6 +141,17 @@ std::optional<llvm::DIType*> type_of_argument(const llvm::Argument& argument) {
   return {};
 }
 
+std::optional<llvm::DIType*> type_of_global(const llvm::GlobalVariable* global_variable) {
+  auto dbg_md = global_variable->getMetadata("dbg");
+  if (!dbg_md) {
+    return {};
+  }
+  if (auto* global_expression = llvm::dyn_cast<llvm::DIGlobalVariableExpression>(dbg_md)) {
+    return global_expression->getVariable()->getType();
+  }
+  return {};
+}
+
 }  // namespace helper
 
 std::optional<llvm::DIType*> find_type_root(const dataflow::CallValuePath& call_path) {
@@ -234,6 +245,9 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::CallValuePath& call_
               return type_of_alloca;
             }
           }
+        } else if (auto global = llvm::dyn_cast<llvm::GlobalVariable>(call_inst->getArgOperand(1))) {
+          LOG_DEBUG("Memcpy of global variable detected")
+          return helper::type_of_global(global);
         }
       }
     }
@@ -280,14 +294,7 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::CallValuePath& call_
   }
 
   if (const auto* global_variable = llvm::dyn_cast<llvm::GlobalVariable>(root_value)) {
-    auto dbg_md = global_variable->getMetadata("dbg");
-    if (!dbg_md) {
-      return {};
-    }
-    if (auto* global_expression = llvm::dyn_cast<llvm::DIGlobalVariableExpression>(dbg_md)) {
-      return global_expression->getVariable()->getType();
-    }
-    return {};
+    return helper::type_of_global(global_variable);
   }
 
   if (const auto* argument = llvm::dyn_cast<llvm::Argument>(root_value)) {
