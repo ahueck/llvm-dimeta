@@ -90,12 +90,19 @@ PassPluginLibraryInfo getPassPluginInfo() {
   const auto callback = [](PassBuilder& PB) {
 #if LLVM_VERSION_MAJOR < 12
     PB.registerPipelineStartEPCallback([&](ModulePassManager& MPM) {
-#else
-    PB.registerPipelineEarlySimplificationEPCallback([&](ModulePassManager& MPM, auto) {
-#endif
       MPM.addPass(dimeta::TestPass());
       return true;
     });
+#elif LLVM_VERSION_MAJOR >= 14
+    PB.registerPipelineEarlySimplificationEPCallback([&](ModulePassManager& MPM, auto...) {
+      MPM.addPass(dimeta::TestPass());
+    });
+#else
+    PB.registerPipelineEarlySimplificationEPCallback([&](ModulePassManager& MPM, auto) {
+      MPM.addPass(dimeta::TestPass());
+      return true;
+    });
+#endif
   };
 
   return {LLVM_PLUGIN_API_VERSION, DEBUG_TYPE, "0.0.1", callback};

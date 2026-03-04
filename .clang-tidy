@@ -54,7 +54,6 @@ Checks: >
   -modernize-use-trailing-return-type,
   -modernize-avoid-c-arrays,
   -performance-move-const-arg,
-  -readability-braces-around-statements,
   -readability-magic-numbers,
   -readability-named-parameter,
   -readability-redundant-declaration,
@@ -70,7 +69,7 @@ CheckOptions:
   - { key: readability-identifier-naming.VariableCase,           value: lower_case }
   - { key: readability-identifier-naming.ClassMemberCase,        value: lower_case }
   - { key: readability-identifier-naming.ClassMemberSuffix,      value: _ }
-  - { key: readability-identifier-naming.PrivateMemberSuffix,    value: _ }
+  - { key: readability-identifier-naming.PriateMemberSuffix,    value: _ }
   - { key: readability-identifier-naming.ProtectedMemberSuffix,  value: _ }
   - { key: readability-identifier-naming.EnumConstantCase,         value: CamelCase }
   - { key: readability-identifier-naming.EnumConstantPrefix,       value: k }
@@ -84,3 +83,4 @@ CheckOptions:
   - { key: readability-identifier-naming.StaticConstantPrefix,     value: k }
   - { key: readability-implicit-bool-conversion.AllowIntegerConditions,  value: 1 }
   - { key: readability-implicit-bool-conversion.AllowPointerConditions,  value: 1 }
+  - { key: readability-braces-around-statements, value: 1 }

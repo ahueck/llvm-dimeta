@@ -8,7 +8,7 @@ endif()
 
 dimeta_find_llvm_progs(DIMETA_LIT_EXEC
   "llvm-lit;lit;lit.py"
-  HINTS ${LLVM_EXTERNAL_LIT_DIR} /usr/lib/llvm-${LLVM_VERSION_MAJOR} /usr/lib/llvm /usr/bin /usr/local/bin /opt/local/bin
+  HINTS ${LLVM_EXTERNAL_LIT_DIR} /usr/lib/llvm-${LLVM_VERSION_MAJOR}/build/utils/lit/ /usr/bin /usr/local/bin /opt/local/bin
   ABORT_IF_MISSING
 )
 
@@ -30,7 +30,7 @@ function(configure_dimeta_lit_site_cfg input output)
   set(DIMETA_PASS_DIR ${DIMETA_LIBRARY_DIR}/pass)
   set(DIMETA_TEST_PASS_DIR ${CMAKE_CURRENT_BINARY_DIR}/verifier)
   
-  set(DIMETA_SCRIPT_DIR ${CMAKE_BINARY_DIR}/scripts)
+  set(DIMETA_SCRIPT_DIR ${CMAKE_BINARY_DIR}/script)
 
   pythonize_bool(DIMETA_USE_HEAPALLOCSITE DIMETA_HEAPALLOCSITE)
   pythonize_bool(DIMETA_USE_TBAA DIMETA_TBAA)
