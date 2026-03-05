@@ -40,14 +40,11 @@ bool is_fortran_descriptor(llvm::Type* type) {
   if (!struct_type) {
     return false;
   }
-
   const auto num_elements = struct_type->getNumElements();
   if (num_elements != 10 && num_elements != 9) {
     return false;
   }
-
   const bool is_scalar = (num_elements == 9);
-
   // 0: ptr (base_addr)
   if (!struct_type->getElementType(0)->isPointerTy()) {
     return false;
@@ -66,7 +63,6 @@ bool is_fortran_descriptor(llvm::Type* type) {
       return false;
     }
   }
-
   unsigned current_idx     = 7;
   llvm::ArrayType* dim_arr = nullptr;
   if (!is_scalar) {
@@ -80,22 +76,18 @@ bool is_fortran_descriptor(llvm::Type* type) {
       return false;
     }
   }
-
   // 8 (or 7): ptr (type descriptor pointer)
   if (!struct_type->getElementType(current_idx++)->isPointerTy()) {
     return false;
   }
-
   // 9 (or 8): [n x i64] (addendum)
   auto* addendum_arr = llvm::dyn_cast<llvm::ArrayType>(struct_type->getElementType(current_idx++));
   if (!addendum_arr || !addendum_arr->getElementType()->isIntegerTy(64)) {
     return false;
   }
-
   if (dim_arr && dim_arr->getNumElements() != addendum_arr->getNumElements()) {
     return false;
   }
-
   return true;
 }
 
@@ -144,7 +136,6 @@ std::optional<llvm::DIType*> extract(const dataflow::CallValuePath& call_path, s
 
   const auto path_end = call_path.path.path_to_value.rend();
   for (auto path_iter = call_path.path.path_to_value.rbegin(); path_iter != path_end; ++path_iter) {
-    LOG_DEBUG(**path_iter)
     LOG_DEBUG("Extracted type: " << log::ditype_str(*type));
     type = reset_ditype(type.value(), call_path.path, path_iter).value_or(type.value());
     LOG_DEBUG("reset_ditype result " << log::ditype_str(type.value_or(nullptr)) << "\n")
@@ -169,10 +160,36 @@ std::optional<llvm::DIType*> extract(const dataflow::CallValuePath& call_path, s
 
   if (only_global && llvm::isa<llvm::DICompositeType>(ditype_final)) {
     LOG_DEBUG("Reset fortran allocated type " << log::ditype_str(ditype_final))
+
     auto struct_mem = di::util::resolve_byte_offset_to_member_of(llvm::cast<llvm::DICompositeType>(ditype_final), 0);
     if (struct_mem) {
       return struct_mem->type_of_member.value_or(ditype_final);
     }
+  }
+
+  const auto global_inheritance = [&]() -> std::optional<llvm::GlobalVariable*> {
+    const auto* global_target = llvm::dyn_cast<llvm::GlobalVariable>(*call_path.path.value());
+    if (!global_target) {
+      return {};
+    }
+    for (const auto* user : global_target->users()) {
+      if (auto* call = llvm::dyn_cast<llvm::CallBase>(user)) {
+        auto target    = call->getCalledFunction();
+        auto is_target = target ? target->getName() == ("_FortranAAllocatableInitDerivedForAllocate") : false;
+        if (is_target) {
+          auto global = llvm::dyn_cast<llvm::GlobalVariable>(call->getOperand(1));
+          if (global) {
+            return {global};
+          }
+          break;
+        }
+      }
+    }
+    return {};
+  };
+  auto type_inheritance = global_inheritance();
+  if (type_inheritance) {
+    LOG_DEBUG("Found inheritance, type descriptor: " << **type_inheritance)
   }
 
   return ditype_final;
