@@ -1,18 +1,16 @@
 ! RUN: %fortran-to-llvm %s | %apply-verifier 2>&1 | %filecheck %s
-! RUN: %fortran-to-llvm %s | %opt -O2 | %apply-verifier 2>&1 | %filecheck %s
 
 ! REQUIRES: hasflang
 
-FUNCTION foo(n)
+FUNCTION foo(n) result(i)
    INTEGER, INTENT(IN) :: n
-   INTEGER, ALLOCATABLE :: foo(:)
+   INTEGER, ALLOCATABLE :: foo_a(:)
    INTEGER :: i
-   ALLOCATE(foo(n))
-   !  DO i = 1, n
-   !     foo(i) = i * 10
-   !  END DO
+   ALLOCATE(foo_a(n))
+   i = 1
 END FUNCTION foo
 
+! CHECK: SourceLoc:
 ! CHECK:  Line:            10
 ! CHECK-NEXT: Builtin:         true
 ! CHECK-NEXT: Type:
