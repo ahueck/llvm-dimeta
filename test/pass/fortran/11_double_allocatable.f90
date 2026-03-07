@@ -20,7 +20,7 @@ program nested_allocation
    my_mesh%num_elements = 500
 
    allocate(my_mesh%coordinates(77, my_mesh%num_nodes))
-   ! allocate(my_mesh%connectivity(4, my_mesh%num_elements))
+   allocate(my_mesh%connectivity(4, my_mesh%num_elements))
 end program nested_allocation
 
 

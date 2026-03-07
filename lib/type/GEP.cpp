@@ -7,6 +7,7 @@
 
 #include "GEP.h"
 
+#include "DIFortranTypeExtractor.h"
 #include "DIUtil.h"
 #include "support/Logger.h"
 
@@ -55,6 +56,7 @@ struct GepIndices {
   llvm::SmallVector<uint64_t, 4> indices_;
   bool skipped{false};
   bool is_byte_access{false};
+  bool dynamic_access{false};
   using Iter = llvm::SmallVector<uint64_t, 4>::const_iterator;
 
   llvm::iterator_range<Iter> indices() const {
@@ -107,6 +109,11 @@ GepIndices GepIndices::create(const llvm::GEPOperator* inst, bool skip_first) {
   if (!inst->indices().empty() && gep_ind.empty()) {
     // based on heap_milc_mrecv_mock.c with optim:
     // gep_ind.indices_.push_back(0);
+  }
+
+  if (gep_ind.size() == 0 && !inst->indices().empty()) {
+    LOG_DEBUG("Found dynamic GEP access index")
+    gep_ind.dynamic_access = true;
   }
 
   return gep_ind;
@@ -258,8 +265,10 @@ GepIndexToType iterate_gep_index(llvm::DICompositeType* composite_type, const Ge
 
     if (!llvm::isa<llvm::DIDerivedType>(element)) {
       LOG_DEBUG("Index shows to non-derived type: " << log::ditype_str(element))
-      // TODO, if only one index, and this triggers, go first element all the way down?
-      // maybe also check for class type (not structs etc.)
+      if (composite_type->getTag() == llvm::dwarf::DW_TAG_array_type) {
+        LOG_DEBUG("Indexing into array, returning base type")
+        return GepIndexToType{composite_type->getBaseType()};
+      }
     }
 
     while (gep_index < elements.size() && is_static_member(element)) {
@@ -306,6 +315,13 @@ GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, 
   if (gep_indices.empty()) {
     // this triggers for composite (-array) access without constant index, see "heap_milc_struct_mock.c":
     LOG_DEBUG("Gep indices empty")
+    if (gep_indices.dynamic_access) {
+      // Test fortran 16_...f90, allocation "ALLOCATE(chunk%tiles(t)%field%density ...)":
+      if (composite_type->getTag() == llvm::dwarf::DW_TAG_array_type) {
+        LOG_DEBUG("Assuming array-like access")
+        return GepIndexToType{composite_type->getBaseType()};
+      }
+    }
     return GepIndexToType{composite_type};
   }
 
@@ -446,7 +462,12 @@ GepIndexToType extract_gep_dereferenced_type(llvm::DIType* root, const llvm::GEP
   }
 
   LOG_DEBUG("Gep to DI composite: " << log::ditype_str(composite_type))
+  const bool fortran_descriptor = fortran::is_fortran_descriptor(inst.getSourceElementType());
   bool skip_first{!util::is_first_non_zero_indexing(&inst)};
+  if (inst.getNumIndices() == 1 && !fortran_descriptor) {
+    LOG_DEBUG("Single index GEP on non-descriptor, assuming array indexing (no skip)")
+    skip_first = false;
+  }
   if (util::is_byte_indexing(&inst)) {
     LOG_DEBUG("Access based on i8 ptr, assuming byte offsetting into composite member")
     skip_first = false;  // We do not skip over byte index values (likely != 0)

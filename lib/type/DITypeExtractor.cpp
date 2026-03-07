@@ -379,7 +379,8 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dat
       if (gep_result.member && !gep_result.use_type) {
         LOG_DEBUG("Using gep member type result")
         type = gep_result.member;
-      } else {
+      } else if (gep_result.type) {
+        LOG_DEBUG("Using gep type result")
         type = gep_result.type;
       }
     } else {

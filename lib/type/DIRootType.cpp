@@ -254,6 +254,7 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::CallValuePath& call_
           auto backward_paths_from_gep = dataflow::experimental::path_from_value(gep);
           for (auto& path : backward_paths_from_gep) {
             LOG_DEBUG("Path from gep " << path)
+            // Test fortran 16_...f90, allocation "ALLOCATE(chunk%tiles(t)%field%density ...)"
             // Use type::find_type to resolve the nested member type from the GEP access path
             auto type_of_member = type::find_type(dataflow::CallValuePath{std::nullopt, path});
             if (type_of_member) {
