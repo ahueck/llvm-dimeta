@@ -145,6 +145,17 @@ llvm::SmallVector<ValuePath, 4> path_from_alloca(const llvm::AllocaInst* alloca)
   return malloc_forward_anchor_finder.anchors;
 }
 
+llvm::SmallVector<ValuePath, 4> path_from_instruction(const llvm::Instruction* inst) {
+  using namespace llvm;
+
+  auto should_search = [&](const ValuePath&) -> bool { return true; };
+  DefUseChain value_traversal;
+
+  MallocAnchorMatcher malloc_forward_anchor_finder;
+  value_traversal.traverse(inst, malloc_forward_anchor_finder, should_search);
+  return malloc_forward_anchor_finder.anchors;
+}
+
 auto MallocBacktrackSearch::operator()(const ValuePath& path) -> std::optional<ValueRange> {
   // Backtracks form malloc target (a store) to, e.g., argument/global/etc.
   using namespace llvm;

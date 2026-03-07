@@ -7,11 +7,10 @@ FUNCTION foo(n) result(i)
    INTEGER, ALLOCATABLE :: foo_a(:)
    INTEGER :: i
    ALLOCATE(foo_a(n))
-   i = 1
 END FUNCTION foo
 
 ! CHECK: SourceLoc:
-! CHECK:  Line:            10
+! CHECK:  Line:            9
 ! CHECK-NEXT: Builtin:         true
 ! CHECK-NEXT: Type:
 ! CHECK-NEXT: Fundamental:     { Name: integer, Extent: 4, Encoding: signed_int }

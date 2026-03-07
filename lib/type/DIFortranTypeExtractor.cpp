@@ -102,14 +102,16 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dat
 
   if (llvm::isa<llvm::GEPOperator>(*current_value)) {
     LOG_DEBUG("Reset based on GEP")
-    auto* gep = llvm::cast<llvm::GEPOperator>(*current_value);
-    // TODO
-    const auto gep_result = gep::extract_gep_dereferenced_type(type.value(), *gep);
-    if (gep_result.member && !gep_result.use_type) {
-      LOG_DEBUG("Using gep member type result")
-      type = gep_result.member;
-    } else {
-      type = gep_result.type;
+    auto* gep                     = llvm::cast<llvm::GEPOperator>(*current_value);
+    const bool fortran_descriptor = fortran::is_fortran_descriptor(gep->getSourceElementType());
+    if (!fortran_descriptor) {
+      const auto gep_result = gep::extract_gep_dereferenced_type(type.value(), *gep);
+      if (gep_result.member && !gep_result.use_type) {
+        LOG_DEBUG("Using gep member type result")
+        type = gep_result.member;
+      } else {
+        type = gep_result.type;
+      }
     }
   } else if (const auto* load = llvm::dyn_cast<llvm::LoadInst>(*current_value)) {
     LOG_DEBUG("Reset based on load " << *load)

@@ -212,6 +212,9 @@ std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath&
   if (auto gep = detail::get_operand_to<llvm::GetElementPtrInst>(load)) {
     const bool fortran_descriptor = fortran::is_fortran_descriptor(gep.value()->getSourceElementType());
     if (fortran_descriptor) {
+      // auto comp   = di::util::desugar(*type);
+      // auto result = di::util::resolve_byte_offset_to_member_of(comp.value(), 0);
+      // return result->type_of_member;
       return type;
     }
   }

@@ -8,6 +8,7 @@
 #include "DIRootType.h"
 
 #include "DIFinder.h"
+#include "DITypeExtractor.h"
 #include "DataflowAnalysis.h"
 #include "DefUseAnalysis.h"
 #include "Dimeta.h"
@@ -245,9 +246,21 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::CallValuePath& call_
               return type_of_alloca;
             }
           }
-        } else if (auto global = llvm::dyn_cast<llvm::GlobalVariable>(call_inst->getArgOperand(1))) {
+        } else if (auto* global = llvm::dyn_cast<llvm::GlobalVariable>(call_inst->getArgOperand(1))) {
           LOG_DEBUG("Memcpy of global variable detected")
           return helper::type_of_global(global);
+        } else if (auto* gep = llvm::dyn_cast<llvm::GetElementPtrInst>(call_inst->getArgOperand(1))) {
+          LOG_DEBUG("Memcpy of GEP detected")
+          auto backward_paths_from_gep = dataflow::experimental::path_from_value(gep);
+          for (auto& path : backward_paths_from_gep) {
+            LOG_DEBUG("Path from gep " << path)
+            // Use type::find_type to resolve the nested member type from the GEP access path
+            auto type_of_member = type::find_type(dataflow::CallValuePath{std::nullopt, path});
+            if (type_of_member) {
+              LOG_DEBUG("Detected gep member type " << log::ditype_str(type_of_member.value()))
+              return type_of_member;
+            }
+          }
         }
       }
     }
