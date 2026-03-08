@@ -247,9 +247,10 @@ std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath&
   const bool last_load     = path.start_value().value_or(nullptr) == load;
   const bool is_not_member = !di::util::is_member(*type);
   if (is_not_member || last_load) {
-    const bool is_not_arg_load  = !load_to<llvm::Argument>(load);
-    const bool is_not_array_gep = !load_of_array_gep(load) && !load_for_array_gep(load);
-    if (is_not_array_gep && (is_not_arg_load || last_load)) {
+    const bool is_not_arg_load = !load_to<llvm::Argument>(load);
+    // test Fortran 17 (first allocate): SROA optimization: load on argument selects first member of struct:
+    // const bool is_not_array_gep = !load_of_array_gep(load) && !load_for_array_gep(load);
+    if (!load_of_array_gep(load)) {  // && (is_not_arg_load || last_load)) {
       if (auto resolved = try_resolve_to_first_member(type)) {
         return resolved.value();
       }
@@ -337,6 +338,8 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
     auto* member_base               = derived_type->getBaseType();
     const bool is_array_type_member = member_base->getTag() == llvm::dwarf::DW_TAG_array_type;
     if (is_array_type_member) {
+      LOG_DEBUG("Store to member with type array, looks through to base type of array")
+      // TODO Fortran: test 17, 18: with optim, we do not detect the tag "array" due to this heuristic.
       return llvm::cast<llvm::DICompositeType>(member_base)->getBaseType();
     }
   }

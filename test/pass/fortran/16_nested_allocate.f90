@@ -1,4 +1,5 @@
 ! RUN: %fortran-to-llvm %s | %apply-verifier 2>&1 | %filecheck %s
+! RUN: %fortran-to-llvm %s | %opt -O2 | %apply-verifier 2>&1 | %filecheck %s
 
 ! REQUIRES: hasflang
 
@@ -64,7 +65,7 @@ CONTAINS
 
 END MODULE test_mod
 
-! CHECK:      Line:            56
+! CHECK:      Line:            57
 ! CHECK-NEXT: Builtin:         false
 ! CHECK-NEXT: Type:
 ! CHECK-NEXT:   Compound:
@@ -73,6 +74,6 @@ END MODULE test_mod
 ! CHECK-NEXT:     Extent:          136
 ! CHECK-NEXT:     Sizes:           [ 88, 4, 4, 4, 4, 4, 4, 16, 8 ]
 
-! CHECK: Line:            58
+! CHECK: Line:            59
 ! CHECK: Fundamental:     { Name: real, Extent: 8, Encoding: float }
 ! CHECK: Qualifiers:      [ array ]

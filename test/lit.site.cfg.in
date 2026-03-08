@@ -13,7 +13,6 @@ config.filecheck = "@DIMETA_FILECHECK_EXEC@"
 
 # Project related:
 config.dimeta_lib_dir = "@DIMETA_LIBRARY_DIR@"
-config.dimeta_pass_dir = "@DIMETA_PASS_DIR@"
 config.dimeta_test_pass_dir = "@DIMETA_TEST_PASS_DIR@"
 
 config.dimeta_script_dir = "@DIMETA_SCRIPT_DIR@"
