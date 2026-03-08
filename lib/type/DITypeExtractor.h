@@ -5,8 +5,8 @@
 //  SPDX-License-Identifier: BSD-3-Clause
 //
 
-#ifndef DIMETA_DITYPEEXTRACTOR_H
-#define DIMETA_DITYPEEXTRACTOR_H
+#ifndef LIB_TYPE_DITYPEEXTRACTOR
+#define LIB_TYPE_DITYPEEXTRACTOR
 
 #include <optional>
 
@@ -24,4 +24,4 @@ std::optional<llvm::DIType*> find_type(const dataflow::CallValuePath& call_path)
 
 }
 
-#endif
+#endif /* LIB_TYPE_DITYPEEXTRACTOR */

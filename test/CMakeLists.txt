@@ -34,7 +34,8 @@ function(configure_dimeta_lit_site_cfg input output)
 
   pythonize_bool(DIMETA_USE_HEAPALLOCSITE DIMETA_HEAPALLOCSITE)
   pythonize_bool(DIMETA_USE_TBAA DIMETA_TBAA)
-
+  pythonize_bool(DIMETA_ENABLE_FLANG DIMETA_WITH_FLANG)
+  
   if(${LLVM_VERSION_MAJOR} VERSION_GREATER_EQUAL "13")
     #set(DIMETA_OPT_ARGS "-enable-new-pm=0")
   endif()
@@ -134,32 +135,45 @@ dimeta_target_format(
 )
 
 if(DIMETA_TEST_CONFIGURE_IDE)
-  function(add_test_target_ide target header sources compile_std linker_language)
-    if(NOT sources)
+  function(add_test_target_ide ARG_TARGET)
+    cmake_parse_arguments(ARG "" "COMPILE_STD;LINKER_LANGUAGE" "HEADER;SOURCES" ${ARGN})
+
+    if(NOT ARG_SOURCES)
       return()
     endif()
 
-    add_executable(${target} EXCLUDE_FROM_ALL ${header} ${sources})
+    add_executable(${ARG_TARGET} EXCLUDE_FROM_ALL ${ARG_HEADER} ${ARG_SOURCES})
 
     target_include_directories(
-      ${target} PRIVATE ${PROJECT_SOURCE_DIR}/lib/pass
+      ${ARG_TARGET} PRIVATE ${PROJECT_SOURCE_DIR}/lib/pass
                         ${PROJECT_SOURCE_DIR}/lib
                         ${PROJECT_SOURCE_DIR}
     )
-    target_compile_features(${target} PUBLIC ${compile_std})
-    set_target_properties(${target} PROPERTIES LINKER_LANGUAGE ${linker_language})
+    if(ARG_COMPILE_STD)
+      target_compile_features(${ARG_TARGET} PUBLIC ${ARG_COMPILE_STD})
+    endif()
+    set_target_properties(${ARG_TARGET} PROPERTIES LINKER_LANGUAGE ${ARG_LINKER_LANGUAGE})
   endfunction()
 
   file(GLOB_RECURSE DIMETA_CXX_TESTS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/pass/*.cpp)
   file(GLOB_RECURSE DIMETA_CC_TESTS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/pass/*.c)
   file(GLOB_RECURSE DIMETA_HEADER_TESTS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/pass/*.h)
+  file(GLOB_RECURSE DIMETA_FORTRAN_TESTS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/pass/*.f90)
 
   add_test_target_ide(dimeta_cxx_test_objects
-    "${DIMETA_HEADER_TESTS}" "${DIMETA_CXX_TESTS}"
-    cxx_std_17 CXX
+    HEADER "${DIMETA_HEADER_TESTS}"
+    SOURCES "${DIMETA_CXX_TESTS}"
+    COMPILE_STD cxx_std_17
+    LINKER_LANGUAGE CXX
   )
   add_test_target_ide(dimeta_cc_test_objects
-    "${DIMETA_HEADER_TESTS}" "${DIMETA_CC_TESTS}"
-    c_std_99 C
+    HEADER "${DIMETA_HEADER_TESTS}"
+    SOURCES "${DIMETA_CC_TESTS}"
+    COMPILE_STD c_std_99
+    LINKER_LANGUAGE C
   )
+  # add_test_target_ide(dimeta_fortran_test_objects
+  #   SOURCES "${DIMETA_FORTRAN_TESTS}"
+  #   LINKER_LANGUAGE Fortran
+  # )
 endif()

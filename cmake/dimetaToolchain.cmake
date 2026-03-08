@@ -77,7 +77,7 @@ dimeta_find_llvm_progs(DIMETA_CLANGCXX_EXEC "clang++-${LLVM_VERSION_MAJOR};clang
 dimeta_find_llvm_progs(DIMETA_LLC_EXEC "llc-${LLVM_VERSION_MAJOR};llc" DEFAULT_EXE "llc")
 dimeta_find_llvm_progs(DIMETA_OPT_EXEC "opt-${LLVM_VERSION_MAJOR};opt" DEFAULT_EXE "opt")
 if(DIMETA_ENABLE_FLANG)
-  dimeta_find_llvm_progs(DIMETA_FLANG_EXEC "flang-${LLVM_VERSION_MAJOR};flang")
+  dimeta_find_llvm_progs(DIMETA_FLANG_EXEC "flang-${LLVM_VERSION_MAJOR};flang" ABORT_IF_MISSING ON)
 endif()
 
 if(DIMETA_IS_TOP_LEVEL)

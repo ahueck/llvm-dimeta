@@ -23,6 +23,7 @@ config.heapallocsite = @DIMETA_HEAPALLOCSITE@
 config.tbaa = @DIMETA_TBAA@
 
 config.llvm_version = @LLVM_VERSION_MAJOR@
+config.with_flang = @DIMETA_WITH_FLANG@
 
 # Let the main config do the real work.
 config.loaded_site_config = True
