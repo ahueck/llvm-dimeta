@@ -167,7 +167,7 @@ auto find_non_derived_type_unless(llvm::DIType* root, UnlessFn&& unless) {
 
 inline bool is_ebo_inherited_composite(llvm::DINode* dinode) {
   if (auto* derived = llvm::dyn_cast<llvm::DIDerivedType>(dinode)) {
-    if (derived->getTag() != llvm::dwarf::DW_TAG_inheritance) {
+    if (!di::util::is_inheritance(*derived)) {
       return false;
     }
 
@@ -265,7 +265,7 @@ GepIndexToType iterate_gep_index(llvm::DICompositeType* composite_type, const Ge
 
     if (!llvm::isa<llvm::DIDerivedType>(element)) {
       LOG_DEBUG("Index shows to non-derived type: " << log::ditype_str(element))
-      if (composite_type->getTag() == llvm::dwarf::DW_TAG_array_type) {
+      if (di::util::is_array(*element)) {
         LOG_DEBUG("Indexing into array, returning base type")
         return GepIndexToType{composite_type->getBaseType()};
       }
@@ -284,15 +284,14 @@ GepIndexToType iterate_gep_index(llvm::DICompositeType* composite_type, const Ge
       LOG_DEBUG("Looking at " << log::ditype_str(member_type))
 
       if (auto* composite_member_type = llvm::dyn_cast<llvm::DICompositeType>(member_type)) {
-        if (composite_member_type->getTag() == llvm::dwarf::DW_TAG_class_type ||
-            composite_member_type->getTag() == llvm::dwarf::DW_TAG_structure_type) {
+        if (di::util::is_struct_or_class(*composite_member_type)) {
           // maybe need to recurse into!
           if (has_next_gep_idx(enum_index.index())) {
             composite_type = composite_member_type;
             continue;
           }
         }
-        if (composite_member_type->getTag() == llvm::dwarf::DW_TAG_array_type) {
+        if (di::util::is_array(*composite_member_type)) {
           if (has_next_gep_idx(enum_index.index())) {
             LOG_DEBUG("Found array that is indexed with next index")
             // At end of gep instruction, return basetype:
@@ -317,7 +316,7 @@ GepIndexToType resolve_gep_index_to_type(llvm::DICompositeType* composite_type, 
     LOG_DEBUG("Gep indices empty")
     if (gep_indices.dynamic_access) {
       // Test fortran 16_...f90, allocation "ALLOCATE(chunk%tiles(t)%field%density ...)":
-      if (composite_type->getTag() == llvm::dwarf::DW_TAG_array_type) {
+      if (di::util::is_array(*composite_type)) {
         LOG_DEBUG("Assuming array-like access")
         return GepIndexToType{composite_type->getBaseType()};
       }

@@ -10,6 +10,7 @@
 #include "DIFinder.h"
 #include "DIRootType.h"
 #include "DITypeExtractor.h"
+#include "DIUtil.h"
 #include "DataflowAnalysis.h"
 #include "DefUseAnalysis.h"
 #include "DimetaData.h"
@@ -87,7 +88,7 @@ auto final_ditype(std::optional<llvm::DIType*> root_ditype) -> std::pair<std::op
   llvm::DIType* type = *root_ditype;
   while (llvm::isa<llvm::DIDerivedType>(type)) {
     auto ditype = llvm::dyn_cast<llvm::DIDerivedType>(type);
-    if (ditype->getTag() == llvm::dwarf::DW_TAG_pointer_type) {
+    if (di::util::is_pointer(*ditype, false)) {
       ++level;
     }
     // void*-based derived types have basetype=null:

@@ -34,7 +34,7 @@ struct StructMember {
 std::optional<StructMember> resolve_byte_offset_to_member_of(const llvm::DICompositeType* composite,
                                                              size_t byte_offset);
 
-bool is_pointer(const llvm::DIType& di_type);
+bool is_pointer(const llvm::DIType& di_type, bool count_reference = true);
 bool is_pointer_like(const llvm::DIType& di_type);
 bool is_non_static_member(const llvm::DINode& elem);
 bool is_member(const llvm::DINode& elem);
@@ -44,6 +44,11 @@ std::optional<llvm::DICompositeType*> desugar(llvm::DIType& qualified_composite,
 // bool has_tbaa(const llvm::Instruction&);
 bool is_array_member(const llvm::DINode& elem);
 bool is_array(const llvm::DINode& elem);
+bool is_inheritance(const llvm::DINode& elem);
+bool is_enum(const llvm::DINode& elem);
+bool is_struct_or_class(const llvm::DINode& elem);
+bool is_typedef(const llvm::DINode& elem);
+bool is_union(const llvm::DINode& elem);
 
 }  // namespace dimeta::di::util
 

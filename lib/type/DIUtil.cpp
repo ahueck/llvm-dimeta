@@ -153,9 +153,10 @@ std::optional<StructMember> resolve_byte_offset_to_member_of(const llvm::DICompo
   return visitor.result();
 }
 
-bool is_pointer(const llvm::DIType& di_type) {
+bool is_pointer(const llvm::DIType& di_type, bool count_reference) {
   if (const auto* type = llvm::dyn_cast<llvm::DIDerivedType>(&di_type)) {
-    return type->getTag() == llvm::dwarf::DW_TAG_reference_type || type->getTag() == llvm::dwarf::DW_TAG_pointer_type;
+    return (type->getTag() == llvm::dwarf::DW_TAG_reference_type && count_reference) ||
+           type->getTag() == llvm::dwarf::DW_TAG_pointer_type;
   }
   return false;
 }
@@ -229,6 +230,26 @@ bool is_array_member(const llvm::DINode& elem) {
 bool is_array(const llvm::DINode& elem) {
   auto comp = llvm::dyn_cast<llvm::DICompositeType>(&elem);
   return (comp != nullptr) && comp->getTag() == llvm::dwarf::DW_TAG_array_type;
+}
+
+bool is_inheritance(const llvm::DINode& elem) {
+  return elem.getTag() == llvm::dwarf::DW_TAG_inheritance;
+}
+
+bool is_enum(const llvm::DINode& elem) {
+  return elem.getTag() == llvm::dwarf::DW_TAG_enumeration_type;
+}
+
+bool is_struct_or_class(const llvm::DINode& elem) {
+  return elem.getTag() == llvm::dwarf::DW_TAG_structure_type || elem.getTag() == llvm::dwarf::DW_TAG_class_type;
+}
+
+bool is_typedef(const llvm::DINode& elem) {
+  return elem.getTag() == llvm::dwarf::DW_TAG_typedef;
+}
+
+bool is_union(const llvm::DINode& elem) {
+  return elem.getTag() == llvm::dwarf::DW_TAG_union_type;
 }
 
 }  // namespace dimeta::di::util

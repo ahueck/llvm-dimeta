@@ -336,7 +336,7 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
 
   if (di::util::is_array_member(*type)) {
     auto* member_base               = derived_type->getBaseType();
-    const bool is_array_type_member = member_base->getTag() == llvm::dwarf::DW_TAG_array_type;
+    const bool is_array_type_member = di::util::is_array(*member_base);
     if (is_array_type_member) {
       LOG_DEBUG("Store to member with type array, looks through to base type of array")
       // Fortran: test 17, 18: with optim, we do not detect the tag "array" otherwise:
