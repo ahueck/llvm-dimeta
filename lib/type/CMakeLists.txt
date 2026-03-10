@@ -12,6 +12,7 @@ set(LIB_SOURCES
   DIUtil.cpp
   DIFinder.cpp
   DIRootType.cpp
+  DIPath.cpp
   DITypeExtractor.cpp
   DIFortranTypeExtractor.cpp
 )

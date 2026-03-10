@@ -8,6 +8,7 @@
 
 #include "DIFinder.h"
 #include "DIFortranTypeExtractor.h"
+#include "DIPath.h"
 #include "DIRootType.h"
 #include "DIUtil.h"
 #include "DataflowAnalysis.h"
@@ -128,76 +129,6 @@ bool store_to_array_gep(const llvm::StoreInst* store) {
   }
   return detail::is_array_gep_with_non_const_indices(gep.value());
 }
-
-namespace dipath {
-
-struct IRMapping {
-  const llvm::Value* value{nullptr};
-  llvm::DIType* mapped{nullptr};
-  std::string reason;
-};
-
-struct ValueToDiPath {
-  llvm::SmallVector<IRMapping, 8> path_to_ditype;
-
-  void emplace_back(const llvm::Value* val, llvm::DIType* mapped_di_type, const std::string reason = "") {
-    path_to_ditype.emplace_back(IRMapping{val, mapped_di_type, std::move(reason)});
-  }
-
-  std::optional<llvm::DIType*> final_type() const {
-    if (path_to_ditype.empty()) {
-      return {};
-    }
-    const auto& ditype = path_to_ditype.back();
-    return ditype.mapped != nullptr ? std::optional{ditype.mapped} : std::nullopt;
-  }
-};
-
-llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const ValueToDiPath& vdp) {
-#if DIMETA_LOG_LEVEL > 2  // FIXME: For coverage
-  const auto& mappings = vdp.path_to_ditype;
-  // os << "ValueToDiPath: ";  // Prefix to identify the type being printed
-  if (mappings.empty()) {
-    os << "[]";
-    return os;
-  }
-  const auto mapping_to_string = [](const IRMapping& mapping) -> std::string {
-    std::string str_buffer;
-    llvm::raw_string_ostream stream(str_buffer);
-
-    stream << "{IR: ";
-    if (mapping.value) {
-      // mapping.value->printAsOperand(stream, true);
-      mapping.value->print(stream, true);
-    } else {
-      stream << "null";
-    }
-
-    stream << "; DI: ";
-    if (mapping.mapped) {
-      stream << log::ditype_str(mapping.mapped);
-    } else {
-      stream << "null";
-    }
-
-    if (!mapping.reason.empty()) {
-      stream << ", Reason: \"" << mapping.reason << "\"}";
-    }
-    return stream.str();
-  };
-
-  os << "[" << mapping_to_string(mappings.front());
-  std::for_each(std::next(mappings.begin()), mappings.end(), [&](const IRMapping& mapping_item) {
-    os << " --> ";
-    os << mapping_to_string(mapping_item);
-  });
-
-  os << "]";
-#endif
-  return os;
-}
-
-}  // namespace dipath
 
 std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath& path, llvm::DIType* type_to_reset,
                                                       const llvm::LoadInst* load) {
@@ -433,7 +364,7 @@ std::optional<llvm::DIType*> find_type(const dataflow::CallValuePath& call_path)
     }
   }
 
-  reset::dipath::ValueToDiPath dipath;
+  dipath::ValueToDiPath dipath;
 
   const auto path_end = call_path.path.path_to_value.rend();
   for (auto path_iter = call_path.path.path_to_value.rbegin(); path_iter != path_end; ++path_iter) {

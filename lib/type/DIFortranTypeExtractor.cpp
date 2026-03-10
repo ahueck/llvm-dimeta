@@ -1,4 +1,5 @@
 #include "DIFinder.h"
+#include "DIPath.h"
 #include "DIRootType.h"
 #include "DIUtil.h"
 #include "DataflowAnalysis.h"
@@ -93,7 +94,7 @@ bool is_fortran_descriptor(llvm::Type* type) {
 
 template <typename Iter>
 std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dataflow::ValuePath& path,
-                                          const Iter& path_iter) {
+                                          const Iter& path_iter, type::dipath::ValueToDiPath& logged_dipath) {
   std::optional<llvm::DIType*> type = type_to_reset;
 
   const auto& current_value = path_iter;
@@ -123,6 +124,8 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dat
     LOG_DEBUG(">> skipping: " << **current_value);
   }
 
+  logged_dipath.emplace_back(*current_value, type.value_or(nullptr));
+
   return type;
 }
 
@@ -134,17 +137,21 @@ std::optional<llvm::DIType*> extract(const dataflow::CallValuePath& call_path, s
   // @_QMtea_moduleEchunk = global %_QMtea_moduleTchunktype
   // call i32 @_FortranAAllocatableAllocate(ptr @_QMtea_moduleEchunk, ...), !dbg !30
 
-  LOG_DEBUG("Fortran workaround for _FortranAAllocatableAllocate on a global variable")
+  LOG_DEBUG("Fortran workaround for _FortranAAllocatableAllocate")
+
+  type::dipath::ValueToDiPath dipath;
 
   const auto path_end = call_path.path.path_to_value.rend();
   for (auto path_iter = call_path.path.path_to_value.rbegin(); path_iter != path_end; ++path_iter) {
     LOG_DEBUG("Extracted type: " << log::ditype_str(*type));
-    type = reset_ditype(type.value(), call_path.path, path_iter).value_or(type.value());
+    type = reset_ditype(type.value(), call_path.path, path_iter, dipath).value_or(type.value());
     LOG_DEBUG("reset_ditype result " << log::ditype_str(type.value_or(nullptr)) << "\n")
     if (!type) {
       break;
     }
   }
+
+  auto* ditype_final = type.value();
 
   const bool only_global = [&]() -> bool {
     bool is_global_target = llvm::isa<llvm::GlobalVariable>(*call_path.path.value()) && call_path.path.size() == 1;
@@ -158,14 +165,12 @@ std::optional<llvm::DIType*> extract(const dataflow::CallValuePath& call_path, s
     return is_global_target;
   }();
 
-  auto* ditype_final = type.value();
-
   if (only_global && llvm::isa<llvm::DICompositeType>(ditype_final)) {
     LOG_DEBUG("Reset fortran allocated type " << log::ditype_str(ditype_final))
 
     auto struct_mem = di::util::resolve_byte_offset_to_member_of(llvm::cast<llvm::DICompositeType>(ditype_final), 0);
     if (struct_mem) {
-      return struct_mem->type_of_member.value_or(ditype_final);
+      dipath.emplace_back(nullptr, struct_mem->type_of_member.value_or(ditype_final), "Allocatable of global type");
     }
   }
 
@@ -194,6 +199,8 @@ std::optional<llvm::DIType*> extract(const dataflow::CallValuePath& call_path, s
     LOG_DEBUG("Found inheritance, type descriptor: " << **type_inheritance)
   }
 
-  return ditype_final;
+  LOG_DEBUG("Final mapping\n" << dipath)
+
+  return dipath.final_type();
 }
 }  // namespace dimeta::fortran
