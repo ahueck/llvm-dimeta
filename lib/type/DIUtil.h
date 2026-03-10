@@ -44,6 +44,7 @@ std::optional<llvm::DICompositeType*> desugar(llvm::DIType& qualified_composite,
 // bool has_tbaa(const llvm::Instruction&);
 bool is_array_member(const llvm::DINode& elem);
 bool is_array(const llvm::DINode& elem);
+bool is_string(const llvm::DINode& elem);
 bool is_inheritance(const llvm::DINode& elem);
 bool is_enum(const llvm::DINode& elem);
 bool is_struct_or_class(const llvm::DINode& elem);

@@ -65,6 +65,11 @@ class DIPrinter : public visitor::DINodeVisitor<DIPrinter> {
     return true;
   }
 
+  bool visitStringType(const llvm::DIStringType* string_type) {
+    outp_ << llvm::left_justify("", width() + 3) << no_pointer_str(*string_type) << "\n";
+    return true;
+  }
+
   bool visitDerivedType(const llvm::DIDerivedType* derived_type) {
     outp_ << llvm::left_justify("", width()) << no_pointer_str(*derived_type) << "\n";
     return true;
@@ -230,6 +235,10 @@ bool is_array_member(const llvm::DINode& elem) {
 bool is_array(const llvm::DINode& elem) {
   auto comp = llvm::dyn_cast<llvm::DICompositeType>(&elem);
   return (comp != nullptr) && comp->getTag() == llvm::dwarf::DW_TAG_array_type;
+}
+
+bool is_string(const llvm::DINode& elem) {
+  return elem.getTag() == llvm::dwarf::DW_TAG_string_type;
 }
 
 bool is_inheritance(const llvm::DINode& elem) {

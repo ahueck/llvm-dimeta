@@ -44,6 +44,7 @@ class DINodeVisitor {
     return invoke_if<DIBasicType>(&DINodeVisitor::traverseBasicType, std::forward<T>(type)) ||
            invoke_if<DIDerivedType>(&DINodeVisitor::traverseDerivedType, std::forward<T>(type)) ||
            invoke_if<DICompositeType>(&DINodeVisitor::traverseCompositeType, std::forward<T>(type)) ||
+           invoke_if<DIStringType>(&DINodeVisitor::traverseStringType, std::forward<T>(type)) ||
            invoke_if<DILocalVariable>(&DINodeVisitor::traverseVariable, std::forward<T>(type)) ||
            invoke_if<DIGlobalVariable>(&DINodeVisitor::traverseVariable, std::forward<T>(type)) ||
            invoke_if<DIEnumerator>(&DINodeVisitor::traverseNode, std::forward<T>(type)) ||
@@ -142,6 +143,21 @@ class DINodeVisitor {
   }
 
   bool visitBasicType(const llvm::DIBasicType*) {
+    return true;
+  }
+
+  bool traverseStringType(const llvm::DIStringType* string_type) {
+    ++depth_var_;
+    const auto exit = dimeta::util::create_scope_exit([&]() {
+      get().leaveStringType(string_type);
+      assert(depth_var_ > 0);
+      --depth_var_;
+    });
+    get().enterStringType(string_type);
+    return get().visitStringType(string_type);
+  }
+
+  bool visitStringType(const llvm::DIStringType*) {
     return true;
   }
 
@@ -249,6 +265,10 @@ class DINodeVisitor {
   void enterBasicType(const llvm::DIBasicType*) {
   }
   void leaveBasicType(const llvm::DIBasicType*) {
+  }
+  void enterStringType(const llvm::DIStringType*) {
+  }
+  void leaveStringType(const llvm::DIStringType*) {
   }
   void enterDerivedType(const llvm::DIDerivedType*) {
   }

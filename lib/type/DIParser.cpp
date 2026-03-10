@@ -39,6 +39,8 @@ class DIEventVisitor : public visitor::DINodeVisitor<DIEventVisitor> {
 
   bool visitBasicType(const llvm::DIBasicType*);
 
+  bool visitStringType(const llvm::DIStringType*);
+
   bool visitDerivedType(const llvm::DIDerivedType*);
 
   bool visitCompositeType(const llvm::DICompositeType*);
@@ -49,6 +51,8 @@ class DIEventVisitor : public visitor::DINodeVisitor<DIEventVisitor> {
   bool visitRecurringCompositeType(const llvm::DICompositeType*);
 
   void leaveBasicType(const llvm::DIBasicType*);
+
+  void leaveStringType(const llvm::DIStringType*);
 
   void leaveCompositeType(const llvm::DICompositeType*);
 
@@ -80,6 +84,12 @@ bool DIEventVisitor::visitBasicType(const llvm::DIBasicType* basic_type) {
 
   events_.make_fundamental(current_);
 
+  return true;
+}
+
+bool DIEventVisitor::visitStringType(const llvm::DIStringType* string_type) {
+  current_.type = const_cast<llvm::DIStringType*>(string_type);
+  events_.make_string(current_);
   return true;
 }
 
@@ -274,6 +284,10 @@ void DIEventVisitor::leaveCompositeType(const llvm::DICompositeType* composite_t
 }
 
 void DIEventVisitor::leaveBasicType(const llvm::DIBasicType*) {
+  current_ = state::MetaData{};
+}
+
+void DIEventVisitor::leaveStringType(const llvm::DIStringType*) {
   current_ = state::MetaData{};
 }
 
