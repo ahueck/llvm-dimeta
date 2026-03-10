@@ -9,6 +9,7 @@
 
 #include "DefUseAnalysis.h"
 #include "Dimeta.h"
+#include "Util.h"
 #include "support/Logger.h"
 
 #include "llvm/ADT/TinyPtrVector.h"
@@ -441,7 +442,8 @@ std::optional<ShapeData> shape_from_value(const llvm::Value* start) {
       [&](const ValuePath& path) {
         if (auto call = llvm::dyn_cast<llvm::CallBase>(*path.value())) {
           if ((call->getCalledFunction() != nullptr) &&
-              call->getCalledFunction()->getName().contains("_FortranAAllocatableSetBounds")) {
+              util::starts_with_any_of(call->getCalledFunction()->getName(), "_FortranAAllocatableSetBounds",
+                                       "_FortranAPointerSetBounds")) {
             // shape = call->getOperand(3);
             // LOG_DEBUG("Found shape: " << *shape.value())
             const auto dim = get_as_int(call->getOperand(3));
@@ -467,7 +469,8 @@ bool passed_to_fortran_helper(const llvm::Value* start) {
       start,
       [&](const ValuePath& path) {
         if (auto call = llvm::dyn_cast<llvm::CallBase>(*path.value())) {
-          if ((call->getCalledFunction() != nullptr) && call->getCalledFunction()->getName().contains("_FortranA")) {
+          if ((call->getCalledFunction() != nullptr) &&
+              util::starts_with_any_of(call->getCalledFunction()->getName(), "_FortranA")) {
             passed = true;
             return DefUseChain::kCancel;
           }

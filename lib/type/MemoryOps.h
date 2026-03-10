@@ -108,6 +108,7 @@ struct MemOps {
       {"cudaMallocFromPoolAsync", MemOpKind::kCudaMallocLike},
       {"cudaMallocAsync", MemOpKind::kCudaMallocLike},
       {"_FortranAAllocatableAllocate", MemOpKind::kFortranMallocLike},
+      {"_FortranAPointerAllocate", MemOpKind::kFortranMallocLike},
 
   };
 };

@@ -357,7 +357,9 @@ std::optional<llvm::DIType*> find_type(const dataflow::CallValuePath& call_path)
 
   if (call_path.call) {
     const auto function       = call_path.call.value()->getCalledFunction();
-    const auto fortran_handle = function ? function->getName().contains("_FortranAAllocatableAllocate") : false;
+    const auto fortran_handle = function ? util::starts_with_any_of(function->getName(), "_FortranAAllocatableAllocate",
+                                                                    "_FortranAPointerAllocate")
+                                         : false;
     if (fortran_handle) {
       LOG_DEBUG("Fortran handle found " << function->getName())
       return fortran::extract(call_path, type);

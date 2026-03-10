@@ -206,6 +206,12 @@ bool DIEventVisitor::visitCompositeType(const llvm::DICompositeType* composite_t
     current_.is_vector = composite_type->isVector();
     current_.dwarf_tags.emplace_back(current_.is_vector ? static_cast<unsigned>(state::CustomDwarfTag::kVector)
                                                         : static_cast<unsigned>(llvm::dwarf::DW_TAG_array_type));
+    if (composite_type->getRawAssociated()) {
+      // Fortran pointer allocations use "associated" tag
+      LOG_DEBUG("Associated: array of pointer")
+      current_.dwarf_tags.emplace_back(llvm::dwarf::DW_TAG_pointer_type);
+    }
+
     current_.arrays.emplace_back(
         state::MetaData::ArrayData{composite_type->getSizeInBits(), Extent{0}, {}, composite_type->isVector()});
     // current_.array_size_bits =composite_type->getSizeInBits();
