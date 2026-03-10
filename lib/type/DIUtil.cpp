@@ -104,7 +104,8 @@ struct DestructureComposite : visitor::DINodeVisitor<DestructureComposite> {
   }
 
   bool visitDerivedType(const llvm::DIDerivedType* derived_ty) {
-    if (derived_ty->getTag() != llvm::dwarf::DW_TAG_member) {
+    // if (derived_ty->getTag() != llvm::dwarf::DW_TAG_member) {
+    if (!util::is_non_static_member(*derived_ty)) {
       return true;
     }
     // assert(derived_ty->getTag() == llvm::dwarf::DW_TAG_member && "Expected member element in composite ty");
@@ -124,10 +125,9 @@ struct DestructureComposite : visitor::DINodeVisitor<DestructureComposite> {
 
       this->outermost_candidate_.emplace(StructMember{const_cast<llvm::DIDerivedType*>(derived_ty), member_base_type});
 
-      if (is_pointer_like(*member_base_type) || member_base_type->getTag() == llvm::dwarf::DW_TAG_array_type) {
-        LOG_DEBUG("Terminating recursion, found pointer-like "
-                  << is_pointer_like(*member_base_type) << " or array-like "
-                  << (member_base_type->getTag() == llvm::dwarf::DW_TAG_array_type))
+      if (is_pointer_like(*member_base_type) || is_array(*member_base_type)) {
+        LOG_DEBUG("Terminating recursion, found pointer-like " << is_pointer_like(*member_base_type)
+                                                               << " or array-like " << is_array(*member_base_type))
         return false;  // if offset matches, and its a pointer-like, we do not need to recurse.
       }
 
