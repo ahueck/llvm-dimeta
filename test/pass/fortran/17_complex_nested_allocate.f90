@@ -1,5 +1,5 @@
-! RUN: %fortran-to-llvm %s | %apply-verifier 2>&1 | %filecheck %s --check-prefixes=CHECK,NONOPT
-! RUN: %fortran-to-llvm %s | %opt -O2 | %apply-verifier 2>&1 | %filecheck %s --check-prefixes=CHECK
+! RUN: %fortran-to-llvm %s | %apply-verifier 2>&1 | %filecheck %s
+! RUN: %fortran-to-llvm %s | %opt -O2 | %apply-verifier 2>&1 | %filecheck %s
 ! REQUIRES: hasflang
 
 MODULE test_mod
@@ -55,28 +55,28 @@ END MODULE test_mod
 
 ! CHECK: Line:            29
 ! CHECK: Fundamental:     { Name: real, Extent: 8, Encoding: float }
-! NONOPT: Qualifiers:      [ array ]
+! CHECK: Qualifiers:      [ array ]
 
 ! CHECK: Line:            35
 ! CHECK: Fundamental:     { Name: real, Extent: 8, Encoding: float }
-! NONOPT: Qualifiers:      [ array ]
+! CHECK: Qualifiers:      [ array ]
 
 ! CHECK: Line:            41
 ! CHECK: Fundamental:     { Name: real, Extent: 8, Encoding: float }
-! NONOPT: Qualifiers:      [ array ]
+! CHECK: Qualifiers:      [ array ]
 
 ! CHECK: Line:            47
 ! CHECK: Fundamental:     { Name: real, Extent: 8, Encoding: float }
-! NONOPT: Qualifiers:      [ array ]
+! CHECK: Qualifiers:      [ array ]
 
 ! CHECK: Line:            48
 ! CHECK: Fundamental:     { Name: real, Extent: 8, Encoding: float }
-! NONOPT: Qualifiers:      [ array ]
+! CHECK: Qualifiers:      [ array ]
 
 ! CHECK: Line:            49
 ! CHECK: Fundamental:     { Name: real, Extent: 8, Encoding: float }
-! NONOPT: Qualifiers:      [ array ]
+! CHECK: Qualifiers:      [ array ]
 
 ! CHECK: Line:            50
 ! CHECK: Fundamental:     { Name: real, Extent: 8, Encoding: float }
-! NONOPT: Qualifiers:      [ array ]
+! CHECK: Qualifiers:      [ array ]

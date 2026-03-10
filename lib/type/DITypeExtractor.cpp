@@ -339,8 +339,13 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
     const bool is_array_type_member = member_base->getTag() == llvm::dwarf::DW_TAG_array_type;
     if (is_array_type_member) {
       LOG_DEBUG("Store to member with type array, looks through to base type of array")
-      // TODO Fortran: test 17, 18: with optim, we do not detect the tag "array" due to this heuristic.
-      return llvm::cast<llvm::DICompositeType>(member_base)->getBaseType();
+      // Fortran: test 17, 18: with optim, we do not detect the tag "array" otherwise:
+      auto base_of_member = llvm::cast<llvm::DICompositeType>(member_base)->getBaseType();
+      if (di::util::is_pointer(*base_of_member)) {
+        return base_of_member;
+      }
+      return member_base;
+      // return llvm::cast<llvm::DICompositeType>(member_base)->getBaseType();
     }
   }
 
