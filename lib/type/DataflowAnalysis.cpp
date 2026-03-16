@@ -469,10 +469,12 @@ bool passed_to_fortran_helper(const llvm::Value* start) {
       start,
       [&](const ValuePath& path) {
         if (auto call = llvm::dyn_cast<llvm::CallBase>(*path.value())) {
-          if ((call->getCalledFunction() != nullptr) &&
-              util::starts_with_any_of(call->getCalledFunction()->getName(), "_FortranA")) {
-            passed = true;
-            return DefUseChain::kCancel;
+          if (call->getCalledFunction() != nullptr) {
+            auto fn_name = call->getCalledFunction()->getName();
+            if (util::starts_with_any_of(fn_name, "_FortranA") && fn_name != "_FortranAioOutputAscii") {
+              passed = true;
+              return DefUseChain::kCancel;
+            }
           }
         }
         return DefUseChain::kContinue;
