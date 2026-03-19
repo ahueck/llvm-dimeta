@@ -17,4 +17,4 @@ END FUNCTION foo
 ! CHECK:  Line:            11
 ! CHECK-NEXT: Builtin:         true
 ! CHECK-NEXT: Type:
-! CHECK-NEXT: Fundamental:     { Name: real, Extent: 8, Encoding: float }
+! CHECK-NEXT: Fundamental:     { Name: {{real|'real\(kind=8\)'}}, Extent: 8, Encoding: float }

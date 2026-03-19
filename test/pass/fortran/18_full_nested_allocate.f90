@@ -94,17 +94,17 @@ END MODULE test_mod
 ! CHECK: Qualifiers:      [ array ]
 
 ! CHECK: Line:            75
-! CHECK: Fundamental:     { Name: real, Extent: 8, Encoding: float }
+! CHECK: Fundamental:     { Name: {{real|'real\(kind=8\)'}}, Extent: 8, Encoding: float }
 ! CHECK: Qualifiers:      [ array ]
 
 ! CHECK: Line:            76
-! CHECK: Fundamental:     { Name: real, Extent: 8, Encoding: float }
+! CHECK: Fundamental:     { Name: {{real|'real\(kind=8\)'}}, Extent: 8, Encoding: float }
 ! CHECK: Qualifiers:      [ array ]
 
 ! CHECK: Line:            77
-! CHECK: Fundamental:     { Name: real, Extent: 8, Encoding: float }
+! CHECK: Fundamental:     { Name: {{real|'real\(kind=8\)'}}, Extent: 8, Encoding: float }
 ! CHECK: Qualifiers:      [ array ]
 
 ! CHECK: Line:            78
-! CHECK: Fundamental:     { Name: real, Extent: 8, Encoding: float }
+! CHECK: Fundamental:     { Name: {{real|'real\(kind=8\)'}}, Extent: 8, Encoding: float }
 ! CHECK: Qualifiers:      [ array ]
