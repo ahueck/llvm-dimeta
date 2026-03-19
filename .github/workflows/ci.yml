@@ -52,29 +52,31 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        preset: [coverage]
-        llvm-version: [18, 19, 20, 21]
+        llvm-version: [18, 19, 20, 21, 22]
         os: [ubuntu-24.04]
         use-tbaa: [true, false]
         with-flang: [false]
         include:
           - llvm-version: 13
             os: ubuntu-22.04
-            preset: coverage
           - llvm-version: 14
             os: ubuntu-22.04
-            preset: coverage
           - llvm-version: 15
             os: ubuntu-22.04
-            preset: coverage
           - llvm-version: 21
             os: ubuntu-24.04
-            preset: coverage
             use-tbaa: true
             with-flang: true
           - llvm-version: 21
             os: ubuntu-24.04
-            preset: coverage
+            use-tbaa: false
+            with-flang: true
+          - llvm-version: 22
+            os: ubuntu-24.04
+            use-tbaa: true
+            with-flang: true
+          - llvm-version: 22
+            os: ubuntu-24.04
             use-tbaa: false
             with-flang: true
 
@@ -119,7 +121,7 @@ jobs:
 
       - name: Configure Dimeta
         run: |
-          cmake -B build --preset ${{ matrix.preset }} \
+          cmake -B build --preset coverage \
             -DLLVM_DIR=${LLVM_CMAKE_DIR} \
             -DLLVM_EXTERNAL_LIT=${EXTERNAL_LIT} \
             -DDIMETA_USE_TBAA=${USE_TBAA} \
