@@ -105,7 +105,7 @@ struct DestructureComposite : visitor::DINodeVisitor<DestructureComposite> {
   bool visitCompositeType(const llvm::DICompositeType* composite) const {
     LOG_DEBUG("visitCompositeType: " << log::ditype_str(composite) << ": " << composite->getName()
                                      << " index: " << byte_index_ << " offset base: " << this->offset_base_);
-    return true;
+    return !terminate;
   }
 
   bool visitDerivedType(const llvm::DIDerivedType* derived_ty) {
@@ -133,6 +133,7 @@ struct DestructureComposite : visitor::DINodeVisitor<DestructureComposite> {
       if (is_pointer_like(*member_base_type) || is_array(*member_base_type)) {
         LOG_DEBUG("Terminating recursion, found pointer-like " << is_pointer_like(*member_base_type)
                                                                << " or array-like " << is_array(*member_base_type))
+        terminate = true;
         return false;  // if offset matches, and its a pointer-like, we do not need to recurse.
       }
 
@@ -150,6 +151,7 @@ struct DestructureComposite : visitor::DINodeVisitor<DestructureComposite> {
   size_t byte_index_;
   size_t offset_base_{};
   std::optional<StructMember> outermost_candidate_{};
+  bool terminate{false};
 };
 
 std::optional<StructMember> resolve_byte_offset_to_member_of(const llvm::DICompositeType* composite, size_t offset) {

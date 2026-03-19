@@ -69,7 +69,7 @@ CheckOptions:
   - { key: readability-identifier-naming.VariableCase,           value: lower_case }
   - { key: readability-identifier-naming.ClassMemberCase,        value: lower_case }
   - { key: readability-identifier-naming.ClassMemberSuffix,      value: _ }
-  - { key: readability-identifier-naming.PriateMemberSuffix,    value: _ }
+  - { key: readability-identifier-naming.PrivateMemberSuffix,    value: _ }
   - { key: readability-identifier-naming.ProtectedMemberSuffix,  value: _ }
   - { key: readability-identifier-naming.EnumConstantCase,         value: CamelCase }
   - { key: readability-identifier-naming.EnumConstantPrefix,       value: k }

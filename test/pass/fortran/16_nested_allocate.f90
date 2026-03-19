@@ -1,4 +1,4 @@
-! RUN: %fortran-to-llvm %s | %apply-verifier 2>&1 | %filecheck %s
+! RUN: %fortran-to-llvm %s | %apply-verifier | %filecheck %s
 ! RUN: %fortran-to-llvm %s | %opt -O2 | %apply-verifier 2>&1 | %filecheck %s
 
 ! REQUIRES: hasflang
@@ -75,5 +75,5 @@ END MODULE test_mod
 ! CHECK-NEXT:     Sizes:           [ 88, 4, 4, 4, 4, 4, 4, 16, 8 ]
 
 ! CHECK: Line:            59
-! CHECK: Fundamental:     { Name: real, Extent: 8, Encoding: float }
+! CHECK: Fundamental:     { Name: {{real|'real\(kind=8\)'}}, Extent: 8, Encoding: float }
 ! CHECK: Qualifiers:      [ array ]

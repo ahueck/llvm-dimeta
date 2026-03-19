@@ -21,12 +21,12 @@ void foo() {
 // CHECK-NEXT:   - Name:            bitint8_var
 // CHECK-NEXT:     Builtin:         true
 // CHECK-NEXT:     Type:
-// CHECK-NEXT:       Fundamental:     { Name: _BitInt, Extent: 1, Encoding: signed_int }
+// CHECK-NEXT:       Fundamental:     { Name: {{[']?}}_BitInt{{.*[']?}}, Extent: 1, Encoding: signed_int }
 // CHECK-NEXT:   - Name:            bitint16_var
 // CHECK-NEXT:     Builtin:         true
 // CHECK-NEXT:     Type:
-// CHECK-NEXT:       Fundamental:     { Name: _BitInt, Extent: 2, Encoding: signed_int }
+// CHECK-NEXT:       Fundamental:     { Name: {{[']?}}_BitInt{{.*[']?}}, Extent: 2, Encoding: signed_int }
 // CHECK-NEXT:   - Name:            bitint32_var
 // CHECK-NEXT:     Builtin:         true
 // CHECK-NEXT:     Type:
-// CHECK-NEXT:       Fundamental:     { Name: _BitInt, Extent: 4, Encoding: signed_int }
+// CHECK-NEXT:       Fundamental:     { Name: {{[']?}}_BitInt{{.*[']?}}, Extent: 4, Encoding: signed_int }
