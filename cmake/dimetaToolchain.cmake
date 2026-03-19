@@ -43,7 +43,7 @@ option(DIMETA_ENABLE_COVERAGE "Enable coverage targets" OFF)
 
 option(DIMETA_TEST_CONFIG "Set logging levels to appropriate levels for test runner to succeed" OFF)
 
-option(DIMETA_ENABLE_FLANG "Enable Fortran support via Flang targets" ON)
+option(DIMETA_ENABLE_FLANG "Enable Fortran support via Flang targets" OFF)
 
 if(DIMETA_TEST_CONFIG)
   set(DIMETA_LOG_LEVEL 3 CACHE STRING "" FORCE)

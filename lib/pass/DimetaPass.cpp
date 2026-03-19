@@ -94,9 +94,8 @@ PassPluginLibraryInfo getPassPluginInfo() {
       return true;
     });
 #elif LLVM_VERSION_MAJOR >= 14
-    PB.registerPipelineEarlySimplificationEPCallback([&](ModulePassManager& MPM, auto...) {
-      MPM.addPass(dimeta::TestPass());
-    });
+    PB.registerPipelineEarlySimplificationEPCallback(
+        [&](ModulePassManager& MPM, auto...) { MPM.addPass(dimeta::TestPass()); });
 #else
     PB.registerPipelineEarlySimplificationEPCallback([&](ModulePassManager& MPM, auto) {
       MPM.addPass(dimeta::TestPass());
