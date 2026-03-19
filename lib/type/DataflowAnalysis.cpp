@@ -8,6 +8,8 @@
 #include "DataflowAnalysis.h"
 
 #include "DefUseAnalysis.h"
+#include "Dimeta.h"
+#include "Util.h"
 #include "support/Logger.h"
 
 #include "llvm/ADT/TinyPtrVector.h"
@@ -30,6 +32,8 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <cassert>
+#include <cstdint>
+#include <llvm/IR/GlobalValue.h>
 #include <optional>
 
 namespace llvm {
@@ -68,7 +72,18 @@ llvm::SmallVector<ValuePath, 4> type_for_heap_call(const llvm::CallBase* call) {
   LOG_DEBUG("Find heap-call to anchor w.r.t. " << *call)
   // Anchor can be anything like function call "malloc -> .. -> foo(malloc)" or "malloc -> .. -> store" etc.
   MallocAnchorMatcher malloc_forward_anchor_finder;
-  value_traversal.traverse(call, malloc_forward_anchor_finder, should_search);
+  // value_traversal.traverse(call, malloc_forward_anchor_finder, should_search);
+  value_traversal.traverse_custom(call, malloc_forward_anchor_finder, should_search,
+                                  [](const ValuePath& val) -> std::optional<decltype(val.value().value()->users())> {
+                                    const auto value = val.value();
+                                    if (!value) {
+                                      return {};
+                                    }
+                                    if (auto* store = llvm::dyn_cast<llvm::StoreInst>(value.value())) {
+                                      return store->getPointerOperand()->users();
+                                    }
+                                    return value.value()->users();
+                                  });
 
   // backward: find paths from anchor (store) to alloca/argument/global etc.
   MallocTargetMatcher malloc_anchor_backtrack;
@@ -82,6 +97,7 @@ llvm::SmallVector<ValuePath, 4> type_for_heap_call(const llvm::CallBase* call) {
     if (auto* store_inst = dyn_cast_or_null<StoreInst>(anchor_path.value().value_or(nullptr))) {
       if (store_inst->getPointerOperand() == call) {
         // see test heap_lulesh_domain_mock.cpp with opt -O3
+        LOG_DEBUG("Continue with " << *store_inst)
         continue;
       }
       if (anchor_path.value()) {
@@ -96,6 +112,17 @@ llvm::SmallVector<ValuePath, 4> type_for_heap_call(const llvm::CallBase* call) {
       }
       continue;
     }
+
+    if (auto* store_inst = dyn_cast_or_null<MemIntrinsic>(anchor_path.value().value_or(nullptr))) {
+      value_traversal.traverse_custom(anchor_path.value().value(), malloc_anchor_backtrack, should_search,
+                                      backtrack_search_dir_fn);
+      for (const auto& backtrack_path : malloc_anchor_backtrack.types_path) {
+        LOG_DEBUG("Found backtrack path for memintrinsic " << backtrack_path)
+        ditype_paths.emplace_back(backtrack_path);
+      }
+      continue;
+    }
+
     ditype_paths.emplace_back(anchor_path);
   }
 
@@ -116,6 +143,17 @@ llvm::SmallVector<ValuePath, 4> path_from_alloca(const llvm::AllocaInst* alloca)
 
   MallocAnchorMatcher malloc_forward_anchor_finder;
   value_traversal.traverse(alloca, malloc_forward_anchor_finder, should_search);
+  return malloc_forward_anchor_finder.anchors;
+}
+
+llvm::SmallVector<ValuePath, 4> path_from_instruction(const llvm::Instruction* inst) {
+  using namespace llvm;
+
+  auto should_search = [&](const ValuePath&) -> bool { return true; };
+  DefUseChain value_traversal;
+
+  MallocAnchorMatcher malloc_forward_anchor_finder;
+  value_traversal.traverse(inst, malloc_forward_anchor_finder, should_search);
   return malloc_forward_anchor_finder.anchors;
 }
 
@@ -174,11 +212,20 @@ auto MallocBacktrackSearch::operator()(const ValuePath& path) -> std::optional<V
       }
       return result;
     }
-      //    case Instruction::Call: {
-      //      LOG_DEBUG("Handle call inst")
-      //      result.push_back(inst);
-      //      return result;
-      //    }
+    case Instruction::Call: {
+      LOG_DEBUG("Handle call inst")
+      if (MemCpyInst::classof(inst)) {
+        result.push_back(inst->getOperand(0));
+      }
+
+      return result;
+    }
+    case Instruction::SExt: {
+      // Used by fortran/07_bounds.f90
+      LOG_DEBUG("Handle SExt inst")
+      result.push_back(llvm::dyn_cast<llvm::SExtInst>(inst)->getOperand(0));
+      return result;
+    }
   }
   return {};
 }
@@ -199,6 +246,9 @@ auto MallocTargetMatcher::operator()(const ValuePath& path) -> decltype(DefUseCh
   // Handle path to alloca -> can extract type
   if (const auto* inst = dyn_cast<Instruction>(value)) {
     if (isa<IntrinsicInst>(inst)) {
+      if (llvm::MemCpyInst::classof(inst)) {
+        return DefUseChain::kContinue;
+      }
       return DefUseChain::kSkip;
     }
     if (isa<AllocaInst>(inst)) {
@@ -256,6 +306,11 @@ auto MallocAnchorMatcher::operator()(const ValuePath& path) -> decltype(DefUseCh
   }
 
   if (llvm::isa<IntrinsicInst>(inst)) {
+    if (const auto memcpy = llvm::dyn_cast<MemIntrinsic>(inst)) {
+      anchors.push_back(path);
+      LOG_DEBUG("Found memintrinsic " << *memcpy)
+      return DefUseChain::kSkip;
+    }
     return DefUseChain::kSkip;
   }
 
@@ -267,6 +322,12 @@ auto MallocAnchorMatcher::operator()(const ValuePath& path) -> decltype(DefUseCh
     case Instruction::Store: {
       const auto* store = cast<StoreInst>(inst);
       if (store->getPointerOperand() != path.start_value()) {
+        for (auto user : store->getPointerOperand()->users()) {
+          if (const auto memcpy = llvm::dyn_cast<MemIntrinsic>(user)) {
+            LOG_DEBUG("Store to target for memintrinsic " << *memcpy)
+            return DefUseChain::kContinue;
+          }
+        }
         anchors.push_back(path);
       } else {
         LOG_DEBUG("Store to allocated object, skipping. " << *store)
@@ -325,6 +386,105 @@ auto MallocAnchorMatcher::operator()(const ValuePath& path) -> decltype(DefUseCh
   }
   return DefUseChain::kContinue;
 }
+
+namespace fortran {
+
+inline std::int64_t get_as_int(llvm::Value* shape) {
+  const auto to_int = [](const llvm::Value* shape) -> std::optional<std::int64_t> {
+    if (shape == nullptr) {
+      return {};
+    }
+    auto* constant_int = llvm::dyn_cast<llvm::ConstantInt>(shape);
+    // assert(constant_int && "Expected llvm::ConstantInt");
+    if (constant_int) {
+      assert(constant_int->getBitWidth() <= 64 && "Value is too wide");
+      const auto type_id = static_cast<std::int64_t>(constant_int->getSExtValue());
+      return {type_id};
+    }
+    return {};
+  };
+
+  const auto int_value = to_int(shape);
+  if (int_value) {
+    return int_value.value();
+  }
+
+  std::optional<std::int64_t> global_value;
+  {
+    DefUseChain value_traversal;
+    MallocBacktrackSearch backtrack_search_dir_fn;
+    value_traversal.traverse_custom(
+        shape,
+        [&](const ValuePath& path) {
+          LOG_DEBUG("Global value for shape: " << **path.value())
+          if (auto global = llvm::dyn_cast<llvm::GlobalVariable>(*path.value())) {
+            const auto int_value = to_int(global->getInitializer());
+
+            if (int_value) {
+              LOG_DEBUG("Global int for shape: " << int_value.value())
+              global_value = int_value;
+            }
+            return DefUseChain::kCancel;
+          }
+          return DefUseChain::kContinue;
+        },
+        [&](const ValuePath&) -> bool { return true; }, backtrack_search_dir_fn);
+  }
+  return global_value.value_or(-1);
+}
+
+std::optional<ShapeData> shape_from_value(const llvm::Value* start) {
+  DefUseChain value_traversal;
+
+  ShapeData data;
+  value_traversal.traverse(
+      start,
+      [&](const ValuePath& path) {
+        if (auto call = llvm::dyn_cast<llvm::CallBase>(*path.value())) {
+          if ((call->getCalledFunction() != nullptr) &&
+              util::starts_with_any_of(call->getCalledFunction()->getName(), "_FortranAAllocatableSetBounds",
+                                       "_FortranAPointerSetBounds")) {
+            // shape = call->getOperand(3);
+            // LOG_DEBUG("Found shape: " << *shape.value())
+            const auto dim = get_as_int(call->getOperand(3));
+            data.shapes.emplace_back(ShapeData::IndexDim{get_as_int(call->getOperand(1)), dim});
+            return DefUseChain::kContinue;
+          }
+        }
+        return DefUseChain::kContinue;
+      },
+      [&](const ValuePath&) -> bool { return true; });
+
+  if (data.shapes.empty()) {
+    return {};
+  }
+  return data;
+}
+
+bool passed_to_fortran_helper(const llvm::Value* start) {
+  DefUseChain value_traversal;
+
+  bool passed{false};
+  value_traversal.traverse(
+      start,
+      [&](const ValuePath& path) {
+        if (auto call = llvm::dyn_cast<llvm::CallBase>(*path.value())) {
+          if (call->getCalledFunction() != nullptr) {
+            auto fn_name = call->getCalledFunction()->getName();
+            if (util::starts_with_any_of(fn_name, "_FortranA") && fn_name != "_FortranAioOutputAscii") {
+              passed = true;
+              return DefUseChain::kCancel;
+            }
+          }
+        }
+        return DefUseChain::kContinue;
+      },
+      [&](const ValuePath&) -> bool { return true; });
+
+  return passed;
+}
+
+}  // namespace fortran
 
 namespace experimental {
 llvm::SmallVector<dataflow::ValuePath, 4> path_from_value(const llvm::Value* start) {

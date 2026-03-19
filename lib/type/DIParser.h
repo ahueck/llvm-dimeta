@@ -71,6 +71,7 @@ class DIParseEvents {
   virtual void make_fundamental(const state::MetaData&)   = 0;
   virtual void make_function_ptr(const state::MetaData&)  = 0;
   virtual void make_void_ptr(const state::MetaData&)      = 0;
+  virtual void make_string(const state::MetaData&)        = 0;
   virtual void make_vtable(const state::MetaData&)        = 0;
   virtual void make_enum_member(const state::MetaData&)   = 0;
   virtual void make_composite(const state::MetaData&)     = 0;

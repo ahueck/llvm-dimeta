@@ -10,6 +10,7 @@
 #include "DIFinder.h"
 #include "DIRootType.h"
 #include "DITypeExtractor.h"
+#include "DIUtil.h"
 #include "DataflowAnalysis.h"
 #include "DefUseAnalysis.h"
 #include "DimetaData.h"
@@ -44,6 +45,7 @@
 
 #include <cassert>
 #include <iterator>
+#include <optional>
 #include <string>
 
 namespace llvm {
@@ -56,6 +58,14 @@ class DbgVariableIntrinsic;
 #endif
 
 namespace dimeta {
+
+namespace fortran {
+struct FortranType {
+  llvm::DIType* type{nullptr};
+  std::optional<ShapeData> shape_argument;
+};
+std::optional<FortranType> di_type_for(const llvm::Value* value, const llvm::CallBase* call = nullptr);
+}  // namespace fortran
 
 namespace experimental {
 std::optional<llvm::DIType*> di_type_for(const llvm::Value* value);
@@ -78,7 +88,7 @@ auto final_ditype(std::optional<llvm::DIType*> root_ditype) -> std::pair<std::op
   llvm::DIType* type = *root_ditype;
   while (llvm::isa<llvm::DIDerivedType>(type)) {
     auto ditype = llvm::dyn_cast<llvm::DIDerivedType>(type);
-    if (ditype->getTag() == llvm::dwarf::DW_TAG_pointer_type) {
+    if (di::util::is_pointer(*ditype, false)) {
       ++level;
     }
     // void*-based derived types have basetype=null:
@@ -143,7 +153,20 @@ std::optional<DimetaData> type_for(const llvm::CallBase* call) {
   }
 
   std::optional<llvm::DIType*> extracted_type{};
+  std::optional<ShapeData> shape_type{};
   int pointer_level_offset{0};
+
+  const auto is_fortran_like = mem_ops.isFortranLike(cb_fun->getName());
+  if (is_fortran_like) {
+    LOG_DEBUG("Type for fortran-like " << cb_fun->getName())
+    auto fortran_type = fortran::di_type_for(call->getOperand(0), call);
+    if (fortran_type) {
+      extracted_type = fortran_type->type;
+      if (fortran_type->shape_argument) {
+        shape_type = fortran_type->shape_argument;
+      }
+    }
+  }
 
   const auto is_cuda_like = mem_ops.isCudaLike(cb_fun->getName());
   if (is_cuda_like) {
@@ -185,20 +208,27 @@ std::optional<DimetaData> type_for(const llvm::CallBase* call) {
   }
   auto source_loc                        = difinder::find_location(call);
   const auto [final_type, pointer_level] = final_ditype(extracted_type);
-  const auto meta = DimetaData{DimetaData::MemLoc::kHeap,           {}, extracted_type, final_type, source_loc,
-                               pointer_level + pointer_level_offset};
+  const auto meta =
+      DimetaData{DimetaData::MemLoc::kHeap,           {}, extracted_type, final_type, source_loc, shape_type,
+                 pointer_level + pointer_level_offset};
   return meta;
 }
 
 std::optional<DimetaData> type_for(const llvm::AllocaInst* ai) {
   const auto local_di_var = difinder::find_local_variable(ai);
 
+  const auto passed = dataflow::fortran::passed_to_fortran_helper(ai);
+  if (passed) {
+    LOG_DEBUG("Skip allocation passed to Flang intrinsic")
+    return {};
+  }
+
   if (local_di_var) {
     auto extracted_type                    = local_di_var.value()->getType();
     auto source_loc                        = difinder::find_location(ai);
     const auto [final_type, pointer_level] = final_ditype(extracted_type);
     const auto meta =
-        DimetaData{DimetaData::MemLoc::kStack, local_di_var, extracted_type, final_type, source_loc, pointer_level};
+        DimetaData{DimetaData::MemLoc::kStack, local_di_var, extracted_type, final_type, source_loc, {}, pointer_level};
     return meta;
   }
 
@@ -214,7 +244,7 @@ std::optional<DimetaData> type_for(const llvm::GlobalVariable* gv) {
     auto gv_expr                           = *dbg_info.begin();
     auto gv_type                           = gv_expr->getVariable()->getType();
     const auto [final_type, pointer_level] = final_ditype(gv_type);
-    return DimetaData{DimetaData::MemLoc::kGlobal, gv_expr->getVariable(), gv_type, final_type, {}, pointer_level};
+    return DimetaData{DimetaData::MemLoc::kGlobal, gv_expr->getVariable(), gv_type, final_type, {}, {}, pointer_level};
   }
   return {};
 }
@@ -237,6 +267,21 @@ std::optional<CompileUnitTypeList> compile_unit_types(const llvm::Module* module
   }
   return (list.empty() ? std::optional<CompileUnitTypeList>{} : list);
 }
+
+namespace fortran {
+std::optional<FortranType> di_type_for(const llvm::Value* value, const llvm::CallBase* call) {
+  assert(value != nullptr);
+  auto shape = dataflow::fortran::shape_from_value(value);
+
+  auto paths                = dataflow::experimental::path_from_value(value);
+  const auto ditypes_vector = collect_types(call, paths);
+  if (ditypes_vector.empty()) {
+    return {};
+  }
+
+  return FortranType{*ditypes_vector.begin(), shape};
+}
+}  // namespace fortran
 
 namespace experimental {
 std::optional<llvm::DIType*> di_type_for(const llvm::Value* value) {

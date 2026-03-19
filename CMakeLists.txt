@@ -16,7 +16,7 @@ include(dimetaToolchain)
 
 if(DIMETA_IS_TOP_LEVEL)
   set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-  set(CMAKE_VERBOSE_MAKEFILE ON)
+  set(CMAKE_VERBOSE_MAKEFILE OFF)
 endif()
 
 dimeta_target_format(
