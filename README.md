@@ -125,7 +125,7 @@ entry:
 
 ## 2. Building llvm-dimeta
 
-llvm-dimeta is tested with LLVM version 13-15 and 18-21, and CMake version >= 3.20. Use CMake presets `develop` or `release` to build.
+llvm-dimeta is tested with LLVM version 13-15 and 18-22, and CMake version >= 3.20. Use CMake presets `develop` or `release` to build.
 
 ### 2.1 Build example
 
@@ -147,7 +147,7 @@ $> cmake --build build --target install --parallel
 | `DIMETA_TEST_CONFIG`       |  `OFF`  | Enable test config, see Section [2.3](#23-testing) (sets log level etc.) |
 | `DIMETA_LOG_LEVEL`         |   `1`   | Granularity of pass logger. 3 is most verbose, 0 is least                |
 | `DIMETA_ENABLE_COVERAGE`   |  `OFF`  | Enable collecting (test) coverage information                            |
-
+| `DIMETA_ENABLE_FLANG`      |  `OFF`  | Enable Fortran type extraction support                                   |
 
 ### 2.3 Testing
 For testing we require `lit` and `FileCheck`.

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(dimeta
-  VERSION 0.4.0
+  VERSION 0.5.0
   HOMEPAGE_URL https://github.com/ahueck/llvm-dimeta
   LANGUAGES C CXX
 )
