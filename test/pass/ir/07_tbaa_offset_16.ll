@@ -1,5 +1,5 @@
 ; RUN: %apply-verifier %s |& %filecheck %s
-; REQUIRES: (llvm-19 || llvm-20) && tbaa
+; REQUIRES: (llvm-19 || llvm-20 || llvm-21 || llvm-22) && tbaa
 ; CHECK-NOT: Assertion
 
 ; CHECK:   Line:            32

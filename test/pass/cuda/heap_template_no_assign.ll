@@ -1,5 +1,5 @@
 ; RUN: %apply-verifier %s |& %filecheck %s
-; REQUIRES: llvm-18 || llvm-19
+; REQUIRES: llvm-18 || llvm-19 || llvm-20 || llvm-21 || llvm-22
 
 ;    Function:        'cudaMalloc<float>'
 ; CHECK:   Line:            684

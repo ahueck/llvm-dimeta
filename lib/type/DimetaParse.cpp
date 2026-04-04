@@ -199,6 +199,9 @@ QualifiedFundamental make_qualified_fundamental(const diparser::state::MetaData&
         // sizeof std::nullptr == sizeof void*
         size =
             meta_.member_size > 0 ? meta_.member_size : (meta_.derived_size > 0 ? meta_.derived_size : sizeof(void*));
+      } else if (encoding == FundamentalType::Encoding::kString) {
+        // TODO: fortran, each character is 1 byte of storage (?)
+        size = 1;
       }
     }
     return size;
@@ -273,6 +276,13 @@ class DITypeParser final : public diparser::DIParseEvents {
     const auto* derived_type = llvm::dyn_cast<llvm::DIDerivedType>(meta_.type);
     assert(derived_type != nullptr && "Type void* should be a derived type");
     emplace_fundamental(meta_, "void", FundamentalType::Encoding::kVoid);
+  }
+
+  void make_string(const diparser::state::MetaData& meta_) override {
+    const auto* string_type = llvm::dyn_cast<llvm::DIStringType>(meta_.type);
+    assert(string_type != nullptr && "Type should be a string type");
+    auto name = string_type->getName();
+    emplace_fundamental(meta_, name.empty() ? "character" : name, FundamentalType::Encoding::kString);
   }
 
   void make_vtable(const diparser::state::MetaData& meta_) override {

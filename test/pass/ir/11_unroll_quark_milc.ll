@@ -1,5 +1,5 @@
 ; RUN: %apply-verifier %s |& %filecheck %s
-; REQUIRES: llvm-18 || llvm-19 || llvm-20
+; REQUIRES: llvm-18 || llvm-19 || llvm-20 || llvm-21 || llvm-22
 
 ; CHECK-COUNT-7: Location: "{{.*}}quark_stuff.c":"eo_fermion_force_3f":1293
 

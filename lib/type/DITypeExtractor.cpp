@@ -7,10 +7,13 @@
 //
 
 #include "DIFinder.h"
+#include "DIFortranTypeExtractor.h"
+#include "DIPath.h"
 #include "DIRootType.h"
 #include "DIUtil.h"
 #include "DataflowAnalysis.h"
 #include "DefUseAnalysis.h"
+#include "DimetaData.h"
 #include "GEP.h"
 #include "TBAA.h"
 #include "Util.h"
@@ -127,76 +130,6 @@ bool store_to_array_gep(const llvm::StoreInst* store) {
   return detail::is_array_gep_with_non_const_indices(gep.value());
 }
 
-namespace dipath {
-
-struct IRMapping {
-  const llvm::Value* value{nullptr};
-  llvm::DIType* mapped{nullptr};
-  std::string reason;
-};
-
-struct ValueToDiPath {
-  llvm::SmallVector<IRMapping, 8> path_to_ditype;
-
-  void emplace_back(const llvm::Value* val, llvm::DIType* mapped_di_type, const std::string reason = "") {
-    path_to_ditype.emplace_back(IRMapping{val, mapped_di_type, std::move(reason)});
-  }
-
-  std::optional<llvm::DIType*> final_type() const {
-    if (path_to_ditype.empty()) {
-      return {};
-    }
-    const auto& ditype = path_to_ditype.back();
-    return ditype.mapped != nullptr ? std::optional{ditype.mapped} : std::nullopt;
-  }
-};
-
-llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const ValueToDiPath& vdp) {
-#if DIMETA_LOG_LEVEL > 2  // FIXME: For coverage
-  const auto& mappings = vdp.path_to_ditype;
-  // os << "ValueToDiPath: ";  // Prefix to identify the type being printed
-  if (mappings.empty()) {
-    os << "[]";
-    return os;
-  }
-  const auto mapping_to_string = [](const IRMapping& mapping) -> std::string {
-    std::string str_buffer;
-    llvm::raw_string_ostream stream(str_buffer);
-
-    stream << "{IR: ";
-    if (mapping.value) {
-      // mapping.value->printAsOperand(stream, true);
-      mapping.value->print(stream, true);
-    } else {
-      stream << "null";
-    }
-
-    stream << "; DI: ";
-    if (mapping.mapped) {
-      stream << log::ditype_str(mapping.mapped);
-    } else {
-      stream << "null";
-    }
-
-    if (!mapping.reason.empty()) {
-      stream << ", Reason: \"" << mapping.reason << "\"}";
-    }
-    return stream.str();
-  };
-
-  os << "[" << mapping_to_string(mappings.front());
-  std::for_each(std::next(mappings.begin()), mappings.end(), [&](const IRMapping& mapping_item) {
-    os << " --> ";
-    os << mapping_to_string(mapping_item);
-  });
-
-  os << "]";
-#endif
-  return os;
-}
-
-}  // namespace dipath
-
 std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath& path, llvm::DIType* type_to_reset,
                                                       const llvm::LoadInst* load) {
   auto* type = type_to_reset;
@@ -204,6 +137,17 @@ std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath&
   if (load_to<llvm::GlobalVariable>(load) || load_to<llvm::AllocaInst>(load)) {
     LOG_DEBUG("Do not reset DIType based on load to global,alloca")
     return type;
+  }
+
+  // Fortran test 11_...F90:
+  if (auto gep = detail::get_operand_to<llvm::GetElementPtrInst>(load)) {
+    const bool fortran_descriptor = fortran::is_fortran_descriptor(gep.value()->getSourceElementType());
+    if (fortran_descriptor) {
+      // auto comp   = di::util::desugar(*type);
+      // auto result = di::util::resolve_byte_offset_to_member_of(comp.value(), 0);
+      // return result->type_of_member;
+      return type;
+    }
   }
 
   if (di::util::is_array_member(*type)) {
@@ -234,9 +178,10 @@ std::optional<llvm::DIType*> reset_load_related_basic(const dataflow::ValuePath&
   const bool last_load     = path.start_value().value_or(nullptr) == load;
   const bool is_not_member = !di::util::is_member(*type);
   if (is_not_member || last_load) {
-    const bool is_not_arg_load  = !load_to<llvm::Argument>(load);
-    const bool is_not_array_gep = !load_of_array_gep(load) && !load_for_array_gep(load);
-    if (is_not_array_gep && (is_not_arg_load || last_load)) {
+    const bool is_not_arg_load = !load_to<llvm::Argument>(load);
+    // test Fortran 17 (first allocate): SROA optimization: load on argument selects first member of struct:
+    // const bool is_not_array_gep = !load_of_array_gep(load) && !load_for_array_gep(load);
+    if (!load_of_array_gep(load)) {  // && (is_not_arg_load || last_load)) {
       if (auto resolved = try_resolve_to_first_member(type)) {
         return resolved.value();
       }
@@ -322,9 +267,16 @@ std::optional<llvm::DIType*> reset_store_related_basic(const dataflow::ValuePath
 
   if (di::util::is_array_member(*type)) {
     auto* member_base               = derived_type->getBaseType();
-    const bool is_array_type_member = member_base->getTag() == llvm::dwarf::DW_TAG_array_type;
+    const bool is_array_type_member = di::util::is_array(*member_base);
     if (is_array_type_member) {
-      return llvm::cast<llvm::DICompositeType>(member_base)->getBaseType();
+      LOG_DEBUG("Store to member with type array, looks through to base type of array")
+      // Fortran: test 17, 18: with optim, we do not detect the tag "array" otherwise:
+      auto base_of_member = llvm::cast<llvm::DICompositeType>(member_base)->getBaseType();
+      if (di::util::is_pointer(*base_of_member)) {
+        return base_of_member;
+      }
+      return member_base;
+      // return llvm::cast<llvm::DICompositeType>(member_base)->getBaseType();
     }
   }
 
@@ -359,13 +311,20 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dat
 
   if (llvm::isa<llvm::GEPOperator>(*current_value)) {
     LOG_DEBUG("Reset based on GEP")
-    auto* gep             = llvm::cast<llvm::GEPOperator>(*current_value);
-    const auto gep_result = gep::extract_gep_dereferenced_type(type.value(), *gep);
-    if (gep_result.member && !gep_result.use_type) {
-      LOG_DEBUG("Using gep member type result")
-      type = gep_result.member;
+    const llvm::GEPOperator* gep_op = llvm::cast<llvm::GEPOperator>(*current_value);
+    const bool fortran_descriptor   = fortran::is_fortran_descriptor(gep_op->getSourceElementType());
+    if (!fortran_descriptor) {
+      const auto gep_result = gep::extract_gep_dereferenced_type(type.value(), *gep_op);
+      if (gep_result.member && !gep_result.use_type) {
+        LOG_DEBUG("Using gep member type result")
+        type = gep_result.member;
+      } else if (gep_result.type) {
+        LOG_DEBUG("Using gep type result")
+        type = gep_result.type;
+      }
     } else {
-      type = gep_result.type;
+      // Fortran test 11_...F90:
+      LOG_DEBUG("Skipping GEP, Fortran descriptor")
     }
   } else if (const auto* load = llvm::dyn_cast<llvm::LoadInst>(*current_value)) {
     LOG_DEBUG("Reset based on load")
@@ -375,8 +334,8 @@ std::optional<llvm::DIType*> reset_ditype(llvm::DIType* type_to_reset, const dat
     type = reset::reset_store_related_basic(path, type.value(), store_inst);
   } else {
     LOG_DEBUG(">> skipping");
-    logged_dipath.emplace_back(*current_value, type.value_or(nullptr));
-    return type;
+    // logged_dipath.emplace_back(*current_value, type.value_or(nullptr));
+    // return type;
   }
 
   logged_dipath.emplace_back(*current_value, type.value_or(nullptr));
@@ -394,7 +353,20 @@ std::optional<llvm::DIType*> find_type(const dataflow::CallValuePath& call_path)
     return {};
   }
 
-  reset::dipath::ValueToDiPath dipath;
+  LOG_DEBUG("IR path to analyze " << call_path.path)
+
+  if (call_path.call) {
+    const auto function       = call_path.call.value()->getCalledFunction();
+    const auto fortran_handle = function ? util::starts_with_any_of(function->getName(), "_FortranAAllocatableAllocate",
+                                                                    "_FortranAPointerAllocate")
+                                         : false;
+    if (fortran_handle) {
+      LOG_DEBUG("Fortran handle found " << function->getName())
+      return fortran::extract(call_path, type);
+    }
+  }
+
+  dipath::ValueToDiPath dipath;
 
   const auto path_end = call_path.path.path_to_value.rend();
   for (auto path_iter = call_path.path.path_to_value.rbegin(); path_iter != path_end; ++path_iter) {

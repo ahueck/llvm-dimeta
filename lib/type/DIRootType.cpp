@@ -8,6 +8,7 @@
 #include "DIRootType.h"
 
 #include "DIFinder.h"
+#include "DITypeExtractor.h"
 #include "DataflowAnalysis.h"
 #include "DefUseAnalysis.h"
 #include "Dimeta.h"
@@ -141,6 +142,17 @@ std::optional<llvm::DIType*> type_of_argument(const llvm::Argument& argument) {
   return {};
 }
 
+std::optional<llvm::DIType*> type_of_global(const llvm::GlobalVariable* global_variable) {
+  auto dbg_md = global_variable->getMetadata("dbg");
+  if (!dbg_md) {
+    return {};
+  }
+  if (auto* global_expression = llvm::dyn_cast<llvm::DIGlobalVariableExpression>(dbg_md)) {
+    return global_expression->getVariable()->getType();
+  }
+  return {};
+}
+
 }  // namespace helper
 
 std::optional<llvm::DIType*> find_type_root(const dataflow::CallValuePath& call_path) {
@@ -199,6 +211,60 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::CallValuePath& call_
       LOG_DEBUG("Called function not found for call base " << *call_inst)
       return {};
     }
+    {
+      // Fortran extension
+      // TODO: handle memcpy indirection
+      if (MemCpyInst::classof(call_inst)) {
+        LOG_DEBUG("Found memcpy, take source " << *call_inst->getArgOperand(1))
+        if (auto alloca = llvm::dyn_cast<llvm::AllocaInst>(call_inst->getArgOperand(1))) {
+          // auto type_of_alloca = find_type_root(dataflow::CallValuePath{std::nullopt, call_path.path});
+          auto local_di_var = difinder::find_local_variable(alloca);
+          if (local_di_var) {
+            LOG_DEBUG("Found type through memcpy")
+            return local_di_var.value()->getType();
+          }
+
+          for (auto user : alloca->users()) {
+            if (auto store = llvm::dyn_cast<llvm::StoreInst>(user)) {
+              if (const auto* argument = llvm::dyn_cast<llvm::Argument>(store->getValueOperand())) {
+                LOG_DEBUG("Found type through memcpy (argument)")
+                return helper::type_of_argument(*argument);
+              }
+            }
+          }
+          if (call_path.path.contains(alloca)) {
+            LOG_DEBUG("Alloca contained in path, skipping further analysis")
+            return {};
+          }
+
+          LOG_DEBUG("Dataflow analysis of alloca")
+          auto paths_from_alloca = dataflow::path_from_alloca(alloca);
+          for (auto& path : paths_from_alloca) {
+            LOG_DEBUG("Path from alloca " << path)
+            auto type_of_alloca = find_type_root(dataflow::CallValuePath{std::nullopt, path});
+            if (type_of_alloca) {
+              return type_of_alloca;
+            }
+          }
+        } else if (auto* global = llvm::dyn_cast<llvm::GlobalVariable>(call_inst->getArgOperand(1))) {
+          LOG_DEBUG("Memcpy of global variable detected")
+          return helper::type_of_global(global);
+        } else if (auto* gep = llvm::dyn_cast<llvm::GetElementPtrInst>(call_inst->getArgOperand(1))) {
+          LOG_DEBUG("Memcpy of GEP detected")
+          auto backward_paths_from_gep = dataflow::experimental::path_from_value(gep);
+          for (auto& path : backward_paths_from_gep) {
+            LOG_DEBUG("Path from gep " << path)
+            // Test fortran 16_...f90, allocation "ALLOCATE(chunk%tiles(t)%field%density ...)"
+            // Use type::find_type to resolve the nested member type from the GEP access path
+            auto type_of_member = type::find_type(dataflow::CallValuePath{std::nullopt, path});
+            if (type_of_member) {
+              LOG_DEBUG("Detected gep member type " << log::ditype_str(type_of_member.value()))
+              return type_of_member;
+            }
+          }
+        }
+      }
+    }
 
     dimeta::memory::MemOps ops;
     if (ops.allocKind(called_f->getName())) {
@@ -242,14 +308,7 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::CallValuePath& call_
   }
 
   if (const auto* global_variable = llvm::dyn_cast<llvm::GlobalVariable>(root_value)) {
-    auto dbg_md = global_variable->getMetadata("dbg");
-    if (!dbg_md) {
-      return {};
-    }
-    if (auto* global_expression = llvm::dyn_cast<llvm::DIGlobalVariableExpression>(dbg_md)) {
-      return global_expression->getVariable()->getType();
-    }
-    return {};
+    return helper::type_of_global(global_variable);
   }
 
   if (const auto* argument = llvm::dyn_cast<llvm::Argument>(root_value)) {

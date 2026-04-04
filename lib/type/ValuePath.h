@@ -5,8 +5,8 @@
 //  SPDX-License-Identifier: BSD-3-Clause
 //
 
-#ifndef DIMETA_VALUEPATH_H
-#define DIMETA_VALUEPATH_H
+#ifndef LIB_TYPE_VALUEPATH
+#define LIB_TYPE_VALUEPATH
 
 #include "Util.h"
 
@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <functional>
+#include <llvm/ADT/STLExtras.h>
 #include <llvm/IR/InstrTypes.h>
 #include <optional>
 
@@ -32,6 +33,10 @@ struct ValuePath {
   ValuePath() = default;
 
   explicit ValuePath(const llvm::Value* start) : path_to_value(1, start) {
+  }
+
+  bool contains(const llvm::Value* value) const {
+    return llvm::is_contained(path_to_value, value);
   }
 
   [[nodiscard]] inline bool empty() const {
@@ -124,6 +129,18 @@ inline llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const ValuePath& pat
 }
 
 struct CallValuePath final {
+  CallValuePath(const llvm::CallBase* call_, const ValuePath path_) {
+    if (call_ != nullptr) {
+      call = call_;
+    }
+    path = std::move(path_);
+  }
+  CallValuePath(std::optional<const llvm::CallBase*> call_, const ValuePath path_) {
+    if (call_) {
+      call = std::move(call_);
+    }
+    path = std::move(path_);
+  }
   // The "call" is the initial call the ValuePath is constructed on
   // may be none if RootType calculates the root type based on an alloca
   std::optional<const llvm::CallBase*> call;
@@ -132,4 +149,4 @@ struct CallValuePath final {
 
 }  // namespace dimeta::dataflow
 
-#endif
+#endif /* LIB_TYPE_VALUEPATH */

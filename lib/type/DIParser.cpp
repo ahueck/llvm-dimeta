@@ -39,6 +39,8 @@ class DIEventVisitor : public visitor::DINodeVisitor<DIEventVisitor> {
 
   bool visitBasicType(const llvm::DIBasicType*);
 
+  bool visitStringType(const llvm::DIStringType*);
+
   bool visitDerivedType(const llvm::DIDerivedType*);
 
   bool visitCompositeType(const llvm::DICompositeType*);
@@ -49,6 +51,8 @@ class DIEventVisitor : public visitor::DINodeVisitor<DIEventVisitor> {
   bool visitRecurringCompositeType(const llvm::DICompositeType*);
 
   void leaveBasicType(const llvm::DIBasicType*);
+
+  void leaveStringType(const llvm::DIStringType*);
 
   void leaveCompositeType(const llvm::DICompositeType*);
 
@@ -80,6 +84,12 @@ bool DIEventVisitor::visitBasicType(const llvm::DIBasicType* basic_type) {
 
   events_.make_fundamental(current_);
 
+  return true;
+}
+
+bool DIEventVisitor::visitStringType(const llvm::DIStringType* string_type) {
+  current_.type = const_cast<llvm::DIStringType*>(string_type);
+  events_.make_string(current_);
   return true;
 }
 
@@ -206,6 +216,12 @@ bool DIEventVisitor::visitCompositeType(const llvm::DICompositeType* composite_t
     current_.is_vector = composite_type->isVector();
     current_.dwarf_tags.emplace_back(current_.is_vector ? static_cast<unsigned>(state::CustomDwarfTag::kVector)
                                                         : static_cast<unsigned>(llvm::dwarf::DW_TAG_array_type));
+    if (composite_type->getRawAssociated()) {
+      // Fortran pointer allocations use "associated" tag
+      LOG_DEBUG("Associated: array of pointer")
+      current_.dwarf_tags.emplace_back(llvm::dwarf::DW_TAG_pointer_type);
+    }
+
     current_.arrays.emplace_back(
         state::MetaData::ArrayData{composite_type->getSizeInBits(), Extent{0}, {}, composite_type->isVector()});
     // current_.array_size_bits =composite_type->getSizeInBits();
@@ -268,6 +284,10 @@ void DIEventVisitor::leaveCompositeType(const llvm::DICompositeType* composite_t
 }
 
 void DIEventVisitor::leaveBasicType(const llvm::DIBasicType*) {
+  current_ = state::MetaData{};
+}
+
+void DIEventVisitor::leaveStringType(const llvm::DIStringType*) {
   current_ = state::MetaData{};
 }
 

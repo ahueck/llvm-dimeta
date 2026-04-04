@@ -65,6 +65,11 @@ class DIPrinter : public visitor::DINodeVisitor<DIPrinter> {
     return true;
   }
 
+  bool visitStringType(const llvm::DIStringType* string_type) {
+    outp_ << llvm::left_justify("", width() + 3) << no_pointer_str(*string_type) << "\n";
+    return true;
+  }
+
   bool visitDerivedType(const llvm::DIDerivedType* derived_type) {
     outp_ << llvm::left_justify("", width()) << no_pointer_str(*derived_type) << "\n";
     return true;
@@ -100,11 +105,12 @@ struct DestructureComposite : visitor::DINodeVisitor<DestructureComposite> {
   bool visitCompositeType(const llvm::DICompositeType* composite) const {
     LOG_DEBUG("visitCompositeType: " << log::ditype_str(composite) << ": " << composite->getName()
                                      << " index: " << byte_index_ << " offset base: " << this->offset_base_);
-    return true;
+    return !terminate;
   }
 
   bool visitDerivedType(const llvm::DIDerivedType* derived_ty) {
-    if (derived_ty->getTag() != llvm::dwarf::DW_TAG_member) {
+    // if (derived_ty->getTag() != llvm::dwarf::DW_TAG_member) {
+    if (!util::is_non_static_member(*derived_ty)) {
       return true;
     }
     // assert(derived_ty->getTag() == llvm::dwarf::DW_TAG_member && "Expected member element in composite ty");
@@ -124,10 +130,10 @@ struct DestructureComposite : visitor::DINodeVisitor<DestructureComposite> {
 
       this->outermost_candidate_.emplace(StructMember{const_cast<llvm::DIDerivedType*>(derived_ty), member_base_type});
 
-      if (is_pointer_like(*member_base_type) || member_base_type->getTag() == llvm::dwarf::DW_TAG_array_type) {
-        LOG_DEBUG("Terminating recursion, found pointer-like "
-                  << is_pointer_like(*member_base_type) << " or array-like "
-                  << (member_base_type->getTag() == llvm::dwarf::DW_TAG_array_type))
+      if (is_pointer_like(*member_base_type) || is_array(*member_base_type)) {
+        LOG_DEBUG("Terminating recursion, found pointer-like " << is_pointer_like(*member_base_type)
+                                                               << " or array-like " << is_array(*member_base_type))
+        terminate = true;
         return false;  // if offset matches, and its a pointer-like, we do not need to recurse.
       }
 
@@ -145,6 +151,7 @@ struct DestructureComposite : visitor::DINodeVisitor<DestructureComposite> {
   size_t byte_index_;
   size_t offset_base_{};
   std::optional<StructMember> outermost_candidate_{};
+  bool terminate{false};
 };
 
 std::optional<StructMember> resolve_byte_offset_to_member_of(const llvm::DICompositeType* composite, size_t offset) {
@@ -153,9 +160,10 @@ std::optional<StructMember> resolve_byte_offset_to_member_of(const llvm::DICompo
   return visitor.result();
 }
 
-bool is_pointer(const llvm::DIType& di_type) {
+bool is_pointer(const llvm::DIType& di_type, bool count_reference) {
   if (const auto* type = llvm::dyn_cast<llvm::DIDerivedType>(&di_type)) {
-    return type->getTag() == llvm::dwarf::DW_TAG_reference_type || type->getTag() == llvm::dwarf::DW_TAG_pointer_type;
+    return (type->getTag() == llvm::dwarf::DW_TAG_reference_type && count_reference) ||
+           type->getTag() == llvm::dwarf::DW_TAG_pointer_type;
   }
   return false;
 }
@@ -229,6 +237,30 @@ bool is_array_member(const llvm::DINode& elem) {
 bool is_array(const llvm::DINode& elem) {
   auto comp = llvm::dyn_cast<llvm::DICompositeType>(&elem);
   return (comp != nullptr) && comp->getTag() == llvm::dwarf::DW_TAG_array_type;
+}
+
+bool is_string(const llvm::DINode& elem) {
+  return elem.getTag() == llvm::dwarf::DW_TAG_string_type;
+}
+
+bool is_inheritance(const llvm::DINode& elem) {
+  return elem.getTag() == llvm::dwarf::DW_TAG_inheritance;
+}
+
+bool is_enum(const llvm::DINode& elem) {
+  return elem.getTag() == llvm::dwarf::DW_TAG_enumeration_type;
+}
+
+bool is_struct_or_class(const llvm::DINode& elem) {
+  return elem.getTag() == llvm::dwarf::DW_TAG_structure_type || elem.getTag() == llvm::dwarf::DW_TAG_class_type;
+}
+
+bool is_typedef(const llvm::DINode& elem) {
+  return elem.getTag() == llvm::dwarf::DW_TAG_typedef;
+}
+
+bool is_union(const llvm::DINode& elem) {
+  return elem.getTag() == llvm::dwarf::DW_TAG_union_type;
 }
 
 }  // namespace dimeta::di::util

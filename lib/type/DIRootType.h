@@ -5,8 +5,8 @@
 //  SPDX-License-Identifier: BSD-3-Clause
 //
 
-#ifndef DIMETA_DIROOTTYPE_H
-#define DIMETA_DIROOTTYPE_H
+#ifndef LIB_TYPE_DIROOTTYPE
+#define LIB_TYPE_DIROOTTYPE
 
 #include <optional>
 
@@ -25,4 +25,4 @@ std::optional<llvm::DIType*> find_type_root(const dataflow::CallValuePath& path)
 
 }
 
-#endif
+#endif /* LIB_TYPE_DIROOTTYPE */

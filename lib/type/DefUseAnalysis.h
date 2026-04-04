@@ -5,8 +5,8 @@
 //  SPDX-License-Identifier: BSD-3-Clause
 //
 
-#ifndef DIMETA_DEFUSEANALYSIS_H
-#define DIMETA_DEFUSEANALYSIS_H
+#ifndef LIB_TYPE_DEFUSEANALYSIS
+#define LIB_TYPE_DEFUSEANALYSIS
 
 #include "Util.h"
 #include "ValuePath.h"
@@ -124,4 +124,4 @@ struct DefUseChain {
 
 }  // namespace dimeta::dataflow
 
-#endif  // DIMETA_DEFUSEANALYSIS_H
+#endif /* LIB_TYPE_DEFUSEANALYSIS */

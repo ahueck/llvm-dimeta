@@ -27,6 +27,15 @@ class Module;
 
 namespace dimeta {
 
+struct ShapeData {
+  struct IndexDim {
+    std::int64_t index{-1};
+    std::int64_t dim{0};
+    llvm::Value* dim_value{nullptr};
+  };
+  std::vector<IndexDim> shapes;
+};
+
 using DimetaDIVariable = std::variant<llvm::DILocalVariable*, llvm::DIGlobalVariable*>;
 
 struct DimetaData {
@@ -36,6 +45,7 @@ struct DimetaData {
   std::optional<llvm::DIType*> entry_type{};       // determined to be the allocation including "pointer" DITypes
   std::optional<llvm::DIType*> base_type{};        // The base type (int, struct X...) of the allocated memory
   std::optional<llvm::DILocation*> di_location{};  // Loc of call (malloc etc.)/alloca. Not set for global
+  std::optional<ShapeData> shape_descriptor{};     // For Fortran: the shape of the array
   int pointer_level{0};                            // e.g., 1 -> int*, 2 -> int**, etc.
 };
 
