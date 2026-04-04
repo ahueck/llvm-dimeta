@@ -46,9 +46,9 @@ struct DefUseChain {
     if (working_set_.empty()) {
       return ValuePath{};
     }
-    auto* user_iter = working_set_.end() - 1;
-    working_set_.erase(user_iter);
-    return *user_iter;
+    ValuePath val = std::move(working_set_.back());
+    working_set_.pop_back();
+    return val;
   }
 
   template <typename ShouldSearchFn, typename SDirectionFn, typename CallBackFn>
@@ -106,7 +106,7 @@ struct DefUseChain {
         std::forward<ShouldSearchFn>(should_search),
         [](const ValuePath& val) -> std::optional<decltype(val.value().value()->users())> {
           const auto value = val.value();
-          if (!value) {
+          if (!value || !value.value()) {
             return {};
           }
           return value.value()->users();
