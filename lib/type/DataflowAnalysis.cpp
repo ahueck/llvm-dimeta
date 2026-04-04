@@ -468,7 +468,7 @@ bool passed_to_fortran_helper(const llvm::Value* start) {
   value_traversal.traverse(
       start,
       [&](const ValuePath& path) {
-        if (auto call = llvm::dyn_cast<llvm::CallBase>(*path.value())) {
+        if (auto call = llvm::dyn_cast_or_null<llvm::CallBase>(path.value().value_or(nullptr))) {
           if (call->getCalledFunction() != nullptr) {
             auto fn_name = call->getCalledFunction()->getName();
             if (util::starts_with_any_of(fn_name, "_FortranA") && fn_name != "_FortranAioOutputAscii") {
