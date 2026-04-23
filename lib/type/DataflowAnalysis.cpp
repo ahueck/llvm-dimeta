@@ -446,8 +446,13 @@ std::optional<ShapeData> shape_from_value(const llvm::Value* start) {
                                        "_FortranAPointerSetBounds")) {
             // shape = call->getOperand(3);
             // LOG_DEBUG("Found shape: " << *shape.value())
-            const auto dim = get_as_int(call->getOperand(3));
-            data.shapes.emplace_back(ShapeData::IndexDim{get_as_int(call->getOperand(1)), dim});
+            const auto dim2       = get_as_int(call->getOperand(3));
+            const auto dim1       = get_as_int(call->getOperand(2));
+            std::int64_t dim_size = dim2;
+            if (dim1 >= 0) {
+              dim_size = dim2 - dim1 + 1;
+            }
+            data.shapes.emplace_back(ShapeData::IndexDim{get_as_int(call->getOperand(1)), dim_size});
             return DefUseChain::kContinue;
           }
         }
