@@ -20,7 +20,7 @@ struct A {
 };
 
 // Use a pointer to member variable (A::*ptr)
-double* foo(A* ar, B A::* member_pointer) {
+double* foo(A* ar, B A::*member_pointer) {
   // CHECK: Final Type: {{.*}} = !DIBasicType(name: "double",
   (ar->*member_pointer).x = static_cast<double*>(malloc(sizeof(double)));
   return nullptr;

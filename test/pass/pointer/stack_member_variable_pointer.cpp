@@ -6,7 +6,7 @@ class Domain {
 };
 
 void foo() {
-  int Domain::* pointer_to = &Domain::m;
+  int Domain::*pointer_to = &Domain::m;
 }
 
 // CHECK: Builtin:         true

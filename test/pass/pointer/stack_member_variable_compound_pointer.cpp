@@ -9,7 +9,7 @@ class Domain {
 };
 
 void foo() {
-  MemberS Domain::* pointer_to = &Domain::m;
+  MemberS Domain::*pointer_to = &Domain::m;
 }
 
 // CHECK:Builtin:         false
