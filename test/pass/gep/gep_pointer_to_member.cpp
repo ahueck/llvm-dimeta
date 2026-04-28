@@ -23,7 +23,7 @@ A k_astruct;
 B k_bstruct;
 
 // Use a pointer to member variable (A::*ptr)
-void foo(A* ar, B A::*member_pointer) {
+void foo(A* ar, B A::* member_pointer) {
   // CHECK: Final Type: {{.*}} = !DIBasicType(name: "double",
   (ar->*member_pointer).x = static_cast<double*>(malloc(sizeof(double)));
 }
