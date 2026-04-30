@@ -112,6 +112,7 @@ set(DIMETA_SUITES
   pass/cuda
   pass/hip
   pass/fortran
+  pass/mpi
 )
 
 include(ProcessorCount)
