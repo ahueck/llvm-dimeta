@@ -16,7 +16,7 @@
 
 namespace dimeta::memory {
 
-enum class MemOpKind : uint8_t {
+enum class MemOpKind : uint16_t {
   kNewLike           = 1 << 0,  // allocates, never null
   kMallocLike        = 1 << 1,  // allocates, maybe null
   kAlignedAllocLike  = 1 << 2,  // allocates aligned, maybe null
@@ -25,6 +25,7 @@ enum class MemOpKind : uint8_t {
   kNewCppLike        = ((1 << 5) | kNewLike),
   kCudaMallocLike    = 1 << 6,
   kFortranMallocLike = 1 << 7,
+  kMpiMallocLike     = 1 << 8,
 };
 
 namespace detail {
@@ -75,6 +76,15 @@ struct MemOps {
     return detail::has_value(value, MemOpKind::kFortranMallocLike);
   }
 
+  [[nodiscard]] inline bool isMpiLike(llvm::StringRef function) const {
+    auto kind = allocKind(function);
+    if (!kind) {
+      return false;
+    }
+    const auto value = kind.value();
+    return detail::has_value(value, MemOpKind::kMpiMallocLike);
+  }
+
  private:
   const llvm::StringMap<MemOpKind> alloc_map_{
       {"malloc", MemOpKind::kMallocLike},
@@ -120,7 +130,7 @@ struct MemOps {
       {"hipExtMallocWithFlags", MemOpKind::kCudaMallocLike},
       {"_FortranAAllocatableAllocate", MemOpKind::kFortranMallocLike},
       {"_FortranAPointerAllocate", MemOpKind::kFortranMallocLike},
-
+      {"MPI_Alloc_mem", MemOpKind::kMpiMallocLike},
   };
 };
 

@@ -186,6 +186,12 @@ std::optional<DimetaData> type_for(const llvm::CallBase* call) {
     // }
   }
 
+  const auto is_mpi_like = mem_ops.isMpiLike(cb_fun->getName());
+  if (is_mpi_like) {
+    LOG_DEBUG("Type for MPI-like " << cb_fun->getName())
+    extracted_type = experimental::di_type_for(call->getOperand(2));
+  }
+
   const auto is_cxx_new = mem_ops.isNewLike(cb_fun->getName());
 
 #ifdef DIMETA_USE_HEAPALLOCSITE
