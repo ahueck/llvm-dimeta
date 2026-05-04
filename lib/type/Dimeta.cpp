@@ -71,6 +71,136 @@ namespace experimental {
 std::optional<llvm::DIType*> di_type_for(const llvm::Value* value);
 }
 
+std::optional<llvm::DIType*> type_for_malloclike(const llvm::CallBase* call);
+std::optional<llvm::DIType*> type_for_newlike(const llvm::CallBase* call);
+auto final_ditype(std::optional<llvm::DIType*> root_ditype) -> std::pair<std::optional<llvm::DIType*>, int>;
+
+namespace {
+
+enum class CallBaseTypeSource {
+  kReturnValueForwardThenBackward,
+  kArgumentBackward,
+  kFortranDescriptor,
+  kHeapAllocSite,
+};
+
+struct ResolvedCallBaseTypeConfig {
+  CallBaseTypeSource source;
+  unsigned argument_index{0};
+  int pointer_level_offset{0};
+};
+
+std::optional<ResolvedCallBaseTypeConfig> resolve_auto_callbase_config(const llvm::CallBase* call) {
+  if (call == nullptr) {
+    return {};
+  }
+
+  auto* cb_fun = call->getCalledFunction();
+  if (cb_fun == nullptr) {
+    return {};
+  }
+
+  const dimeta::memory::MemOps mem_ops;
+  if (!mem_ops.isAlloc(cb_fun->getName())) {
+    LOG_TRACE("Skipping call base: " << cb_fun->getName());
+    return {};
+  }
+
+  if (mem_ops.isFortranLike(cb_fun->getName())) {
+    return ResolvedCallBaseTypeConfig{CallBaseTypeSource::kFortranDescriptor, 0, 0};
+  }
+
+  if (mem_ops.isCudaLike(cb_fun->getName())) {
+    return ResolvedCallBaseTypeConfig{CallBaseTypeSource::kArgumentBackward, 0, 0};
+  }
+
+  if (mem_ops.isMpiLike(cb_fun->getName())) {
+    return ResolvedCallBaseTypeConfig{CallBaseTypeSource::kArgumentBackward, 2, 0};
+  }
+
+#ifdef DIMETA_USE_HEAPALLOCSITE
+  if (mem_ops.isNewLike(cb_fun->getName()) && call->getMetadata("heapallocsite") != nullptr) {
+    return ResolvedCallBaseTypeConfig{CallBaseTypeSource::kHeapAllocSite, 0, 1};
+  }
+#endif
+
+  return ResolvedCallBaseTypeConfig{CallBaseTypeSource::kReturnValueForwardThenBackward, 0, 0};
+}
+
+std::optional<ResolvedCallBaseTypeConfig> resolve_callbase_config(const llvm::CallBase* call,
+                                                                  const CallBaseTypeConfig& config) {
+  if (call == nullptr) {
+    return {};
+  }
+
+  if (config.dataflow == CallBaseTypeConfig::Dataflow::kAuto) {
+    return resolve_auto_callbase_config(call);
+  }
+
+  if (config.dataflow == CallBaseTypeConfig::Dataflow::kArgumentBackward) {
+    if (config.argument_index >= call->arg_size()) {
+      LOG_DEBUG("Invalid argument index for callbase config: " << config.argument_index);
+      return {};
+    }
+    return ResolvedCallBaseTypeConfig{CallBaseTypeSource::kArgumentBackward, config.argument_index,
+                                      config.pointer_level_offset};
+  }
+
+  if (config.dataflow == CallBaseTypeConfig::Dataflow::kReturnValueForwardThenBackward) {
+    return ResolvedCallBaseTypeConfig{CallBaseTypeSource::kReturnValueForwardThenBackward, 0,
+                                      config.pointer_level_offset};
+  }
+
+  return {};
+}
+
+std::optional<DimetaData> type_for_resolved_callbase(const llvm::CallBase* call,
+                                                     const ResolvedCallBaseTypeConfig& config) {
+  if (call == nullptr) {
+    return {};
+  }
+
+  std::optional<llvm::DIType*> extracted_type{};
+  std::optional<ShapeData> shape_type{};
+  int pointer_level_offset{config.pointer_level_offset};
+
+  switch (config.source) {
+    case CallBaseTypeSource::kArgumentBackward: {
+      extracted_type = experimental::di_type_for(call->getArgOperand(config.argument_index));
+      break;
+    }
+    case CallBaseTypeSource::kReturnValueForwardThenBackward: {
+      extracted_type = type_for_malloclike(call);
+      break;
+    }
+    case CallBaseTypeSource::kFortranDescriptor: {
+      if (call->arg_size() == 0) {
+        return {};
+      }
+      auto fortran_type = fortran::di_type_for(call->getArgOperand(0), call);
+      if (fortran_type) {
+        extracted_type = fortran_type->type;
+        if (fortran_type->shape_argument) {
+          shape_type = fortran_type->shape_argument;
+        }
+      }
+      break;
+    }
+    case CallBaseTypeSource::kHeapAllocSite: {
+      extracted_type = type_for_newlike(call);
+      break;
+    }
+  }
+
+  auto source_loc                        = difinder::find_location(call);
+  const auto [final_type, pointer_level] = final_ditype(extracted_type);
+
+  return DimetaData{DimetaData::MemLoc::kHeap,           {}, extracted_type, final_type, source_loc, shape_type,
+                    pointer_level + pointer_level_offset};
+}
+
+}  // namespace
+
 llvm::SmallVector<llvm::DIType*, 4> collect_types(const llvm::CallBase* call,
                                                   llvm::ArrayRef<dataflow::ValuePath> paths_to_type) {
   using namespace llvm;
@@ -138,86 +268,28 @@ std::optional<llvm::DIType*> type_for_newlike(const llvm::CallBase* call) {
   return {};
 }
 
-std::optional<DimetaData> type_for(const llvm::CallBase* call) {
-  using namespace llvm;
-  const dimeta::memory::MemOps mem_ops;
-
-  auto* cb_fun = call->getCalledFunction();
-  if (!cb_fun) {
-    return {};
-  }
-
-  if (!mem_ops.isAlloc(cb_fun->getName())) {
-    LOG_TRACE("Skipping call base: " << cb_fun->getName());
-    return {};
-  }
-
-  std::optional<llvm::DIType*> extracted_type{};
-  std::optional<ShapeData> shape_type{};
-  int pointer_level_offset{0};
-
-  const auto is_fortran_like = mem_ops.isFortranLike(cb_fun->getName());
-  if (is_fortran_like) {
-    LOG_DEBUG("Type for fortran-like " << cb_fun->getName())
-    auto fortran_type = fortran::di_type_for(call->getOperand(0), call);
-    if (fortran_type) {
-      extracted_type = fortran_type->type;
-      if (fortran_type->shape_argument) {
-        shape_type = fortran_type->shape_argument;
-      }
-    }
-  }
-
-  const auto is_cuda_like = mem_ops.isCudaLike(cb_fun->getName());
-  if (is_cuda_like) {
-    LOG_DEBUG("Type for cuda-like " << cb_fun->getName())
-    extracted_type = experimental::di_type_for(call->getOperand(0));
-
-    // when wrapped in, e.g., cudaMalloc<float>(float**, ...), we remove one pointer level:
-    // auto* parent    = call->getFunction();
-    // const auto name = std::string{cb_fun->getName()} + "<";
-    // LOG_DEBUG(name << " vs. " << util::try_demangle(*makeparent))
-    // if (extracted_type && util::try_demangle(*parent).find(name) != std::string::npos) {
-    //   LOG_DEBUG("Reset cuda-like pointer level")
-    //   auto ditype = llvm::dyn_cast<llvm::DIDerivedType>(extracted_type.value());
-    //   if (ditype->getTag() == llvm::dwarf::DW_TAG_pointer_type) {
-    //     extracted_type = ditype->getBaseType();
-    //   }
-    // }
-  }
-
-  const auto is_mpi_like = mem_ops.isMpiLike(cb_fun->getName());
-  if (is_mpi_like) {
-    LOG_DEBUG("Type for MPI-like " << cb_fun->getName())
-    extracted_type = experimental::di_type_for(call->getOperand(2));
-  }
-
-  const auto is_cxx_new = mem_ops.isNewLike(cb_fun->getName());
-
-#ifdef DIMETA_USE_HEAPALLOCSITE
-  if (is_cxx_new) {
-    if (call->getMetadata("heapallocsite")) {
-      LOG_TRACE("Type for new-like " << cb_fun->getName())
-      extracted_type = type_for_newlike(call);
-      // !heapallocsite gives the type after "new", i.e., new int -> int, new int*[n] -> int*.
-      // Our malloc-related algorithm would return int* and int** respectively, however, hence:
-      pointer_level_offset += 1;
+std::optional<DimetaData> type_for(const llvm::CallBase* call, const CallBaseTypeConfig& config) {
+  auto resolved = resolve_callbase_config(call, config);
+  if (!resolved) {
+    if (config.dataflow == CallBaseTypeConfig::Dataflow::kAuto) {
+      LOG_TRACE("Skipping call base in auto mode.");
     } else {
-      LOG_DEBUG("new-like allocation does not have heapallocsite metadata.")
+      LOG_DEBUG("Could not resolve explicit callbase type configuration.");
     }
+    return {};
   }
-#endif
 
-  if (!extracted_type) {
-    LOG_DEBUG("Type for malloc-like: " << cb_fun->getName())
-    extracted_type = type_for_malloclike(call);
+  auto result = type_for_resolved_callbase(call, *resolved);
+  if (!result) {
+    return {};
   }
-  auto source_loc                        = difinder::find_location(call);
-  const auto [final_type, pointer_level] = final_ditype(extracted_type);
-  const auto meta =
-      DimetaData{DimetaData::MemLoc::kHeap,           {}, extracted_type, final_type, source_loc, shape_type,
-                 pointer_level + pointer_level_offset};
-  return meta;
+
+  if (config.dataflow != CallBaseTypeConfig::Dataflow::kAuto && !result->entry_type) {
+    LOG_DEBUG("Explicit callbase type extraction failed.");
+    return {};
+  }
+
+  return result;
 }
 
 std::optional<DimetaData> type_for(const llvm::AllocaInst* ai) {

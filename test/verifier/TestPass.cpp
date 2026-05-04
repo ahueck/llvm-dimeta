@@ -42,10 +42,13 @@
 #include <iterator>
 #include <llvm/IR/Instruction.h>
 #include <llvm/Support/YAMLTraits.h>
+#include <cerrno>
+#include <cstdlib>
 #include <optional>
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <type_traits>
 
 namespace llvm {
 class PointerType;
@@ -59,6 +62,8 @@ static cl::opt<bool> cl_dimeta_test_print_tree("dump-tree", cl::init(false));
 static cl::opt<bool> cl_dimeta_test_stack_pointer("stack-pointer-skip", cl::init(false));
 static cl::opt<bool> cl_dimeta_test_print("dump", cl::init(false));
 static cl::opt<bool> cl_dimeta_test_kernel_call("kernel-call", cl::init(false));
+static cl::opt<std::string> cl_dimeta_test_callbase_mode("callbase-mode", cl::init("auto"));
+static cl::opt<unsigned> cl_dimeta_test_callbase_arg("callbase-arg", cl::init(0));
 
 namespace dimeta::test {
 
@@ -147,6 +152,34 @@ bool variable_is_toggled(const T& var, std::string_view env_name) {
   const char* env_value = std::getenv(env_name.data());
   if (env_value != nullptr) {
     return std::string_view{env_value}.compare("1") == 0;
+  }
+  return var.getValue();
+}
+
+inline std::string variable_or_env_string(const cl::opt<std::string>& var, std::string_view env_name) {
+  if (var.getNumOccurrences() > 0) {
+    return var.getValue();
+  }
+  const char* env_value = std::getenv(env_name.data());
+  if (env_value != nullptr) {
+    return env_value;
+  }
+  return var.getValue();
+}
+
+inline unsigned variable_or_env_unsigned(const cl::opt<unsigned>& var, std::string_view env_name) {
+  if (var.getNumOccurrences() > 0) {
+    return var.getValue();
+  }
+  const char* env_value = std::getenv(env_name.data());
+  if (env_value != nullptr) {
+    char* end_ptr = nullptr;
+    errno         = 0;
+    auto value    = std::strtoul(env_value, &end_ptr, 10);
+    if (errno == 0 && end_ptr != env_value && *end_ptr == '\0') {
+      return static_cast<unsigned>(value);
+    }
+    return var.getValue();
   }
   return var.getValue();
 }
@@ -240,8 +273,45 @@ class TestPass : public llvm::PassInfoMixin<TestPass> {
 
     LOG_MSG("\nFunction: " << f_name << ":");
 
+    const auto callbase_mode = util::variable_or_env_string(cl_dimeta_test_callbase_mode, "DIMETA_TEST_CALLBASE_MODE");
+    const auto callbase_arg  = util::variable_or_env_unsigned(cl_dimeta_test_callbase_arg, "DIMETA_TEST_CALLBASE_ARG");
+
+    const auto make_callbase_config = [&]() -> std::optional<CallBaseTypeConfig> {
+      if (callbase_mode == "auto") {
+        return {};
+      }
+
+      CallBaseTypeConfig config;
+      config.argument_index = callbase_arg;
+
+      if (callbase_mode == "return-flow") {
+        config.dataflow = CallBaseTypeConfig::Dataflow::kReturnValueForwardThenBackward;
+        return config;
+      }
+
+      if (callbase_mode == "argument-backward") {
+        config.dataflow = CallBaseTypeConfig::Dataflow::kArgumentBackward;
+        return config;
+      }
+
+      LOG_ERROR("Unsupported callbase mode: " << callbase_mode)
+      return {};
+    }();
+
     const auto get_located_type = [&](auto* call_inst) -> std::optional<LocatedType> {
-      auto located_type = located_type_for(call_inst);
+      auto located_type = [&]() -> std::optional<LocatedType> {
+        if constexpr (std::is_same_v<std::remove_pointer_t<decltype(call_inst)>, llvm::CallBase>) {
+          if (callbase_mode == "auto") {
+            return located_type_for(call_inst);
+          }
+          if (!make_callbase_config) {
+            return {};
+          }
+          return located_type_for(call_inst, make_callbase_config.value());
+        }
+        return located_type_for(call_inst);
+      }();
+
       if (located_type) {
         LOG_DEBUG(util::print_loc(located_type->location));
         return located_type;
@@ -286,8 +356,17 @@ class TestPass : public llvm::PassInfoMixin<TestPass> {
 
     for (auto& inst : llvm::instructions(func)) {
       if (auto* call_inst = dyn_cast<CallBase>(&inst)) {
-        auto ditype_meta = type_for(call_inst);
-        if (ditype_meta) {
+        auto ditype_meta = [&]() -> std::optional<DimetaData> {
+          if (callbase_mode == "auto") {
+            return type_for(call_inst);
+          }
+          if (!make_callbase_config) {
+            return {};
+          }
+          return type_for(call_inst, make_callbase_config.value());
+        }();
+
+        if (ditype_meta && ditype_meta->entry_type) {
           LOG_DEBUG("Type for heap-like: " << *call_inst)
           LOG_DEBUG(util::to_string(ditype_meta.value()) << "\n");
           // auto result = located_type_for(ditype_meta.value());

@@ -49,6 +49,22 @@ function dimeta_test_parse_cmd_line_fn() {
       fi
       shift
     ;;
+    -callbase-mode=*)
+      if [ "@NEW_PM_REQUIRED@" ==  "1" ]; then
+        export DIMETA_TEST_CALLBASE_MODE="${1#*=}"
+      else
+        dimeta_test_pass_wrapper_more_args+=" $1"
+      fi
+      shift
+    ;;
+    -callbase-arg=*)
+      if [ "@NEW_PM_REQUIRED@" ==  "1" ]; then
+        export DIMETA_TEST_CALLBASE_ARG="${1#*=}"
+      else
+        dimeta_test_pass_wrapper_more_args+=" $1"
+      fi
+      shift
+    ;;
     -instcombine)
       if [ "@NEW_PM_REQUIRED@" ==  "1" ]; then
         dimeta_test_pass_wrapper_more_args+=" -passes=instcombine"    

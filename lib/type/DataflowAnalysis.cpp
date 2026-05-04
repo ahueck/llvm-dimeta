@@ -89,7 +89,10 @@ llvm::SmallVector<ValuePath, 4> type_for_heap_call(const llvm::CallBase* call) {
   MallocTargetMatcher malloc_anchor_backtrack;
   MallocBacktrackSearch backtrack_search_dir_fn;
 
-  assert(!malloc_forward_anchor_finder.anchors.empty() && "Anchor should not be empty");
+  if (malloc_forward_anchor_finder.anchors.empty()) {
+    LOG_DEBUG("No anchors found for heap-call dataflow")
+    return {};
+  }
   llvm::SmallVector<ValuePath, 4> ditype_paths;
 
   for (const auto& anchor_path : malloc_forward_anchor_finder.anchors) {
