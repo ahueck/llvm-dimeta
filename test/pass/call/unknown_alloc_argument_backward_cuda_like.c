@@ -1,5 +1,6 @@
 // RUN: %c-to-llvm %s | %apply-verifier -callbase-mode=argument-backward -callbase-arg=0 2>&1 | %filecheck %s
-// RUN: %c-to-llvm %s | %opt -O1 -S | %apply-verifier -callbase-mode=argument-backward -callbase-arg=0 2>&1 | %filecheck %s
+// RUN: %c-to-llvm %s | %opt -O1 -S | %apply-verifier -callbase-mode=argument-backward -callbase-arg=0 2>&1 | \
+// RUN: %filecheck %s
 
 extern int custom_cuda_alloc(void** devPtr, int size);
 
