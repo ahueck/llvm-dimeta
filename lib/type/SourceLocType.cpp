@@ -165,8 +165,13 @@ std::optional<LocatedType> located_type_for(const llvm::AllocaInst* ai) {
   return get_located_type(ai);
 }
 
-std::optional<LocatedType> located_type_for(const llvm::CallBase* cb) {
-  return get_located_type(cb);
+std::optional<LocatedType> located_type_for(const llvm::CallBase* cb, const CallBaseTypeConfig& config) {
+  auto type_data = type_for(cb, config);
+  if (!type_data) {
+    LOG_DEBUG("Could not determine type.");
+    return {};
+  }
+  return located_type_for(type_data.value());
 }
 
 std::optional<LocatedType> located_type_for(const llvm::GlobalVariable* gv) {
