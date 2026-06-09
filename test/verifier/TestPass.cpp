@@ -1,5 +1,5 @@
 //  Dimeta library
-//  Copyright (c) 2022-2025 llvm-dimeta authors
+//  Copyright (c) 2022-2026 llvm-dimeta authors
 //  Distributed under the BSD 3-Clause license.
 //  (See accompanying file LICENSE)
 //  SPDX-License-Identifier: BSD-3-Clause
