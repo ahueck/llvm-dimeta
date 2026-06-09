@@ -1,5 +1,6 @@
 // RUN: %c-to-llvm %s | %apply-verifier 2>&1 | %filecheck %s
 // RUN: %c-to-llvm %s | %opt -O2 -S | %apply-verifier 2>&1 | %filecheck %s
+// RUN: %c-to-llvm %s | %apply-verifier -callbase-mode=argument-backward -callbase-arg=0 2>&1 | %filecheck %s
 
 extern int cudaMalloc(void** devPtr, int size);
 

@@ -1,5 +1,5 @@
 //  llvm-dimeta library
-//  Copyright (c) 2022-2025 llvm-dimeta authors
+//  Copyright (c) 2022-2026 llvm-dimeta authors
 //  Distributed under the BSD 3-Clause license.
 //  (See accompanying file LICENSE)
 //  SPDX-License-Identifier: BSD-3-Clause
@@ -10,6 +10,7 @@
 
 #include "DimetaData.h"
 
+#include <cstdint>
 #include <optional>
 #include <variant>
 
@@ -49,9 +50,21 @@ struct DimetaData {
   int pointer_level{0};                            // e.g., 1 -> int*, 2 -> int**, etc.
 };
 
+struct CallBaseTypeConfig {
+  enum class Dataflow : std::int8_t {
+    kAuto,
+    kReturnValueForwardThenBackward,
+    kArgumentBackward,
+  };
+
+  Dataflow dataflow{Dataflow::kAuto};
+  unsigned argument_index{0};
+  int pointer_level_offset{0};
+};
+
 std::optional<DimetaData> type_for(const llvm::AllocaInst*);
 
-std::optional<DimetaData> type_for(const llvm::CallBase*);
+std::optional<DimetaData> type_for(const llvm::CallBase*, const CallBaseTypeConfig& config = CallBaseTypeConfig{});
 
 std::optional<DimetaData> type_for(const llvm::GlobalVariable*);
 
@@ -61,7 +74,8 @@ std::optional<LocatedType> located_type_for(const DimetaData&);
 
 std::optional<LocatedType> located_type_for(const llvm::AllocaInst*);
 
-std::optional<LocatedType> located_type_for(const llvm::CallBase*);
+std::optional<LocatedType> located_type_for(const llvm::CallBase*,
+                                            const CallBaseTypeConfig& config = CallBaseTypeConfig{});
 
 std::optional<LocatedType> located_type_for(const llvm::GlobalVariable*);
 

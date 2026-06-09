@@ -123,6 +123,28 @@ entry:
    Using the root type, we analyze the rest of the instruction to refine the `DIType`: The `getelementptr` instruction determines the LHS of the assignment. By using the access indices `0 0`, we trace through the debug metadata of the root node (`!16`) and identify that it points to the member pointer `!18`, which has the base type `int` (`!19`).
 
 
+#### 1.3.1 Configuring `CallBase` type queries
+
+`type_for(const llvm::CallBase*)` and `located_type_for(const llvm::CallBase*)` only type known allocators registered in [MemoryOps.h](lib/type/MemoryOps.h).
+
+Use `CallBaseTypeConfig` to apply explicit dataflow semantics to custom/unknown allocation APIs:
+
+```cpp
+if (const auto* call = llvm::dyn_cast<llvm::CallBase>(&inst)) {
+  // Strict mode: unknown calls are rejected.
+  auto auto_type = dimeta::located_type_for(call);
+  // CUDA/MPI-like API: backtrack from a specific argument.
+  dimeta::CallBaseTypeConfig arg_cfg;
+  arg_cfg.dataflow = dimeta::CallBaseTypeConfig::Dataflow::kArgumentBackward;
+  arg_cfg.argument_index = 0;  // use 2 for MPI_Alloc_mem-like APIs
+  auto arg_type = dimeta::located_type_for(call, arg_cfg);
+  // malloc-like API: follow return value forward, then backtrack.
+  dimeta::CallBaseTypeConfig ret_cfg;
+  ret_cfg.dataflow = dimeta::CallBaseTypeConfig::Dataflow::kReturnValueForwardThenBackward;
+  auto ret_type = dimeta::located_type_for(call, ret_cfg);
+}
+```
+
 ## 2. Building llvm-dimeta
 
 llvm-dimeta is tested with LLVM version 13-15 and 18-22, and CMake version >= 3.20. Use CMake presets `develop` or `release` to build.
@@ -168,4 +190,3 @@ $> cmake --build build --target check-dimeta
     pages 116-121. IEEE, 2025. DOI: <a href="https://doi.org/10.1109/SCAM67354.2025.00019">10.1109/SCAM67354.2025.00019</a></td>
 </tr>
 </table>
-

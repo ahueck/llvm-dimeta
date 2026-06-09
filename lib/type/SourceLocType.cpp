@@ -1,5 +1,5 @@
 //  llvm-dimeta library
-//  Copyright (c) 2022-2025 llvm-dimeta authors
+//  Copyright (c) 2022-2026 llvm-dimeta authors
 //  Distributed under the BSD 3-Clause license.
 //  (See accompanying file LICENSE)
 //  SPDX-License-Identifier: BSD-3-Clause
@@ -13,6 +13,7 @@
 
 #include "llvm/IR/DebugInfoMetadata.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <llvm/ADT/STLExtras.h>
@@ -102,9 +103,23 @@ void reset_pointer_qualifier(Type& type, int ptr_level) {
 
 template <typename Type>
 void reset_shape_qualifier(Type& type, const ShapeData& shape) {
+  auto ordered_shapes = shape.shapes;
+  std::stable_sort(ordered_shapes.begin(), ordered_shapes.end(), [](const auto& lhs, const auto& rhs) {
+    if (lhs.index < 0 && rhs.index < 0) {
+      return false;
+    }
+    if (lhs.index < 0) {
+      return false;
+    }
+    if (rhs.index < 0) {
+      return true;
+    }
+    return lhs.index < rhs.index;
+  });
+
   const auto add_shape = [&](auto& f) {
     f.array_size.clear();
-    for (auto index : shape.shapes) {
+    for (const auto& index : ordered_shapes) {
       f.array_size.push_back(index.dim);
     }
   };
@@ -165,8 +180,13 @@ std::optional<LocatedType> located_type_for(const llvm::AllocaInst* ai) {
   return get_located_type(ai);
 }
 
-std::optional<LocatedType> located_type_for(const llvm::CallBase* cb) {
-  return get_located_type(cb);
+std::optional<LocatedType> located_type_for(const llvm::CallBase* cb, const CallBaseTypeConfig& config) {
+  auto type_data = type_for(cb, config);
+  if (!type_data) {
+    LOG_DEBUG("Could not determine type.");
+    return {};
+  }
+  return located_type_for(type_data.value());
 }
 
 std::optional<LocatedType> located_type_for(const llvm::GlobalVariable* gv) {
